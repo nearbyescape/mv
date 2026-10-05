@@ -433,12 +433,6 @@ export function LiveSignalPanel({
               : "Waiting"}
           </span>
         </div>
-        {feed.data?.engine.session?.enabled && (
-          <p className="muted">
-            Signal session · 09:00 AM–11:00 PM IST. Market collection continues
-            around the clock.
-          </p>
-        )}
         {signal ? (
           <>
             <div className="setup-direction">
