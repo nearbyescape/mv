@@ -1,0 +1,45 @@
+{
+  "id": "MV-RESEARCH-v1",
+  "strategy": "EMA-PULLBACK-ATR-v1",
+  "symbols": ["BTCUSDT", "ETHUSDT"],
+  "history_start": "2023-10-01",
+  "cutoff_exclusive": "2026-01-01",
+  "source_policy": "Completed UTC 1H/4H OHLCV aggregated from checksum-validated 1m futures archives; retain native higher-timeframe archives and every discrepancy; not resampled indicators",
+  "partitions": [
+    { "name": "development", "start": "2024-01-01", "end": "2025-01-01" },
+    { "name": "validation", "start": "2025-01-01", "end": "2025-07-01" },
+    { "name": "final_evaluation", "start": "2025-07-01", "end": "2026-01-01" }
+  ],
+  "initial_capital_usdt": "10000",
+  "scenarios": [
+    {
+      "id": "baseline",
+      "fee_bps": "5",
+      "spread_bps": "2",
+      "slippage_bps": "2",
+      "latency_ms": 1000
+    },
+    {
+      "id": "higher_cost",
+      "fee_bps": "10",
+      "spread_bps": "4",
+      "slippage_bps": "5",
+      "latency_ms": 1000
+    },
+    {
+      "id": "delayed_entry",
+      "fee_bps": "5",
+      "spread_bps": "2",
+      "slippage_bps": "2",
+      "latency_ms": 120000
+    }
+  ],
+  "execution": "Next eligible 1m open at/after modeled publication availability; stops remain active; ambiguous intrabar stop/target is stop-first; gap stops fill adversely; full taker exits",
+  "trend_exit": "Completed 1h close <= EMA50 for long, >= EMA50 for short; next eligible modeled open",
+  "partition_boundary": "Start flat; force remaining positions flat at last minute close; no trades cross partitions; preserve original indicator seeds",
+  "sizing": "Independent equal-capital sleeves; entry notional plus fee capped to positive current sleeve cash equity; fractional research quantity; no leveraged liquidation model",
+  "funding": "Actual timestamp/rate/associated mark price; positive funding debits longs and credits shorts; absent coverage blocks replay",
+  "historical_filters": "Dated current price-filter snapshot applied across history; historical filter changes not reconstructed",
+  "uncertainty": "Deterministic 3-calendar-month moving-block bootstrap, 2000 replications; small partition samples disclosed",
+  "status": "Preregistered local research specification; no parameters selected from results"
+}

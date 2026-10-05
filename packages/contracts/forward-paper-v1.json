@@ -1,0 +1,15 @@
+{
+  "id": "MV-FORWARD-PAPER-v1",
+  "filter_spec": "MV-FILTER-STUDY-v1",
+  "symbols": ["BTCUSDT", "ETHUSDT"],
+  "policies": ["baseline", "slope", "separation"],
+  "capital_per_policy_usdt": "10000",
+  "costs": {"fee_bps": "5", "spread_bps": "2", "slippage_bps": "2", "latency_ms": 1000},
+  "duration_days": 90,
+  "observation_grace_ms": 120000,
+  "execution": "Shadow paper model only: newly completed public 1m opens plus frozen cost assumptions, stop-first ambiguity, next-minute modeled availability. Never actual fills, book quotes, account commissions or exchange orders.",
+  "start": "Next UTC minute after registration. Flat sleeves. First decision at a future UTC hour; no old setups. Uses retained live SMA-seeded EMA/Wilder ATR history, which differs from the historical replay origin.",
+  "funding": "Public actual settled rate and associated mark; enforce the current published nextFundingTime before processing due minutes. Missing settlement blocks, never treated as zero. Failure beyond observation grace freezes the run with unresolved open positions.",
+  "recovery": "Durable atomic minute/state/cursor transaction. Exact contiguous-minute recovery only within grace. No retrospective entries after an observation gap; freeze permanently, retain evidence and unresolved positions. Changed source, filters, code or contracts freeze; restart does not reset or silently resume a frozen sample.",
+  "evaluation": "At least 90 continuous calendar days and 100 closed trades per policy before assessment; insufficient sample remains inconclusive. Inspect all policies, costs, drawdown, mean R and uncertainty; no automatic winner, promotion or profitability guarantee. Frozen runs fail the continuity gate."
+}

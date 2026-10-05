@@ -1,0 +1,7 @@
+# Existing host Nginx owns HTTPS. Do not bind or replace host ports 80/443.
+services:
+  gateway:
+    profiles: [standalone-gateway]
+    ports: !reset []
+  web:
+    ports: ["127.0.0.1:43100:3100"]

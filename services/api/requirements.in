@@ -1,0 +1,11 @@
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+pydantic-settings>=2.6,<3
+sqlalchemy>=2.0,<3
+alembic>=1.14,<2
+psycopg[binary]>=3.2,<4
+httpx>=0.28,<1
+pytest>=8,<10
+websockets>=15,<18
+filelock>=3.16,<4
+argon2-cffi==25.1.0

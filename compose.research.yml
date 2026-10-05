@@ -1,0 +1,4 @@
+# Optional verified historical reports, mounted read-only and served to accounts only.
+services:
+  api:
+    volumes: ["./artifacts:/app/artifacts:ro"]

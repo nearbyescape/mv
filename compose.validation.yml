@@ -1,0 +1,13 @@
+# Uses the production stack with a separate project/volume and loopback HTTPS.
+services:
+  gateway:
+    ports: !override ["127.0.0.1:3443:443"]
+    volumes: !override ["./deploy/Caddyfile.local:/etc/caddy/Caddyfile:ro", "caddy-data:/data", "caddy-config:/config"]
+  db:
+    ports: ["127.0.0.1:55432:5432"]
+  api:
+    ports: ["127.0.0.1:58000:8000"]
+  collector:
+    profiles: [live-validation]
+  engine:
+    profiles: [live-validation]

@@ -1,0 +1,19 @@
+# Dashboard design direction
+
+An understated trading desk: evergreen navigation, warm light workspace, generous chart area, clear market hierarchy. Lime is a brand accent; green/red encode directional context. Light and dark workspace themes use the same geometry.
+
+Inter Variable supplies typography. Tabular numerals keep prices stable. Lucide supplies consistent icons. Binance completed candles, backend EMA/SMA overlays and a separate ATR pane use TradingView Lightweight Charts with visible attribution. Pan and zoom persist across market polling updates.
+
+The workflow is chosen market → chart → committed signal evidence → journal. Strategy and system views explain rules and measured operational state without invented win rates, confidence percentages or uptime statistics.
+
+Binance mode is the default. Empty/offline/stale states retain their actual status. Last completed close, UTC boundary, warm-up count and seed origin show provenance. The engine monitor waits honestly until publication. Committed plans show frozen entry references, stops, targets, expiry and status; details expose exact snapshots, checks, guards, hashes, downloads and operator events.
+
+The live journal contains backend plans only, with filters, exact-string CSV and a separate evaluation log. Explicit Demo mode labels synthetic charts, journal examples and setup illustrations. Service cards distinguish measured API/collector/engine health from future Telegram/AI services. Operator-held state is separate from exchange fills/performance. Native dialogs manage focus and Escape dismissal; evidence tables scroll internally with keyboard access, within a viewport-bounded dialog.
+
+On smaller screens, navigation becomes a drawer, panels stack, and the journal scrolls inside its table container. Chart panning stays horizontal so users can still scroll the page vertically. Reduced-motion settings disable navigation transitions.
+
+The Research workspace follows period → cost scenario → equity/risk → per-coin outcomes → evidence. It defaults to the final chronological evaluation while preserving all nine experiments, including losses and higher-cost sensitivity. Historical simulation is labeled independently from the live feed and explicit Demo mode. The chart formats backend equity only; browser floats never produce signals or accounting. Costs, actual funding, seed origins, native source discrepancies, hashes and limitations accompany downloadable report/trade/source evidence. No available report produces an honest empty state, never invented performance. Responsive metric cards, a keyboard-scrollable comparison table and the same light/dark design serve desktop and mobile.
+
+Research has four views: Historical results, Trade diagnostics & exits, Entry filters and Forward paper. Diagnostics start with the previously viewed 2024 period, compare all three exit policies under selected costs, and offer six cohort groupings. Sample counts, net expectancy, censored excursions, original control parity and exploratory labels remain visible. Entry filters separately compare slope and separation with original exits and all 27 registered experiments. Missing/offline or a mismatched baseline blocks historical comparison. No winning policy is implied.
+
+Forward paper reports measured observer status, UTC start/heartbeat, observed symbol-minute count and six independent sleeves. The state badge remains visible on mobile. Hourly equity is labeled separately from closed P&L; zero trades show no invented expectancy. Frozen samples and unresolved positions remain visible; prior frozen samples are listed separately and excluded from the new sample. Modeled fills/costs, settled-funding guards, settling delay, outage freezes and the 90-day/100-trade assessment gate explain what the user can infer from results. Backend journals supply all accounting; browser arithmetic only formats display strings and counts.

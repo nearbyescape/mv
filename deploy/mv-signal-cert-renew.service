@@ -1,0 +1,8 @@
+[Unit]
+Description=Renew only the MV Signal HTTPS certificate
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/certbot renew --config-dir /opt/mv-signal/tls --work-dir /opt/mv-signal/tls-work --logs-dir /opt/mv-signal/tls-logs --quiet --deploy-hook "/usr/sbin/nginx -t && /usr/bin/systemctl reload nginx"

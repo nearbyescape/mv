@@ -1,0 +1,448 @@
+{
+  "controlled_fixture": true,
+  "feed": {
+    "server_time": 1791046801000,
+    "engine": {
+      "state": "running",
+      "running": true,
+      "ready": true,
+      "last_decision_at": null,
+      "error": null
+    },
+    "signals": [
+      {
+        "strategy": "EMA-PULLBACK-ATR-v1",
+        "risk_policy": "RISK-ATR14-2X-2R-v1",
+        "symbol": "ETHUSDT",
+        "direction": "long",
+        "entry": "200.1",
+        "stop": "193.0",
+        "target": "214.3",
+        "frozen_atr": "3.523469387755102040816326530612244",
+        "risk_distance": "7.1",
+        "reward_distance": "14.2",
+        "reward_risk": "2",
+        "entry_drift": "0.1",
+        "spread": "0.1",
+        "tick_size": "0.1",
+        "source_open_time": 1791043200000,
+        "source_close_boundary": 1791046800000,
+        "published_at": 1791046801000,
+        "expires_at": 1791047100000,
+        "quote_time": 1791046800900,
+        "quote_received_at": 1791046801000,
+        "entry_side": "ask",
+        "execution": "signal-reference-only",
+        "id": "82b972237b6bf38b4f5da63483917cc35e9cca4c141572c5654e91d9ec4a8123",
+        "evidence_hash": "ef1f0356d1dfa400511799af1b9a46408f97d0b19935ab11cb0d5ae14c5b8280",
+        "confirmation_open_time": 1791028800000,
+        "plan_hash": "fe739ad29c9d8f81541c4e273bcc914172f3dc4e55e5b40115b58a58f9d89add",
+        "status": "active",
+        "slot": "reserved",
+        "entry_actionable": true,
+        "source_revised": false,
+        "integrity_valid": true,
+        "evidence": {
+          "strategy": "EMA-PULLBACK-ATR-v1",
+          "contract_hash": "73044355d6c75bfdb766cefe39ed97e39b74017d76eb1cbd407a4f05d2ff8be2",
+          "indicator_version": 1,
+          "decimal_precision": 34,
+          "source": {
+            "timeframe": "1h",
+            "open_time": 1791043200000,
+            "close_boundary": 1791046800000,
+            "ohlcv": {
+              "open": "190.0",
+              "high": "201",
+              "low": "189.0",
+              "close": "200",
+              "volume": "10"
+            },
+            "ema20": "197.2555555555555555555555555555556",
+            "ema50": "194.7307574009996155324875048058438",
+            "sma200": "180.051",
+            "atr": "3.523469387755102040816326530612244",
+            "bars": 501,
+            "history_origin": 1789243200000,
+            "lineage": "6ddbfaf169846d19ef74371e56b85fec3c5c4f501b52e9a691543f77f3483b9e",
+            "source_hash": "28afcbe0c09bce831478f41a837f082b61accc3b681488c8d7bb77268e938ef2"
+          },
+          "previous": {
+            "timeframe": "1h",
+            "open_time": 1791039600000,
+            "close_boundary": 1791043200000,
+            "ohlcv": {
+              "open": "199.6",
+              "high": "200.6",
+              "low": "189.0",
+              "close": "190.0",
+              "volume": "10"
+            },
+            "ema20": "196.9666666666666666666666666666667",
+            "ema50": "194.5156862745098039215686274509803",
+            "sma200": "179.851",
+            "atr": "2.871428571428571428571428571428571",
+            "bars": 500,
+            "history_origin": 1789243200000,
+            "lineage": "c800f4de42e13a8da8b4b3a0e31ce70de06f3db8fe4a7c442fb0c9399beeb5b2",
+            "source_hash": "b03fdf5c5e3c6fbe6ceffb0edf34a7fa8f595a677856f7b37ad5725984d8cdc4"
+          },
+          "confirmation": {
+            "timeframe": "4h",
+            "open_time": 1791028800000,
+            "close_boundary": 1791043200000,
+            "ohlcv": {
+              "open": "199.6",
+              "high": "200.8",
+              "low": "198.6",
+              "close": "199.8",
+              "volume": "10"
+            },
+            "ema20": "197.9000000000000000000000000000000",
+            "ema50": "194.8999999999999999999999999999999",
+            "sma200": "179.9",
+            "atr": "2.2",
+            "bars": 500,
+            "history_origin": 1783843200000,
+            "lineage": "0881d278abe90591e8b168912df9758a8a4eaa9184d1a70be5a83863513dc16d",
+            "source_hash": "81e97a4a137c8802d7d854c18c89ddf117763d9ff41ebed1820eb84ce38b0cd8"
+          },
+          "required_confirmation_open_time": 1791028800000,
+          "metadata": {
+            "symbol": "BTCUSDT",
+            "status": "TRADING",
+            "contractType": "PERPETUAL",
+            "quoteAsset": "USDT",
+            "marginAsset": "USDT",
+            "underlyingType": "COIN",
+            "filters": [
+              {
+                "filterType": "PRICE_FILTER",
+                "tickSize": "0.1",
+                "minPrice": "0.0",
+                "maxPrice": "10000"
+              },
+              {
+                "filterType": "LOT_SIZE",
+                "stepSize": "0.001",
+                "minQty": "0.001"
+              },
+              {
+                "filterType": "MIN_NOTIONAL",
+                "notional": "50"
+              }
+            ]
+          },
+          "metadata_checked_at": 1791046801000,
+          "checks": [
+            {
+              "id": "long.order_1h",
+              "passed": true
+            },
+            {
+              "id": "long.previous_close",
+              "passed": true
+            },
+            {
+              "id": "long.reclaim",
+              "passed": true
+            },
+            {
+              "id": "short.order_1h",
+              "passed": false
+            },
+            {
+              "id": "short.previous_close",
+              "passed": false
+            },
+            {
+              "id": "short.loss",
+              "passed": false
+            },
+            {
+              "id": "long.order_4h",
+              "passed": true
+            },
+            {
+              "id": "long.close_4h",
+              "passed": true
+            },
+            {
+              "id": "positive_atr",
+              "passed": true
+            }
+          ],
+          "quote": {
+            "symbol": "ETHUSDT",
+            "bid": "200.0",
+            "ask": "200.1",
+            "bid_qty": "1",
+            "ask_qty": "2",
+            "time": 1791046800900,
+            "received_at": 1791046801000,
+            "source": "binance-usdm-bookTicker"
+          },
+          "guards": {
+            "collector_live": true,
+            "both_timeframes_warmed": true,
+            "exact_confirmation": true,
+            "contract_valid": true,
+            "no_active_slot": true,
+            "source_current": true,
+            "quote_fresh": true,
+            "quote_after_close": true,
+            "entry_drift_passed": true,
+            "entry_ema20_side": true,
+            "price_filter_passed": true
+          }
+        },
+        "events": [
+          {
+            "type": "published",
+            "time": 1791046801000,
+            "detail": {
+              "evidence_hash": "ef1f0356d1dfa400511799af1b9a46408f97d0b19935ab11cb0d5ae14c5b8280"
+            }
+          }
+        ],
+        "ai": "not-configured",
+        "telegram": "not-configured"
+      },
+      {
+        "strategy": "EMA-PULLBACK-ATR-v1",
+        "risk_policy": "RISK-ATR14-2X-2R-v1",
+        "symbol": "BTCUSDT",
+        "direction": "long",
+        "entry": "200.1",
+        "stop": "193.0",
+        "target": "214.3",
+        "frozen_atr": "3.523469387755102040816326530612244",
+        "risk_distance": "7.1",
+        "reward_distance": "14.2",
+        "reward_risk": "2",
+        "entry_drift": "0.1",
+        "spread": "0.1",
+        "tick_size": "0.1",
+        "source_open_time": 1791043200000,
+        "source_close_boundary": 1791046800000,
+        "published_at": 1791046801000,
+        "expires_at": 1791047100000,
+        "quote_time": 1791046800900,
+        "quote_received_at": 1791046801000,
+        "entry_side": "ask",
+        "execution": "signal-reference-only",
+        "id": "5ca65c398327a5901d35928b0e3fe76fde8c84af0925c55c84cbc8ed11d6b6b0",
+        "evidence_hash": "4fb228d37931e0cb97dc3c5e88522e67ca036879be746237571ea3abfb61e4a0",
+        "confirmation_open_time": 1791028800000,
+        "plan_hash": "a8e3c1f0b0a31fa1285f89390a93d2722394ae16447ae3461b90307f04fdcfd8",
+        "status": "active",
+        "slot": "reserved",
+        "entry_actionable": true,
+        "source_revised": false,
+        "integrity_valid": true,
+        "evidence": {
+          "strategy": "EMA-PULLBACK-ATR-v1",
+          "contract_hash": "73044355d6c75bfdb766cefe39ed97e39b74017d76eb1cbd407a4f05d2ff8be2",
+          "indicator_version": 1,
+          "decimal_precision": 34,
+          "source": {
+            "timeframe": "1h",
+            "open_time": 1791043200000,
+            "close_boundary": 1791046800000,
+            "ohlcv": {
+              "open": "190.0",
+              "high": "201",
+              "low": "189.0",
+              "close": "200",
+              "volume": "10"
+            },
+            "ema20": "197.2555555555555555555555555555556",
+            "ema50": "194.7307574009996155324875048058438",
+            "sma200": "180.051",
+            "atr": "3.523469387755102040816326530612244",
+            "bars": 501,
+            "history_origin": 1789243200000,
+            "lineage": "6ddbfaf169846d19ef74371e56b85fec3c5c4f501b52e9a691543f77f3483b9e",
+            "source_hash": "28afcbe0c09bce831478f41a837f082b61accc3b681488c8d7bb77268e938ef2"
+          },
+          "previous": {
+            "timeframe": "1h",
+            "open_time": 1791039600000,
+            "close_boundary": 1791043200000,
+            "ohlcv": {
+              "open": "199.6",
+              "high": "200.6",
+              "low": "189.0",
+              "close": "190.0",
+              "volume": "10"
+            },
+            "ema20": "196.9666666666666666666666666666667",
+            "ema50": "194.5156862745098039215686274509803",
+            "sma200": "179.851",
+            "atr": "2.871428571428571428571428571428571",
+            "bars": 500,
+            "history_origin": 1789243200000,
+            "lineage": "c800f4de42e13a8da8b4b3a0e31ce70de06f3db8fe4a7c442fb0c9399beeb5b2",
+            "source_hash": "b03fdf5c5e3c6fbe6ceffb0edf34a7fa8f595a677856f7b37ad5725984d8cdc4"
+          },
+          "confirmation": {
+            "timeframe": "4h",
+            "open_time": 1791028800000,
+            "close_boundary": 1791043200000,
+            "ohlcv": {
+              "open": "199.6",
+              "high": "200.8",
+              "low": "198.6",
+              "close": "199.8",
+              "volume": "10"
+            },
+            "ema20": "197.9000000000000000000000000000000",
+            "ema50": "194.8999999999999999999999999999999",
+            "sma200": "179.9",
+            "atr": "2.2",
+            "bars": 500,
+            "history_origin": 1783843200000,
+            "lineage": "0881d278abe90591e8b168912df9758a8a4eaa9184d1a70be5a83863513dc16d",
+            "source_hash": "81e97a4a137c8802d7d854c18c89ddf117763d9ff41ebed1820eb84ce38b0cd8"
+          },
+          "required_confirmation_open_time": 1791028800000,
+          "metadata": {
+            "symbol": "BTCUSDT",
+            "status": "TRADING",
+            "contractType": "PERPETUAL",
+            "quoteAsset": "USDT",
+            "marginAsset": "USDT",
+            "underlyingType": "COIN",
+            "filters": [
+              {
+                "filterType": "PRICE_FILTER",
+                "tickSize": "0.1",
+                "minPrice": "0.0",
+                "maxPrice": "10000"
+              },
+              {
+                "filterType": "LOT_SIZE",
+                "stepSize": "0.001",
+                "minQty": "0.001"
+              },
+              {
+                "filterType": "MIN_NOTIONAL",
+                "notional": "50"
+              }
+            ]
+          },
+          "metadata_checked_at": 1791046801000,
+          "checks": [
+            {
+              "id": "long.order_1h",
+              "passed": true
+            },
+            {
+              "id": "long.previous_close",
+              "passed": true
+            },
+            {
+              "id": "long.reclaim",
+              "passed": true
+            },
+            {
+              "id": "short.order_1h",
+              "passed": false
+            },
+            {
+              "id": "short.previous_close",
+              "passed": false
+            },
+            {
+              "id": "short.loss",
+              "passed": false
+            },
+            {
+              "id": "long.order_4h",
+              "passed": true
+            },
+            {
+              "id": "long.close_4h",
+              "passed": true
+            },
+            {
+              "id": "positive_atr",
+              "passed": true
+            }
+          ],
+          "quote": {
+            "symbol": "BTCUSDT",
+            "bid": "200.0",
+            "ask": "200.1",
+            "bid_qty": "1",
+            "ask_qty": "2",
+            "time": 1791046800900,
+            "received_at": 1791046801000,
+            "source": "binance-usdm-bookTicker"
+          },
+          "guards": {
+            "collector_live": true,
+            "both_timeframes_warmed": true,
+            "exact_confirmation": true,
+            "contract_valid": true,
+            "no_active_slot": true,
+            "source_current": true,
+            "quote_fresh": true,
+            "quote_after_close": true,
+            "entry_drift_passed": true,
+            "entry_ema20_side": true,
+            "price_filter_passed": true
+          }
+        },
+        "events": [
+          {
+            "type": "published",
+            "time": 1791046801000,
+            "detail": {
+              "evidence_hash": "4fb228d37931e0cb97dc3c5e88522e67ca036879be746237571ea3abfb61e4a0"
+            }
+          }
+        ],
+        "ai": "not-configured",
+        "telegram": "not-configured"
+      }
+    ],
+    "decisions": [],
+    "slots": [
+      {
+        "symbol": "ETHUSDT",
+        "signal_id": "82b972237b6bf38b4f5da63483917cc35e9cca4c141572c5654e91d9ec4a8123",
+        "state": "reserved"
+      },
+      {
+        "symbol": "BTCUSDT",
+        "signal_id": "5ca65c398327a5901d35928b0e3fe76fde8c84af0925c55c84cbc8ed11d6b6b0",
+        "state": "reserved"
+      }
+    ]
+  },
+  "notifications": [
+    {
+      "id": "c00bb7dd-bed1-4350-b1b6-d6a7d43e3534",
+      "signal_id": "5ca65c398327a5901d35928b0e3fe76fde8c84af0925c55c84cbc8ed11d6b6b0",
+      "symbol": "BTCUSDT",
+      "direction": "long",
+      "type": "published",
+      "created_at": 1791046801000,
+      "read": false,
+      "status": "active",
+      "entry_actionable": true
+    },
+    {
+      "id": "d008fade-8093-4bf8-9d82-0ccdb39b16eb",
+      "signal_id": "82b972237b6bf38b4f5da63483917cc35e9cca4c141572c5654e91d9ec4a8123",
+      "symbol": "ETHUSDT",
+      "direction": "long",
+      "type": "published",
+      "created_at": 1791046801000,
+      "read": false,
+      "status": "active",
+      "entry_actionable": true
+    }
+  ]
+}

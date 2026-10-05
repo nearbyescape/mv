@@ -1,0 +1,19 @@
+{
+  email {$MV_OWNER_EMAIL}
+  admin off
+}
+
+{$MV_SITE:mv.jaleshwarima.com} {
+  encode zstd gzip
+  request_body {
+    max_size 64KB
+  }
+  header {
+    Strict-Transport-Security "max-age=31536000"
+    -Server
+  }
+  reverse_proxy web:3100 {
+    header_up X-MV-Client-IP {remote_host}
+    header_up -X-MV-Service-Key
+  }
+}

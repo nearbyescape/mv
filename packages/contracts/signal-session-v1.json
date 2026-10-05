@@ -1,0 +1,11 @@
+{
+  "id": "IST-DAY-v1",
+  "version": 1,
+  "timezone": "Asia/Kolkata",
+  "utc_offset_minutes": 330,
+  "open": "09:00",
+  "close_exclusive": "23:00",
+  "require_source_close_and_publication_inside": true,
+  "replay_off_session_signals": false,
+  "market_collection": "continuous"
+}

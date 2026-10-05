@@ -1,0 +1,36 @@
+{
+  "id": "EMA-PULLBACK-ATR-v1",
+  "version": 1,
+  "market": "Binance USD-M perpetual futures",
+  "entry_timeframe": "1h",
+  "confirmation_timeframe": "4h",
+  "indicators": {
+    "ema_fast": 20,
+    "ema_slow": 50,
+    "sma_trend": 200,
+    "atr_wilder": 14
+  },
+  "warmup_bars_per_timeframe": 500,
+  "entry": {
+    "long_order": "EMA20 > EMA50 > SMA200",
+    "short_order": "EMA20 < EMA50 < SMA200",
+    "long_trigger": "previous close <= previous EMA20 and current close > current EMA20",
+    "short_trigger": "previous close >= previous EMA20 and current close < current EMA20",
+    "confirmation": "Latest completed 4h candle has matching ordering and closes beyond EMA20 in the setup direction",
+    "closed_candles_only": true,
+    "max_quote_age_seconds": 5,
+    "expires_after_seconds": 300,
+    "max_entry_drift_atr": "0.5",
+    "one_active_position_per_symbol": true
+  },
+  "risk": {
+    "stop_atr_multiple": "2",
+    "target_r_multiple": "2",
+    "trend_exit": "Completed 1h close crosses EMA50 against the position",
+    "partial_exits": false,
+    "trailing_stop": false
+  },
+  "ai_role": "Asynchronous evidence review and explanation; cannot originate or change a signal",
+  "execution": "Signals and paper tracking only; no exchange orders",
+  "status": "Research hypothesis; not yet backtested"
+}

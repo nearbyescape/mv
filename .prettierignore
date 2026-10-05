@@ -1,0 +1,10 @@
+node_modules
+.next
+.venv
+package-lock.json
+apps/web/src/lib/demo-charts.json
+services/api/requirements.txt
+artifacts
+test-results
+docs/RESEARCH_AND_BUILD_PLAN.md
+docs/ARCHIVED_SMA_50_100_200_PLAN.md

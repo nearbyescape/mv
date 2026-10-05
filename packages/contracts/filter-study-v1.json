@@ -1,0 +1,16 @@
+{
+  "id": "MV-FILTER-STUDY-v1",
+  "registered_on": "2026-10-04",
+  "baseline_report_id": "0f0a77a2ec4747d1b6a228208fbd11704d30a67052777c4f7500f1f59b16cfdb",
+  "base_strategy": "EMA-PULLBACK-ATR-v1",
+  "research_spec": "MV-RESEARCH-v1",
+  "policies": [
+    {"id": "baseline", "strategy": "EMA-PULLBACK-ATR-v1", "feature": null, "minimum": null},
+    {"id": "slope", "strategy": "EMA-PULLBACK-ATR-SLOPE-v1", "feature": "aligned_ema50_slope_atr", "minimum": "0.05"},
+    {"id": "separation", "strategy": "EMA-PULLBACK-ATR-GAP-v1", "feature": "ema_gap_atr", "minimum": "0.5"}
+  ],
+  "diagnostics": {"atr_fraction_edges": ["0.01", "0.02"], "ema_gap_atr_edges": ["0.5", "1"], "aligned_ema50_slope_atr_edges": ["0", "0.05"]},
+  "scope": "Three entry policies, three costs, three previously viewed periods; original stop, target and EMA50 exit retained. No combined filter or exit-policy selection.",
+  "rules": "After a qualifying baseline setup: slope = direction sign * (current EMA50 - previous completed 1h EMA50) / current Wilder ATR14; separation = abs(current EMA20 - current EMA50) / current ATR14. Inclusive thresholds. Source and previous must be adjacent with identical seeded history origin.",
+  "evaluation": "Exploratory on already-viewed 2024-2025 data. Thresholds fixed before this replay but informed by earlier diagnostics; no fresh holdout or optimization claim. No live strategy promotion. Compare losses, costs, drawdown, trade counts and mean R across all periods. Freeze all three policies for forward observation."
+}

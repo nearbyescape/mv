@@ -1,0 +1,13 @@
+{
+  admin off
+}
+https://localhost {
+  tls internal
+  request_body {
+    max_size 64KB
+  }
+  reverse_proxy web:3100 {
+    header_up X-MV-Client-IP {remote_host}
+    header_up -X-MV-Service-Key
+  }
+}

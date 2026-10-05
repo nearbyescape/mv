@@ -1,0 +1,32 @@
+# Optional server-only AI worker. Never mount this secret into the website/API.
+services:
+  api:
+    environment:
+      MV_AI_ENABLED: "true"
+  ai:
+    image: mv-signal-api:0.10.0
+    command: [python, -m, app.ai.worker]
+    environment:
+      MV_ENVIRONMENT: production
+      MV_AUTH_REQUIRED: "true"
+      MV_PUBLIC_ORIGIN: ${MV_PUBLIC_ORIGIN:-https://mv.jaleshwarima.com}
+      MV_DATABASE_URL_FILE: /run/secrets/database_url
+      MV_SERVICE_KEY_FILE: /run/secrets/service_key
+      MV_PAPER_ENABLED: "false"
+      MV_SIGNAL_SESSION_ENABLED: "true"
+      MV_AI_ENABLED: "true"
+      MV_OPENROUTER_KEY_FILE: /run/secrets/openrouter_key
+      MV_AI_DAILY_REQUESTS: "20"
+    secrets: [database_url, service_key, openrouter_key]
+    init: true
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    depends_on:
+      api: { condition: service_healthy }
+secrets:
+  openrouter_key: { file: ./deploy/secrets/openrouter_key }

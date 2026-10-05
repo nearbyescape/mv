@@ -1,0 +1,38 @@
+{
+  "id": "MV-EXIT-STUDY-v1",
+  "registered_on": "2026-10-04",
+  "baseline_report_id": "0f0a77a2ec4747d1b6a228208fbd11704d30a67052777c4f7500f1f59b16cfdb",
+  "base_strategy": "EMA-PULLBACK-ATR-v1",
+  "research_spec": "MV-RESEARCH-v1",
+  "policies": [
+    {
+      "id": "baseline",
+      "strategy": "EMA-PULLBACK-ATR-v1",
+      "target": true,
+      "ema50_exit": true
+    },
+    {
+      "id": "stop_target",
+      "strategy": "EMA-PULLBACK-ATR-EXITS-ST-v1",
+      "target": true,
+      "ema50_exit": false
+    },
+    {
+      "id": "stop_ema50",
+      "strategy": "EMA-PULLBACK-ATR-EXITS-SE-v1",
+      "target": false,
+      "ema50_exit": true
+    }
+  ],
+  "diagnostics": {
+    "atr_fraction_edges": ["0.01", "0.02"],
+    "ema_gap_atr_edges": ["0.5", "1"],
+    "aligned_ema50_slope_atr_edges": ["0", "0.05"]
+  },
+  "scope": "Three exit policies x three original costs x three already-viewed partitions; no filters, new coins, leverage or automatic promotion",
+  "entry_parity": "Same source, 4H alignment, reference stop/target geometry and entry guards. Disabled target remains a reference level, never an active exit. Changed holding times alter availability of later signals.",
+  "diagnostic_features": "Completed entry-source ATR/close, absolute EMA20-EMA50 gap/ATR, direction-aligned source minus previous EMA50/ATR; no future data used to classify entries",
+  "excursions": "Observed MAE/MFE normalized by actual fill-to-stop distance; exit-minute extremes are censored; observed 1R is a lower-bound count, not a counterfactual executable profit",
+  "evaluation": "All 2024-2025 partitions have been inspected. This study is exploratory, not a fresh holdout. Register future evaluation separately before inspecting it.",
+  "assessment": "Display every policy and cost result without selecting a winner or changing live strategy-v1. Positive net expectancy, cost sensitivity, drawdown and later forward evidence must be assessed together."
+}

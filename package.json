@@ -1,0 +1,15 @@
+{
+  "name": "mv-signal",
+  "version": "0.10.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@mv/web",
+    "build": "npm run build --workspace=@mv/web",
+    "lint": "npm run lint --workspace=@mv/web",
+    "typecheck": "npm run typecheck --workspace=@mv/web",
+    "test:web": "npm run test --workspace=@mv/web"
+  }
+}
