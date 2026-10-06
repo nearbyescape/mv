@@ -303,13 +303,15 @@ def update_decision_opportunities(session, now):
         if not candles:
             continue
         anchor, atr = number(row.anchor_close, "anchor close"), number(row.frozen_atr, "frozen atr")
-        up = D(0)
-        down = D(0)
-        for candle in candles:
-            up = max(up, (number(candle.high, "candle high") - anchor) / atr)
-            down = max(down, (anchor - number(candle.low, "candle low")) / atr)
-        row.max_up_atr = str(max(D(0), up))
-        row.max_down_atr = str(max(D(0), down))
+        with localcontext() as ctx:
+            ctx.prec, ctx.rounding = PRECISION, ROUND_HALF_EVEN
+            up = D(0)
+            down = D(0)
+            for candle in candles:
+                up = max(up, (number(candle.high, "candle high") - anchor) / atr)
+                down = max(down, (anchor - number(candle.low, "candle low")) / atr)
+            row.max_up_atr = str(max(D(0), up))
+            row.max_down_atr = str(max(D(0), down))
         row.observed_bars = len(candles)
         row.updated_at = now
         if len(candles) >= DECISION_WINDOW_HOURS:
