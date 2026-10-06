@@ -145,7 +145,7 @@ export type MarketSafety = {
 export type SignalFeed = {
   server_time: number;
   engine: EngineHealth;
-  safety: MarketSafety;
+  safety?: MarketSafety;
   signals: EngineSignal[];
   decisions: {
     id: string;
@@ -183,7 +183,6 @@ export function useSignalFeed(enabled: boolean) {
         !Array.isArray(data.signals) ||
         !Array.isArray(data.decisions) ||
         !data.engine ||
-        !data.safety ||
         !Number.isFinite(data.server_time)
       )
         throw new Error("Invalid signal feed response");
