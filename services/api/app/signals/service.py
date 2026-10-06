@@ -9,23 +9,23 @@ from uuid import uuid4, uuid5, NAMESPACE_URL
 from sqlalchemy import delete, select, update
 from mv_strategy import INTERVAL_MS, confirmation_open_time
 from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Snapshot, PriceFilter, canonical_hash, PlanRejected
-from mv_strategy.strategy_v3 import (
+from mv_strategy.strategy_v4 import (
     LIVE_STRATEGY_ID,
     EXPIRY_MS,
     STRUCTURE_BARS,
     RECENT_RUN_BARS,
     live_decision_id,
-    evaluate_setup_v3,
-    build_plan_v3,
+    evaluate_setup_v4,
+    build_plan_v4,
 )
 from app.market.binance import now_ms, validate_contract
 from app.market.store import as_bar
 from app.market.views import collector_health
-from app.models import Candle, EngineCursor, EngineStatus, IndicatorCheckpoint, IndicatorSnapshot, MarketContract, SignalDecision, SignalPlan, SignalSlot, SignalEvent, WatchlistItem
+from app.models import Candle, EngineCursor, EngineStatus, IndicatorCheckpoint, IndicatorSnapshot, MarketContract, SignalDecision, SignalPlan, SignalSlot, SignalEvent, SignalOutcome, WatchlistItem
 
 CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v1.json").read_text(encoding="utf-8"))
 V1_CONTRACT_HASH = canonical_hash(CONTRACT)
-LIVE_CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v3.json").read_text(encoding="utf-8"))
+LIVE_CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v4.json").read_text(encoding="utf-8"))
 LIVE_CONTRACT_HASH = canonical_hash(LIVE_CONTRACT)
 
 # Service-local aliases keep the persistence code compact while V1 remains
@@ -46,7 +46,7 @@ def check_contract():
 
 
 def check_live_contract():
-    """Refuse silent production-rule edits; V3 changes require a new contract version."""
+    """Refuse silent production-rule edits; V4 changes require a new contract version."""
     expected_indicators = {"ema_fast": 20, "ema_slow": 50, "sma_trend": 200, "atr_wilder": 14}
     expected_pullback = {
         "max_previous_ema20_depth_atr": "0.75",
@@ -92,7 +92,7 @@ def check_live_contract():
     }
     valid = (
         LIVE_CONTRACT.get("id") == LIVE_STRATEGY_ID
-        and LIVE_CONTRACT.get("version") == 3
+        and LIVE_CONTRACT.get("version") == 4
         and LIVE_CONTRACT.get("indicators") == expected_indicators
         and LIVE_CONTRACT.get("entry_timeframe") == "1h"
         and LIVE_CONTRACT.get("confirmation_timeframe") == "4h"
@@ -104,10 +104,23 @@ def check_live_contract():
         and LIVE_CONTRACT.get("execution_quality") == expected_execution
         and LIVE_CONTRACT.get("risk") == expected_risk
         and LIVE_CONTRACT.get("market_regime", {}).get("alt_btc_contradiction_veto") is True
+        and LIVE_CONTRACT.get("market_regime", {}).get("btc_15m_timing_veto") is True
+        and LIVE_CONTRACT.get("portfolio_safety") == {
+            "max_same_direction_signals_per_source_close": 2,
+            "ranking": "Least stretched candidate first: lower recent-run ATR, then lower source EMA20 extension, then established before emerging, then symbol.",
+            "directional_circuit_breaker": {
+                "deterioration_threshold_r": "0.50",
+                "required_recent_signals": 2,
+                "recent_window_minutes": 120,
+                "pause_minutes": 120,
+                "rule": "Pause a direction when two recent V4 published signals reach -0.5R before +0.5R. The opposite direction remains eligible.",
+            },
+            "fail_closed_on_missing_btc_15m": True,
+        }
         and RECENT_RUN_BARS == 6
     )
     if not valid:
-        raise ValueError("Production V3 financial contract changed; create and validate a new strategy version")
+        raise ValueError("Production V4 financial contract changed; create and validate a new strategy version")
 
 
 def engine_health(session):
@@ -231,6 +244,154 @@ def btc_regime_guard(session, symbol, direction, open_time):
     return ("BTC_REGIME_CONTRADICTION" if contradiction else None), evidence
 
 
+
+BTC_TIMING_TIMEFRAME = "15m"
+BTC_TIMING_STEP = INTERVAL_MS[BTC_TIMING_TIMEFRAME]
+MAX_DIRECTION_SIGNALS_PER_SOURCE = 2
+CIRCUIT_THRESHOLD_R = Decimal("0.50")
+CIRCUIT_RECENT_MS = 120 * 60_000
+CIRCUIT_PAUSE_MS = 120 * 60_000
+
+
+def btc_timing_guard(session, direction, source_open_time):
+    """Fail closed unless the latest completed BTC 15m trend agrees with publication."""
+    boundary = source_open_time + INTERVAL_MS["1h"]
+    open_time = boundary - BTC_TIMING_STEP
+    current = snapshot_at(session, "BTCUSDT", BTC_TIMING_TIMEFRAME, open_time)
+    previous = snapshot_at(session, "BTCUSDT", BTC_TIMING_TIMEFRAME, open_time - BTC_TIMING_STEP)
+    checkpoint = session.get(IndicatorCheckpoint, ("BTCUSDT", BTC_TIMING_TIMEFRAME))
+    ready = bool(
+        current
+        and previous
+        and checkpoint
+        and current.count >= 500
+        and previous.count >= 499
+        and checkpoint.state_json["last_open_time"] == current.bar.open_time
+        and checkpoint.state_json["lineage"] == current.lineage
+    )
+    if not ready:
+        return "BTC_15M_TIMING_UNAVAILABLE", {
+            "state": "unavailable",
+            "passed": False,
+            "symbol": "BTCUSDT",
+            "timeframe": BTC_TIMING_TIMEFRAME,
+            "required_open_time": open_time,
+        }
+    if direction == "long":
+        passed = current.bar.close > current.ema20 > current.ema50 and current.ema20 >= previous.ema20
+        state = "bullish" if passed else "conflict"
+    elif direction == "short":
+        passed = current.bar.close < current.ema20 < current.ema50 and current.ema20 <= previous.ema20
+        state = "bearish" if passed else "conflict"
+    else:
+        return "BTC_15M_TIMING_UNAVAILABLE", {"state": "invalid-direction", "passed": False}
+    evidence = {
+        "state": state,
+        "passed": passed,
+        "symbol": "BTCUSDT",
+        "timeframe": BTC_TIMING_TIMEFRAME,
+        "current": current.evidence(),
+        "previous": previous.evidence(),
+    }
+    return (None if passed else "BTC_15M_TIMING_CONFLICT"), evidence
+
+
+def directional_circuit_breaker(session, direction, now):
+    """Pause one direction after two recent V4 signals hit -0.5R before +0.5R."""
+    if direction not in ("long", "short"):
+        return False, {"paused": False, "direction": direction, "triggered_signals": [], "pause_until": None}
+    rows = list(
+        session.scalars(
+            select(SignalOutcome)
+            .where(
+                SignalOutcome.strategy == STRATEGY_ID,
+                SignalOutcome.direction == direction,
+                SignalOutcome.published_at >= now - CIRCUIT_RECENT_MS,
+                SignalOutcome.adverse_050_at.is_not(None),
+            )
+            .order_by(SignalOutcome.adverse_050_at, SignalOutcome.signal_id)
+        )
+    )
+    deteriorated = [
+        row for row in rows
+        if row.favorable_050_at is None or row.adverse_050_at < row.favorable_050_at
+    ]
+    if len(deteriorated) < 2:
+        return False, {
+            "paused": False,
+            "direction": direction,
+            "triggered_signals": [row.signal_id for row in deteriorated],
+            "pause_until": None,
+        }
+    triggered = deteriorated[-2:]
+    triggered_at = max(row.adverse_050_at for row in triggered)
+    pause_until = triggered_at + CIRCUIT_PAUSE_MS
+    paused = now < pause_until
+    return paused, {
+        "paused": paused,
+        "direction": direction,
+        "triggered_signals": [row.signal_id for row in triggered],
+        "triggered_at": triggered_at,
+        "pause_until": pause_until,
+        "threshold_r": str(CIRCUIT_THRESHOLD_R),
+    }
+
+
+def market_safety_view(session, now):
+    paused = {}
+    for direction in ("long", "short"):
+        active, evidence = directional_circuit_breaker(session, direction, now)
+        if active:
+            paused[direction] = evidence
+    return {
+        "status": "guarded" if paused else "normal",
+        "paused_directions": sorted(paused),
+        "direction_details": paused,
+        "max_same_direction_signals_per_source_close": MAX_DIRECTION_SIGNALS_PER_SOURCE,
+        "btc_15m_timing_veto": True,
+        "message": (
+            "Market Safety Mode: " + ", ".join(d.upper() for d in sorted(paused)) +
+            " opportunities are temporarily paused after correlated deterioration."
+            if paused
+            else "Market safety governor active."
+        ),
+    }
+
+
+def _cluster_limit_reached(session, direction, source_open_time):
+    published = list(
+        session.scalars(
+            select(SignalDecision.id)
+            .where(
+                SignalDecision.strategy == STRATEGY_ID,
+                SignalDecision.direction == direction,
+                SignalDecision.source_open_time == source_open_time,
+                SignalDecision.outcome == "PUBLISHED",
+            )
+            .limit(MAX_DIRECTION_SIGNALS_PER_SOURCE)
+        )
+    )
+    return len(published) >= MAX_DIRECTION_SIGNALS_PER_SOURCE
+
+
+def decision_priority(session, row):
+    """Deterministic safety ranking: least stretched qualified candidates first."""
+    try:
+        current, previous, confirmation, structure, _, _ = context_at(
+            session, row.symbol, row.source_open_time
+        )
+        setup = evaluate_setup_v4(current, previous, confirmation, structure) if current else None
+        if not setup or setup.outcome not in ("LONG_SETUP", "SHORT_SETUP"):
+            return (row.source_open_time, 1, Decimal("999"), Decimal("999"), row.symbol)
+        values = {item["id"].split(".")[-1]: item.get("value") for item in setup.checks}
+        recent = Decimal(values.get("recent_run_atr") or "999")
+        extension = Decimal(values.get("source_extension_atr") or "999")
+        regime = 0 if setup.regime == "established" else 1
+        return (row.source_open_time, regime, recent, extension, row.symbol)
+    except Exception:
+        return (row.source_open_time, 2, Decimal("999"), Decimal("999"), row.symbol)
+
+
 def _evidence_snapshots(evidence, default_symbol):
     for key in ("source", "previous", "confirmation"):
         item = evidence.get(key)
@@ -245,6 +406,12 @@ def _evidence_snapshots(evidence, default_symbol):
             item = btc.get(key)
             if item:
                 yield "BTCUSDT", f"btc_regime:{key}", item
+    timing = evidence.get("btc_timing") or {}
+    if timing.get("symbol") == "BTCUSDT":
+        for key in ("current", "previous"):
+            item = timing.get(key)
+            if item:
+                yield "BTCUSDT", f"btc_timing:{key}", item
 
 
 def discover(session, local_now):
@@ -321,7 +488,7 @@ def evaluate_decision(session, row, local_now, quote=None):
     try:
         current, previous, confirmation, structure, contract, evidence = context_at(session, row.symbol, row.source_open_time)
         row.evidence_json = deepcopy(evidence)
-        setup = evaluate_setup_v3(current, previous, confirmation, structure) if current else None
+        setup = evaluate_setup_v4(current, previous, confirmation, structure) if current else None
     except (ValueError, ArithmeticError, KeyError) as exc:
         row.reason = "INVALID_SOURCE_DATA"
         row.evidence_json = {"error": str(exc)[:200], "contract_hash": CONTRACT_HASH}
@@ -357,6 +524,18 @@ def evaluate_decision(session, row, local_now, quote=None):
         row.reason = btc_reason
         return None
 
+    timing_reason, timing_evidence = btc_timing_guard(
+        session, setup.direction, row.source_open_time
+    )
+    evidence["btc_timing"] = timing_evidence
+    row.evidence_json = deepcopy(evidence)
+    if timing_reason == "BTC_15M_TIMING_CONFLICT":
+        row.outcome, row.reason = "REJECTED", timing_reason
+        return None
+    if timing_reason:
+        row.reason = timing_reason
+        return None
+
     blocked = data_guard(session, row.symbol, current, previous, confirmation, contract, local_now)
     if blocked:
         if blocked == "SYMBOL_REMOVED":
@@ -371,6 +550,27 @@ def evaluate_decision(session, row, local_now, quote=None):
     ):
         row.outcome, row.reason = "REJECTED", "SAME_DIRECTION_SIGNAL_THIS_SESSION"
         return None
+    circuit_paused, circuit_evidence = directional_circuit_breaker(
+        session, setup.direction, now
+    )
+    evidence["directional_circuit_breaker"] = circuit_evidence
+    row.evidence_json = deepcopy(evidence)
+    if circuit_paused:
+        row.outcome, row.reason = "REJECTED", "DIRECTIONAL_CIRCUIT_BREAKER"
+        return None
+    if _cluster_limit_reached(session, setup.direction, row.source_open_time):
+        evidence["market_concentration"] = {
+            "passed": False,
+            "max_same_direction_signals_per_source_close": MAX_DIRECTION_SIGNALS_PER_SOURCE,
+        }
+        row.evidence_json = deepcopy(evidence)
+        row.outcome, row.reason = "REJECTED", "MARKET_DIRECTION_CONCENTRATION_LIMIT"
+        return None
+    evidence["market_concentration"] = {
+        "passed": True,
+        "max_same_direction_signals_per_source_close": MAX_DIRECTION_SIGNALS_PER_SOURCE,
+    }
+    row.evidence_json = deepcopy(evidence)
     expire_slots(session, now)
     if session.scalar(select(SignalSlot).where(SignalSlot.symbol == row.symbol).limit(1)) is not None:
         row.outcome, row.reason = "REJECTED", "ACTIVE_SIGNAL_OR_HELD_POSITION"
@@ -381,7 +581,7 @@ def evaluate_decision(session, row, local_now, quote=None):
     price = next((f for f in contract.metadata_json["filters"] if f["filterType"] == "PRICE_FILTER"), {})
     evidence["quote"] = quote.evidence()
     try:
-        plan = build_plan_v3(row.symbol, setup, current, quote, PriceFilter(*(Decimal(price[k]) for k in ("tickSize", "minPrice", "maxPrice"))), now)
+        plan = build_plan_v4(row.symbol, setup, current, quote, PriceFilter(*(Decimal(price[k]) for k in ("tickSize", "minPrice", "maxPrice"))), now)
     except PlanRejected as exc:
         row.evidence_json = deepcopy(evidence)
         row.reason = exc.code
@@ -399,6 +599,9 @@ def evaluate_decision(session, row, local_now, quote=None):
         "exact_confirmation": True,
         "contract_valid": True,
         "btc_regime_passed": True,
+        "btc_15m_timing_passed": True,
+        "directional_circuit_breaker_clear": True,
+        "market_direction_concentration_limit_passed": True,
         "no_active_slot": True,
         "source_current": True,
         "quote_fresh": True,
@@ -460,7 +663,8 @@ def signal_view(session, row, now):
     integrity = canonical_hash(row.evidence_json) == row.evidence_hash == row.plan_json.get("evidence_hash") and canonical_hash(payload) == row.plan_json.get("plan_hash")
     status = "integrity-failed" if not integrity else "withdrawn" if revised else "held" if state == "held" else "released" if "released" in types else "expired" if now >= row.expires_at else "active" if state == "reserved" else "closed"
     ai_review = review_view(session,row,integrity,revised)
-    return {**row.plan_json, "status": status, "slot": state, "entry_actionable": status == "active" and engine_health(session)["ready"] and allowed(row.plan_json["source_close_boundary"],now), "source_revised": revised,
+    circuit_paused, _ = directional_circuit_breaker(session, row.plan_json.get("direction"), now)
+    return {**row.plan_json, "status": status, "slot": state, "entry_actionable": status == "active" and engine_health(session)["ready"] and not circuit_paused and allowed(row.plan_json["source_close_boundary"],now), "source_revised": revised,
             "integrity_valid": integrity, "evidence": row.evidence_json, "events": [{"type": e.type, "time": e.created_at, "detail": e.payload_json} for e in events], "ai": ai_review["status"], "ai_review": ai_review, "telegram": delivery_view(session,row.id)}
 
 
