@@ -4,7 +4,7 @@ from decimal import Decimal, localcontext, ROUND_HALF_EVEN
 import hashlib
 import json
 
-INTERVAL_MS = {"1h": 3_600_000, "4h": 14_400_000}
+INTERVAL_MS = {"15m": 900_000, "1h": 3_600_000, "4h": 14_400_000}
 PRECISION = 34
 STATE_VERSION = 1
 
