@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_session
 from app.main import authorize
 from app.models import SignalOutcome, User
-from .service import V2_STRATEGY, V3_STRATEGY, outcome_view, performance_summary
+from .service import V2_STRATEGY, V3_STRATEGY, V4_STRATEGY, outcome_view, performance_summary
 
 router = APIRouter()
 DB = Annotated[Session, Depends(get_session)]
@@ -18,9 +18,9 @@ Actor = Annotated[User, Depends(authorize)]
 def performance(
     actor: Actor,
     session: DB,
-    strategy: Annotated[str, Query(pattern=r"^MV-TREND-DUAL-v[23]$")] = V3_STRATEGY,
+    strategy: Annotated[str, Query(pattern=r"^MV-TREND-DUAL-v[234]$")] = V4_STRATEGY,
 ):
-    if strategy not in (V2_STRATEGY, V3_STRATEGY):
+    if strategy not in (V2_STRATEGY, V3_STRATEGY, V4_STRATEGY):
         raise ValueError("Unsupported analytics strategy")
     return performance_summary(session, strategy)
 
