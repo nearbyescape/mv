@@ -398,7 +398,6 @@ def build_plan_v3(
                 for k, v in {
                     "entry": entry,
                     "stop": stop,
-                    "target": target,
                     "frozen_atr": atr,
                     "risk_distance": risk,
                     "reward_distance": reward,
