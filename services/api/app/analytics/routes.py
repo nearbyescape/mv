@@ -33,9 +33,9 @@ def outcomes(
     symbol: Annotated[str | None, Query(pattern=r"^[A-Z0-9]{2,20}USDT$")] = None,
     direction: Annotated[str | None, Query(pattern=r"^(long|short)$")] = None,
     setup_type: Annotated[str | None, Query(pattern=r"^(pullback_continuation|momentum_breakout)$")] = None,
-    strategy: Annotated[str, Query(pattern=r"^MV-TREND-DUAL-v[23]$")] = V3_STRATEGY,
+    strategy: Annotated[str, Query(pattern=r"^MV-TREND-DUAL-v[234]$")] = V4_STRATEGY,
 ):
-    if strategy not in (V2_STRATEGY, V3_STRATEGY):
+    if strategy not in (V2_STRATEGY, V3_STRATEGY, V4_STRATEGY):
         raise ValueError("Unsupported analytics strategy")
     query = select(SignalOutcome).where(SignalOutcome.strategy == strategy)
     if symbol:
