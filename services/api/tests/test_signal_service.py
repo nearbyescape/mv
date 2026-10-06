@@ -660,6 +660,23 @@ def test_changed_version_one_risk_contract_is_refused(state, monkeypatch):
         service.check_contract()
 
 
+def test_v4_stale_safety_analytics_disables_existing_entry_action(state):
+    seed(state, "long")
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        lease = session.get(ServiceLease, "outcome-analytics")
+        lease.heartbeat = state.clock[0] - 45_001
+    with state.sessions() as session:
+        view = signal_view(
+            session,
+            session.get(SignalPlan, identity),
+            state.clock[0],
+        )
+        assert view["status"] == "active"
+        assert view["entry_actionable"] is False
+
+
 def test_plan_checksum_failure_disables_entry_without_hiding_operator_held_state(state):
     seed(state)
     identity = pending(state)
