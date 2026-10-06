@@ -221,6 +221,57 @@ class AIRequest(Base):
     error_code: Mapped[str | None] = mapped_column(String(60))
 
 
+class SignalOutcome(Base):
+    __tablename__ = "signal_outcomes"
+    signal_id: Mapped[str] = mapped_column(ForeignKey("signal_plans.id"), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(30), index=True)
+    direction: Mapped[str] = mapped_column(String(8))
+    setup_type: Mapped[str] = mapped_column(String(40))
+    trend_regime: Mapped[str] = mapped_column(String(20))
+    published_at: Mapped[int] = mapped_column(BigInteger, index=True)
+    first_observed_minute: Mapped[int] = mapped_column(BigInteger)
+    last_minute_open_time: Mapped[int | None] = mapped_column(BigInteger)
+    entry: Mapped[str] = mapped_column(String(80))
+    stop: Mapped[str] = mapped_column(String(80))
+    target: Mapped[str] = mapped_column(String(80))
+    risk_distance: Mapped[str] = mapped_column(String(80))
+    frozen_atr: Mapped[str] = mapped_column(String(80))
+    status: Mapped[str] = mapped_column(String(24), index=True)
+    terminal_at: Mapped[int | None] = mapped_column(BigInteger)
+    conservative_r: Mapped[str | None] = mapped_column(String(80))
+    mfe_r: Mapped[str] = mapped_column(String(80), default="0")
+    mae_r: Mapped[str] = mapped_column(String(80), default="0")
+    favorable_050_at: Mapped[int | None] = mapped_column(BigInteger)
+    favorable_100_at: Mapped[int | None] = mapped_column(BigInteger)
+    favorable_150_at: Mapped[int | None] = mapped_column(BigInteger)
+    favorable_200_at: Mapped[int | None] = mapped_column(BigInteger)
+    adverse_050_at: Mapped[int | None] = mapped_column(BigInteger)
+    adverse_100_at: Mapped[int | None] = mapped_column(BigInteger)
+    intrabar_ambiguous: Mapped[bool] = mapped_column(Boolean, default=False)
+    source_revised: Mapped[bool] = mapped_column(Boolean, default=False)
+    observed_bars: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[int] = mapped_column(BigInteger)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+
+
+class DecisionOpportunity(Base):
+    __tablename__ = "decision_opportunities"
+    decision_id: Mapped[str] = mapped_column(ForeignKey("signal_decisions.id"), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(30), index=True)
+    reason: Mapped[str] = mapped_column(String(100), index=True)
+    direction: Mapped[str | None] = mapped_column(String(8))
+    source_open_time: Mapped[int] = mapped_column(BigInteger)
+    observed_from: Mapped[int] = mapped_column(BigInteger)
+    observed_until: Mapped[int] = mapped_column(BigInteger)
+    anchor_close: Mapped[str] = mapped_column(String(80))
+    frozen_atr: Mapped[str] = mapped_column(String(80))
+    max_up_atr: Mapped[str] = mapped_column(String(80), default="0")
+    max_down_atr: Mapped[str] = mapped_column(String(80), default="0")
+    observed_bars: Mapped[int] = mapped_column(Integer, default=0)
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    updated_at: Mapped[int] = mapped_column(BigInteger)
+
+
 class TelegramDelivery(Base):
     __tablename__ = "telegram_deliveries"
     event_id: Mapped[str] = mapped_column(ForeignKey("signal_events.id"), primary_key=True)
