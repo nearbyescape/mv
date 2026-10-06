@@ -50,7 +50,7 @@ def test_empty_analytics_are_private_read_only_and_do_not_create_signals(client)
     result = client.get("/v1/analytics/performance", headers=AUTH)
     assert result.status_code == 200
     payload = result.json()
-    assert payload["strategy"] == "MV-TREND-DUAL-v2"
+    assert payload["strategy"] == "MV-TREND-DUAL-v3"
     assert payload["overall"]["signals"] == 0
     assert len(payload["cohorts"]) == 4
     assert client.get("/v1/analytics/outcomes", headers=AUTH).json()["outcomes"] == []
@@ -87,11 +87,13 @@ def test_health_reports_implemented_services_only(client):
 
 def test_strategy_is_versioned_and_ai_cannot_originate_signal(client):
     contract = client.get("/v1/strategy", headers=AUTH).json()
-    assert contract["id"] == "MV-TREND-DUAL-v2"
-    assert contract["version"] == 2
+    assert contract["id"] == "MV-TREND-DUAL-v3"
+    assert contract["version"] == 3
     assert contract["indicators"] == {"ema_fast": 20, "ema_slow": 50, "sma_trend": 200, "atr_wilder": 14}
     assert set(contract["setups"]) == {"pullback_continuation", "momentum_breakout"}
     assert contract["execution_quality"]["max_spread_bps"] == "10"
+    assert contract["anti_chase"]["max_recent_run_atr"] == "2.50"
+    assert [row["id"] for row in contract["risk"]["targets"]] == ["TP1", "TP2", "TP3"]
     assert "cannot originate or change" in contract["ai_role"]
 
 
@@ -107,7 +109,7 @@ def test_real_migration_can_upgrade_seed_and_downgrade(tmp_path):
     engine = create_engine(env["MV_DATABASE_URL"])
     with engine.connect() as connection:
         assert list(connection.scalars(select(WatchlistItem.symbol).order_by(WatchlistItem.sort_order))) == ["BTCUSDT", "ETHUSDT"]
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0007"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008"
     engine.dispose()
     subprocess.run([sys.executable, "-m", "alembic", "downgrade", "base"], cwd=API_ROOT, env=env, check=True, capture_output=True)
     engine = create_engine(env["MV_DATABASE_URL"])
