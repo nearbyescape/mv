@@ -368,13 +368,15 @@ def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
         session.get(EngineStatus, "engine").updated_at = state.clock[0]
         session.get(ServiceLease, "outcome-analytics").heartbeat = state.clock[0]
         apply_bars(session, "BTCUSDT", "1h", [source[-1]], state.clock[0])
+        # Extend the original 15m synthetic history without resetting its
+        # price path; the last four bars bridge the one-hour clock advance.
         timing = source_bars(
-            4,
+            504,
             "15m",
             BOUNDARY - INTERVAL_MS["15m"],
             "long",
         )
-        apply_bars(session, "BTCUSDT", "15m", timing, state.clock[0])
+        apply_bars(session, "BTCUSDT", "15m", timing[-4:], state.clock[0])
     with state.sessions.begin() as session:
         discover(session, state.clock[0])
     identity = decision_id("BTCUSDT", source[-1].open_time)
