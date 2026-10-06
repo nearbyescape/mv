@@ -52,7 +52,7 @@ From `services/api`, migrate and start the API:
 ..\..\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Start three separate terminals from `services/api`, one command in each:
+Start four separate terminals from `services/api`, one command in each:
 
 ```powershell
 ..\..\.venv\Scripts\python -m app.market.collector
