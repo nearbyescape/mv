@@ -6,7 +6,7 @@ import pytest
 from app.config import get_settings
 from app.models import SignalDecision,SignalPlan,SignalSlot,EngineCursor,EngineStatus
 from app.signals import session as operating
-from app.signals.service import evaluate_decision,discover,engine_health,expire_slots
+from app.signals.service import STRATEGY_ID,evaluate_decision,discover,engine_health,expire_slots
 from app.signals.worker import SignalWorker
 from test_signal_service import state,seed,pending,fresh_quote,publish,BOUNDARY,STEP
 
@@ -81,13 +81,13 @@ def test_operating_policy_is_frozen_with_real_engine_plan_without_financial_rule
 def test_closed_session_cursor_advances_and_expiry_still_runs_while_health_remains_ready(state,monkeypatch):
     seed(state);identity=pending(state);publish(state,identity)
     with state.sessions.begin() as session:
-        session.add(EngineCursor(symbol="BTCUSDT",strategy="EMA-PULLBACK-ATR-v1",last_open_time=BOUNDARY-2*STEP,initialized_at=BOUNDARY))
+        session.add(EngineCursor(symbol="BTCUSDT",strategy=STRATEGY_ID,last_open_time=BOUNDARY-2*STEP,initialized_at=BOUNDARY))
     monkeypatch.setattr(get_settings(),"signal_session_enabled",True)
     monkeypatch.setattr(operating,"inside",lambda now: False)
     state.clock[0]+=300_000
     with state.sessions.begin() as session:
         discover(session,state.clock[0]);expire_slots(session,state.clock[0])
-        assert session.get(EngineCursor,("BTCUSDT","EMA-PULLBACK-ATR-v1")).last_open_time==BOUNDARY-STEP
+        assert session.get(EngineCursor,("BTCUSDT",STRATEGY_ID)).last_open_time==BOUNDARY-STEP
         assert session.scalar(select(SignalSlot)) is None
         engine=session.get(EngineStatus,"engine");engine.state,engine.updated_at="session-paused",state.clock[0]
         # Collector heartbeat must also be current for readiness.

@@ -28,9 +28,12 @@ def payload_for(event, plan, settings):
     if event.type=="source-revised":
         text=f"MV Signal · WITHDRAWN\n{plan.symbol} · {p['direction'].upper()}\nSource data changed after publication. Review any held position.\nOriginal signal: {plan.id[:12]}\nOriginal levels remain unchanged in the journal."
     else:
+        setup={"momentum_breakout":"Momentum breakout","pullback_continuation":"Pullback continuation"}.get(p.get("setup_type"),"Trend setup")
+        regime=str(p.get("trend_regime") or "confirmed").title()
         text=(f"MV Signal · {p['direction'].upper()}\n{plan.symbol} · Binance USDT futures · 1H\n"
+              f"Setup: {setup} · {regime} trend\n"
               f"Source close: {ist(p['source_close_boundary'])}\nEntry: {p['entry']}\nStop loss: {p['stop']}\nTarget: {p['target']}\n"
-              f"Entry window ends: {ist(plan.expires_at)}\nEMA20 / EMA50 / SMA200 + ATR14 · 4H confirmed\n"
+              f"Entry window ends: {ist(plan.expires_at)}\nEMA20 / EMA50 / SMA200 + ATR14 · completed 4H confirmed\n"
               f"Signal: {plan.id[:12]}\nReference quote; execution and fills are not recorded.")
     return {"chat_id":settings.telegram_chat_id,"text":text,"link_preview_options":{"is_disabled":True},
             "reply_markup":{"inline_keyboard":[[{"text":"Open MV Signal","url":settings.public_origin}]]}}

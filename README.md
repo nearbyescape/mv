@@ -2,6 +2,16 @@
 
 A private Binance futures signal workspace: EMA20 + EMA50 + SMA200 + Wilder ATR14. Deterministic backend rules create signals; a separate OpenRouter worker explains immutable evidence asynchronously. No exchange orders are placed.
 
+## Release 0.11.0 candidate — MV-TREND-DUAL-v2
+
+Release 0.11.0 replaces **new live signal decisions** with the versioned deterministic `MV-TREND-DUAL-v2` engine after validation/cutover. It is designed for direct production use, not a paper or shadow runtime. V1 code and historical reports remain unchanged for reproducibility.
+
+V2 keeps completed 1H/4H EMA20/EMA50/SMA200/Wilder ATR14 evidence and the existing 2 ATR stop / 2R reference geometry, but adds two explicit setup families: **quality pullback continuation** and **12-bar structural momentum breakout**. The breakout path allows a valid short during a sustained selloff even when the previous candle is already below EMA20, addressing the principal V1 missed-opportunity blind spot. V2 also supports established/emerging trend regimes, ATR-normalized candle/extension quality, a 10 bps live spread ceiling and a BTC contradiction veto for altcoins. Existing 09:00 AM–11:00 PM IST session, quote freshness, source lineage, atomic publication, operator slots, AI commentary and Telegram delivery remain in force.
+
+The strategy ID is new. First production startup baselines V2 at the current completed candle and cannot replay historical candles. Old V1 plans remain visible, and any retained V1 slot blocks a V2 signal for the same coin. See [V2 financial and cutover behavior](docs/STRATEGY_V2.md).
+
+**Important:** implementation of V2 is not evidence of profitability or improved accuracy. Existing V1 research remains negative/fragile and does not validate V2 or the 29-coin universe.
+
 ## Release 0.10.0
 
 Phases 6 and 7 are implemented: professional responsive dashboard, live charts, invite-only accounts, administrator/operator/viewer roles, audit history, durable web notifications and complete signal history. The core is deployed at https://mv.jaleshwarima.com with PostgreSQL, transaction-fenced workers, HTTPS, migrations and scheduled backups. Actual VPS owner readiness, independent market arithmetic and separate-database backup restoration passed. Existing websites were preserved. See the [VPS record](docs/VPS_DEPLOYMENT.md) and [chosen-market expansion](docs/CHOSEN_MARKET_SCALING.md).

@@ -14,7 +14,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
-from mv_strategy.signals import STRATEGY_ID, Quote, canonical_hash, decision_id
+from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Quote, canonical_hash
+from mv_strategy.strategy_v2 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
 from app.database import Base, get_session
 from app.main import app
 from app.market import views
@@ -53,7 +54,7 @@ def source_bars(count, timeframe, last_open, direction, pullback=False):
     for i in range(count):
         close = D(100) + D(i) / 5 if direction == "long" else D(300) - D(i) / 5
         if pullback and i == 499:
-            close += -D("9.8") if direction == "long" else D("9.8")
+            close += -D("2.2") if direction == "long" else D("2.2")
         opening = result[-1].close if result else close
         time = last_open - (count - 1 - i) * step
         result.append(Bar(time, time + step - 1, opening, max(opening, close) + 1, min(opening, close) - 1, close, D(10)))
@@ -265,6 +266,86 @@ def test_held_slot_blocks_new_candidate_and_database_enforces_unique_source_and_
             session.add(SignalDecision(id="c" * 64, symbol="BTCUSDT", strategy=STRATEGY_ID, source_open_time=BOUNDARY - STEP, outcome="PENDING", reason="duplicate", updated_at=state.clock[0], expires_at=BOUNDARY + 300_000, evidence_json={}))
 
 
+def test_alt_signal_btc_regime_veto_is_directional_and_uses_completed_context(state):
+    seed(state, "long")
+    with state.sessions() as session:
+        source_open = BOUNDARY - STEP
+        reason, evidence = service.btc_regime_guard(session, "ETHUSDT", "short", source_open)
+        assert reason == "BTC_REGIME_CONTRADICTION"
+        assert evidence["state"] == "bullish"
+        assert evidence["passed"] is False
+        assert evidence["source_1h"]["open_time"] == source_open
+        assert evidence["confirmation_4h"]["open_time"] == confirmation_open_time(BOUNDARY)
+
+        reason, evidence = service.btc_regime_guard(session, "ETHUSDT", "long", source_open)
+        assert reason is None
+        assert evidence["state"] == "bullish"
+        assert evidence["passed"] is True
+
+
+def test_existing_v1_held_slot_blocks_v2_candidate_for_same_symbol(state):
+    seed(state)
+    identity = pending(state)
+    old = "d" * 64
+    with state.sessions.begin() as session:
+        session.add(SignalDecision(
+            id=old,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            source_open_time=BOUNDARY - 2 * STEP,
+            outcome="PUBLISHED",
+            reason="retained-v1-held",
+            updated_at=state.clock[0],
+            expires_at=BOUNDARY + 3_600_000,
+            evidence_json={},
+        ))
+        session.flush()
+        session.add(SignalPlan(
+            id=old,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            created_at=BOUNDARY - STEP,
+            expires_at=BOUNDARY + 3_600_000,
+            plan_json={},
+            evidence_json={},
+            evidence_hash="e" * 64,
+        ))
+        session.flush()
+        session.add(SignalSlot(
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            signal_id=old,
+            state="held",
+        ))
+    with state.sessions.begin() as session:
+        evaluate_decision(session, session.get(SignalDecision, identity), state.clock[0], fresh_quote(state))
+        row = session.get(SignalDecision, identity)
+        assert (row.outcome, row.reason) == ("REJECTED", "ACTIVE_SIGNAL_OR_HELD_POSITION")
+        assert session.scalar(select(func.count()).select_from(SignalPlan).where(SignalPlan.strategy == STRATEGY_ID)) == 0
+
+
+def test_existing_v1_cursor_cannot_replay_history_when_v2_first_starts(state):
+    seed(state)
+    with state.sessions.begin() as session:
+        checkpoint = session.get(service.IndicatorCheckpoint, ("BTCUSDT", "1h"))
+        head = checkpoint.state_json["last_open_time"]
+        session.add(EngineCursor(
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            last_open_time=head - 20 * STEP,
+            initialized_at=BOUNDARY - 20 * STEP,
+        ))
+    with state.sessions.begin() as session:
+        discover(session, state.clock[0])
+        v2 = session.get(EngineCursor, ("BTCUSDT", STRATEGY_ID))
+        assert v2 is not None
+        assert v2.last_open_time == BOUNDARY - STEP
+        rows = list(session.scalars(select(SignalDecision).where(SignalDecision.strategy == STRATEGY_ID)))
+        assert len(rows) == 1
+        assert rows[0].outcome == "BASELINE"
+        assert rows[0].reason == "STARTUP_BASELINE_NO_RETROACTIVE_ENTRY"
+
+
 def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
     state.clock[0] = BOUNDARY - STEP + 1000
     source, _ = seed(state, initial_count=500)
@@ -317,6 +398,38 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
     with state.sessions() as session:
         assert session.get(SignalDecision, identity).outcome == "EXPIRED"
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v2_worker_ignores_leftover_v1_pending_decisions(state):
+    seed(state)
+    legacy_id = "f" * 64
+    with state.sessions.begin() as session:
+        session.add(SignalDecision(
+            id=legacy_id,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            source_open_time=BOUNDARY - STEP,
+            outcome="PENDING",
+            reason="legacy-pending",
+            updated_at=state.clock[0] - 5000,
+            expires_at=BOUNDARY + 300_000,
+            evidence_json={},
+        ))
+    class NoQuote:
+        async def quote(self, *args):
+            pytest.fail("V2 worker must not request a quote for a V1 decision")
+    asyncio.run(SignalWorker(NoQuote()).process(legacy_id))
+    with state.sessions() as session:
+        row = session.get(SignalDecision, legacy_id)
+        assert (row.outcome, row.reason, row.attempts) == ("PENDING", "legacy-pending", 0)
+
+
+def test_changed_v2_financial_contract_is_refused_before_worker_start(state, monkeypatch):
+    changed = json.loads(json.dumps(service.LIVE_CONTRACT))
+    changed["setups"]["momentum_breakout"]["min_body_atr"] = "0.10"
+    monkeypatch.setattr(service, "LIVE_CONTRACT", changed)
+    with pytest.raises(ValueError, match="Production V2 financial contract changed"):
+        service.check_live_contract()
 
 
 def test_rate_limit_is_respected_across_candidates_and_retries(state):

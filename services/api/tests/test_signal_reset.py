@@ -4,7 +4,7 @@ import pytest
 from app.operations.reset import clear_generated,counts
 from app.operations.worker import sync_notifications
 from app.models import AIRequest,AIReview,User,EngineCursor,WatchlistItem,Candle,IndicatorCheckpoint,EngineStatus,AuditEvent
-from app.signals.service import discover,canonical_hash
+from app.signals.service import STRATEGY_ID,discover,canonical_hash
 from test_signal_service import state,seed,pending,publish,BOUNDARY,STEP
 from app.ai.worker import prepare as prepare_ai
 from types import SimpleNamespace
@@ -15,7 +15,7 @@ def setup(state):
     with state.sessions.begin() as session:
         sync_notifications(session)
         session.add(User(id=str(uuid4()),email="owner@example.test",name="Owner",role="admin",password_hash="retained-test-hash",enabled=True,created_at=BOUNDARY))
-        session.add(EngineCursor(symbol="BTCUSDT",strategy="EMA-PULLBACK-ATR-v1",last_open_time=BOUNDARY-2*STEP,initialized_at=BOUNDARY))
+        session.add(EngineCursor(symbol="BTCUSDT",strategy=STRATEGY_ID,last_open_time=BOUNDARY-2*STEP,initialized_at=BOUNDARY))
         session.add(AIRequest(id=str(uuid4()),signal_id=identity,started_at=state.clock[0],status="complete",usage_json={"cost":"retained"}))
     return identity
 
