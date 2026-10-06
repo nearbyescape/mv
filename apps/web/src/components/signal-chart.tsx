@@ -131,6 +131,9 @@ export function SignalChart({ signal }: { signal: EngineSignal }) {
       entry: signal.entry,
       stop: signal.stop,
       target: signal.target,
+      tp1: signal.tp1,
+      tp2: signal.tp2,
+      tp3: signal.tp3,
       startTime: signal.source_open_time / 1000,
       direction: signal.direction,
     }),
@@ -139,6 +142,9 @@ export function SignalChart({ signal }: { signal: EngineSignal }) {
       signal.entry,
       signal.stop,
       signal.target,
+      signal.tp1,
+      signal.tp2,
+      signal.tp3,
       signal.source_open_time,
       signal.direction,
     ],
@@ -171,18 +177,29 @@ export function SignalChart({ signal }: { signal: EngineSignal }) {
         </div>
       </div>
       <div className="signal-chart-levels">
-        {(
-          [
-            ["entry", "Entry", "#2875ac"],
-            ["stop", "SL", "#b95350"],
-            ["target", "Target", "#17836b"],
-          ] as const
-        ).map(([key, title, color]) => (
-          <span key={key} style={{ borderColor: color }}>
-            {title}{" "}
-            <b>${displayPrice(Number(signal[key]), signal.tick_size)}</b>
+        <span style={{ borderColor: "#2875ac" }}>
+          Entry <b>${displayPrice(Number(signal.entry), signal.tick_size)}</b>
+        </span>
+        <span style={{ borderColor: "#b95350" }}>
+          SL <b>${displayPrice(Number(signal.stop), signal.tick_size)}</b>
+        </span>
+        {signal.tp1 && signal.tp2 && signal.tp3 ? (
+          <>
+            <span style={{ borderColor: "#17836b" }}>
+              TP1 <b>${displayPrice(Number(signal.tp1), signal.tick_size)}</b>
+            </span>
+            <span style={{ borderColor: "#17836b" }}>
+              TP2 <b>${displayPrice(Number(signal.tp2), signal.tick_size)}</b>
+            </span>
+            <span style={{ borderColor: "#17836b" }}>
+              TP3 <b>${displayPrice(Number(signal.tp3), signal.tick_size)}</b>
+            </span>
+          </>
+        ) : (
+          <span style={{ borderColor: "#17836b" }}>
+            Target <b>${displayPrice(Number(signal.target), signal.tick_size)}</b>
           </span>
-        ))}
+        )}
         {data.candles.length > 0 && (
           <span style={{ borderColor: "var(--secondary)" }}>
             Last close{" "}

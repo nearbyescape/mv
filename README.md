@@ -2,9 +2,17 @@
 
 A private Binance futures signal workspace: EMA20 + EMA50 + SMA200 + Wilder ATR14. Deterministic backend rules create signals; a separate OpenRouter worker explains immutable evidence asynchronously. No exchange orders are placed.
 
-## Release 0.12.0 candidate — V2 Performance analytics
+## Release 0.13.0 candidate — MV-TREND-DUAL-v3
 
-Release 0.12.0 adds a strictly observational analytics subsystem around the live `MV-TREND-DUAL-v2` strategy. The signal engine and V2 financial contract are unchanged. A separate `outcome-analytics` worker records post-publication reference outcomes from completed Binance 1-minute candles, including MFE/MAE, +0.5R/+1R/+1.5R/+2R milestones, stop/target ordering and conservative same-minute ambiguity handling. It also measures six-hour future movement after `NO_SETUP` decisions in source-ATR units.
+Release 0.13.0 introduces the versioned `MV-TREND-DUAL-v3` production candidate. It preserves V2 history while tightening anti-chase behavior: pullback source/live extension is capped at 1.00 ATR, breakout source/live extension at 1.50 ATR, every setup and live entry must remain within a 2.50 ATR directional run from the preceding six completed 1H bars, and a coin can publish only one signal in the same direction per IST operating session.
+
+V3 keeps the two-ATR initial stop but replaces the single target presentation with **TP1 +1R / 30%**, **TP2 +1.5R / 30%** and **TP3 +2R / 40%**. After TP1 the remaining reference stop moves to entry; after TP2 it moves to TP1. The web signal views/charts and Telegram delivery show all three targets. Analytics measures the scaled reference-management path conservatively and keeps V2 history separately queryable. See [V3 strategy contract](docs/STRATEGY_V3.md).
+
+**Production remains release 0.12.0 / schema 0007 until the 0.13.0 candidate passes CI and controlled VPS cutover.**
+
+## Release 0.12.0 — V2 Performance analytics
+
+Release 0.12.0 deployed a strictly observational analytics subsystem around the live `MV-TREND-DUAL-v2` strategy. The signal engine and V2 financial contract are unchanged. A separate `outcome-analytics` worker records post-publication reference outcomes from completed Binance 1-minute candles, including MFE/MAE, +0.5R/+1R/+1.5R/+2R milestones, stop/target ordering and conservative same-minute ambiguity handling. It also measures six-hour future movement after `NO_SETUP` decisions in source-ATR units.
 
 Analytics has its own schema tables, worker lease, API namespace and a dedicated **Performance** page. It is deliberately absent from the Overview dashboard and cannot create, suppress, rank or modify a signal. The Performance page separates Pullback LONG, Pullback SHORT, Breakout LONG and Breakout SHORT, adds per-symbol reference statistics, blocker/missed-move diagnostics and CSV outcome export. See [V2 Performance analytics](docs/V2_PERFORMANCE_ANALYTICS.md).
 

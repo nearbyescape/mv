@@ -105,7 +105,7 @@ def test_postgres_real_migration_up_down_and_reupgrade(pg):
         p=subprocess.run([sys.executable,"-m","alembic",action,target],cwd=Path(__file__).resolve().parents[1],env=environment,capture_output=True,text=True)
         assert p.returncode==0,p.stderr
     with pg.engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version"))=="0007"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version"))=="0008"
         assert connection.scalar(text("SELECT count(*) FROM watchlist"))==2
 
 
@@ -182,19 +182,25 @@ def test_postgres_stale_owner_cannot_commit_after_handoff(pg):
         assert lease.OWNERS["signal-engine"]==old
 
 
-def test_postgres_exact_decimal_v2_signal_publication_and_notification_retry(pg):
+def test_postgres_exact_decimal_v3_signal_publication_and_notification_retry(pg):
     seed(pg);identity=pending(pg);publish(pg,identity)
     with pg.sessions.begin() as session:
         plan=session.get(SignalPlan,identity)
         payload=plan.plan_json
-        entry,stop,target,risk=map(Decimal,(payload["entry"],payload["stop"],payload["target"],payload["risk_distance"]))
-        assert payload["strategy"]=="MV-TREND-DUAL-v2"
+        entry,stop,tp1,tp2,tp3,risk=map(Decimal,(payload["entry"],payload["stop"],payload["tp1"],payload["tp2"],payload["tp3"],payload["risk_distance"]))
+        assert payload["strategy"]=="MV-TREND-DUAL-v3"
         assert payload["setup_type"] in ("pullback_continuation","momentum_breakout")
         assert entry==Decimal("200.1")
-        assert stop < entry < target
+        assert stop < entry < tp1 < tp2 < tp3
         assert entry-stop==risk
-        assert target-entry==Decimal(2)*risk
-        assert Decimal(payload["reward_risk"])==2
+        assert tp1-entry==Decimal(payload["tp1_r"])*risk
+        assert tp2-entry==Decimal(payload["tp2_r"])*risk
+        assert tp3-entry==Decimal(payload["tp3_r"])*risk
+        assert payload["target"]==payload["tp3"]
+        assert Decimal(payload["reward_risk"])==Decimal(payload["tp3_r"])
+        assert payload["exit_management"]["tp1_allocation"]=="0.30"
+        assert payload["exit_management"]["tp2_allocation"]=="0.30"
+        assert payload["exit_management"]["tp3_allocation"]=="0.40"
         assert session.scalar(select(func.count()).select_from(SignalSlot))==1
         assert sync_notifications(session)==1
     with pg.sessions.begin() as session:assert sync_notifications(session)==0

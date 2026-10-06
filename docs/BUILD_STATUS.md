@@ -1,6 +1,6 @@
 # Phased delivery status
 
-Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 is live and stabilized; release 0.12.0 observational performance analytics is implemented in source and under regression validation**. Production runs the 30-market direct-production V2 engine at https://mv.jaleshwarima.com with Telegram, AI commentary and the 09:00 AM–11:00 PM IST operating window. V1 history remains preserved. The 0.12.0 analytics subsystem is isolated from signal decisions and is not deployed until its regression and VPS migration gates pass.
+Milestone: **6 October 2026 — release 0.12.0 analytics is deployed; release 0.13.0 MV-TREND-DUAL-v3 is under regression validation**. Production remains on 0.12.0/schema 0007 while the signal engine is intentionally stopped during the V3 cutover preparation. V3 is versioned separately from V2 and adds anti-chase guards, same-direction same-session suppression and TP1/TP2/TP3 reference management.
 
 | Phase | Status | Exit evidence |
 | --- | --- | --- |
@@ -19,7 +19,13 @@ Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 is live and stab
 | 10. Hardening and hosting | Core deployed and checked on VPS | Public trusted HTTPS, owner onboarding, live PostgreSQL/market workers, VPS backup restore and preservation of existing websites; endurance/off-server transport remain pending |
 | 11. Forward paper pilot | Canceled by owner; originals preserved | Observer stopped, default disabled, omitted from live workflow; no continuity or assessment claim |
 
-## Release 0.12.0 observational outcome analytics candidate
+## Release 0.13.0 V3 production candidate
+
+Implemented on `codex/mv-v3-anti-chase-multi-tp`: the candidate registers `MV-TREND-DUAL-v3`, schema 0008 and 0.13.0 images. V3 keeps the V2 trend/setup architecture but tightens EMA20 extension, adds a six-hour 2.50 ATR recent-run guard at source and live entry, suppresses repeated same-direction publications for the same symbol during one IST session, and publishes TP1/TP2/TP3 at nominal +1R/+1.5R/+2R with 30/30/40 reference allocation. Web, chart and Telegram surfaces expose the three targets. V2 source/history remain preserved.
+
+The candidate is **not production until CI, packaged-image, migration/rollback and VPS gates pass**. See [V3 strategy contract](STRATEGY_V3.md).
+
+## Release 0.12.0 observational outcome analytics
 
 Implemented on a separate branch without modifying `MV-TREND-DUAL-v2` rules. Migration 0007 adds `signal_outcomes` and `decision_opportunities`; the dedicated `outcome-analytics` worker is fenced independently and is never imported by the signal engine. Published V2 plans are measured from the first uncontaminated completed Binance 1-minute candle after publication. MFE/MAE and R milestones are retained with conservative same-minute stop/target ambiguity. Six-hour `NO_SETUP` diagnostics use future completed 1H candles and source ATR only, with no hypothetical fill/P&L claim.
 

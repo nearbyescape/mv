@@ -224,6 +224,7 @@ class AIRequest(Base):
 class SignalOutcome(Base):
     __tablename__ = "signal_outcomes"
     signal_id: Mapped[str] = mapped_column(ForeignKey("signal_plans.id"), primary_key=True)
+    strategy: Mapped[str] = mapped_column(String(80), index=True)
     symbol: Mapped[str] = mapped_column(String(30), index=True)
     direction: Mapped[str] = mapped_column(String(8))
     setup_type: Mapped[str] = mapped_column(String(40))
@@ -234,8 +235,14 @@ class SignalOutcome(Base):
     entry: Mapped[str] = mapped_column(String(80))
     stop: Mapped[str] = mapped_column(String(80))
     target: Mapped[str] = mapped_column(String(80))
+    tp1: Mapped[str | None] = mapped_column(String(80))
+    tp2: Mapped[str | None] = mapped_column(String(80))
+    tp3: Mapped[str | None] = mapped_column(String(80))
     risk_distance: Mapped[str] = mapped_column(String(80))
     target_r: Mapped[str] = mapped_column(String(80))
+    tp1_r: Mapped[str | None] = mapped_column(String(80))
+    tp2_r: Mapped[str | None] = mapped_column(String(80))
+    tp3_r: Mapped[str | None] = mapped_column(String(80))
     frozen_atr: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(24), index=True)
     terminal_at: Mapped[int | None] = mapped_column(BigInteger)

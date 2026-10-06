@@ -1726,7 +1726,7 @@ tbody tr:last-child td {
 }
 .service-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 18px;
   margin-top: 20px;
 }
@@ -3570,6 +3570,28 @@ tbody tr:last-child td {
 .signal-levels strong {
   font-size: 21px;
   font-weight: 500;
+}
+.performance-strategy-select {
+  display: grid;
+  gap: 5px;
+  color: var(--secondary);
+  font-size: 10px;
+}
+.performance-strategy-select select {
+  min-width: 220px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 11px;
+}
+.signal-management-note {
+  margin: 0;
+  padding: 12px 0 4px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.8;
 }
 .signal-facts {
   display: flex;

@@ -223,6 +223,63 @@ test("operator state waits for successful persistence and held state keeps level
   await expect(dialog.locator(".signal-levels")).toContainText("$214.30");
 });
 
+test("V3 signal shows TP1 TP2 TP3 and scaled management in web views", async ({
+  page,
+  isMobile,
+}) => {
+  const data = feed();
+  const signal = data.signals[0];
+  signal.strategy = "MV-TREND-DUAL-v3";
+  signal.tp1 = "207.20";
+  signal.tp2 = "210.75";
+  signal.tp3 = signal.target;
+  signal.tp1_r = "1";
+  signal.tp2_r = "1.5";
+  signal.tp3_r = "2";
+  signal.exit_management = {
+    tp1_allocation: "0.30",
+    tp2_allocation: "0.30",
+    tp3_allocation: "0.40",
+    after_tp1: "move_remaining_stop_to_entry",
+    after_tp2: "move_remaining_stop_to_tp1",
+    maximum_realized_r: "1.55",
+    reference_only: true,
+  };
+  await page.route("**/api/signals**", (route) =>
+    route.fulfill({ json: data }),
+  );
+  await page.goto("/");
+
+  const panel = page.locator(".live-signal-panel");
+  await expect(panel).toContainText("TP1 · 30%");
+  await expect(panel).toContainText("TP2 · 30%");
+  await expect(panel).toContainText("TP3 · 40%");
+
+  await page
+    .getByRole("button", { name: "Inspect signal", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("TP1 · 30% · +1R");
+  await expect(dialog).toContainText("TP2 · 30% · +1.5R");
+  await expect(dialog).toContainText("TP3 · 40% · +2R");
+  await expect(dialog).toContainText(
+    "After TP1, move the remaining stop to entry",
+  );
+  await page.keyboard.press("Escape");
+
+  await openJournal(page, isMobile);
+  await expect(page.locator(".signal-journal-prices").first()).toContainText(
+    "T1",
+  );
+  await expect(page.locator(".signal-journal-prices").first()).toContainText(
+    "T2",
+  );
+  await expect(page.locator(".signal-journal-prices").first()).toContainText(
+    "T3",
+  );
+});
+
+
 test("signal charts preserve frozen levels, refresh only while open and display IST", async ({
   page,
 }) => {

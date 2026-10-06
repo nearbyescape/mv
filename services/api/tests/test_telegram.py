@@ -27,7 +27,8 @@ def test_fenced_outbox_claim_is_durable_deduplicated_and_immutable_levels_match_
         job=prepare(session,state.clock[0],SETTINGS)
         assert job and prepare(session,state.clock[0],SETTINGS) is None
         text=job[1]["text"]
-        for value in (plan.plan_json["entry"],plan.plan_json["stop"],plan.plan_json["target"]):assert value in text
+        for value in (plan.plan_json["entry"],plan.plan_json["stop"],plan.plan_json["tp1"],plan.plan_json["tp2"],plan.plan_json["tp3"]):assert value in text
+        assert all(label in text for label in ("TP1", "TP2", "TP3", "30%", "40%", "move remaining stop to entry", "move remaining stop to TP1"))
         assert "IST" in text and "Entry window ends" in text and "LONG" in text
         assert session.get(TelegramDelivery,job[0]).status=="inflight"
     with state.sessions.begin() as session:

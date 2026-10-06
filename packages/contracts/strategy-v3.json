@@ -1,0 +1,70 @@
+{
+  "id": "MV-TREND-DUAL-v3",
+  "version": 3,
+  "market": "Binance USD-M perpetual futures",
+  "entry_timeframe": "1h",
+  "confirmation_timeframe": "4h",
+  "indicators": {
+    "ema_fast": 20,
+    "ema_slow": 50,
+    "sma_trend": 200,
+    "atr_wilder": 14
+  },
+  "warmup_bars_per_timeframe": 500,
+  "structure_lookback_bars": 12,
+  "trend_regime": {
+    "established": "Directional EMA20/EMA50/SMA200 ordering on 1H plus matching completed 4H ordering and EMA20-side close",
+    "emerging": "Directional EMA20/EMA50 ordering, aligned 1H EMA50 slope, price on the directional SMA200 side, plus matching completed 4H EMA20/EMA50 ordering and EMA20-side close"
+  },
+  "setups": {
+    "pullback_continuation": {
+      "max_previous_ema20_depth_atr": "0.75",
+      "min_reclaim_or_loss_atr": "0.10",
+      "min_body_atr": "0.20",
+      "min_directional_close_location": "0.60",
+      "max_source_extension_atr": "1.00",
+      "max_entry_drift_atr": "0.50",
+      "max_entry_extension_atr": "1.00"
+    },
+    "momentum_breakout": {
+      "lookback_bars": 12,
+      "min_break_distance_atr": "0.05",
+      "min_body_atr": "0.35",
+      "min_directional_close_location": "0.70",
+      "max_source_extension_atr": "1.50",
+      "max_entry_drift_atr": "0.75",
+      "max_entry_extension_atr": "1.50"
+    }
+  },
+  "anti_chase": {
+    "recent_run_bars": 6,
+    "max_recent_run_atr": "2.50",
+    "same_direction_signals_per_symbol_per_ist_session": 1
+  },
+  "market_regime": {
+    "alt_btc_contradiction_veto": true,
+    "definition": "For non-BTC symbols only, reject a long when BTC 1H and completed 4H are both strongly bearish; reject a short when both are strongly bullish"
+  },
+  "execution_quality": {
+    "max_quote_age_seconds": 5,
+    "expires_after_seconds": 300,
+    "max_spread_bps": "10",
+    "one_active_position_per_symbol_across_strategies": true,
+    "closed_candles_only": true
+  },
+  "risk": {
+    "stop_atr_multiple": "2",
+    "targets": [
+      {"id": "TP1", "r_multiple": "1.0", "allocation": "0.30"},
+      {"id": "TP2", "r_multiple": "1.5", "allocation": "0.30"},
+      {"id": "TP3", "r_multiple": "2.0", "allocation": "0.40"}
+    ],
+    "after_tp1": "move_remaining_stop_to_entry",
+    "after_tp2": "move_remaining_stop_to_tp1",
+    "reference_only": true,
+    "trailing_stop": false
+  },
+  "ai_role": "Asynchronous evidence review and explanation; cannot originate or change a signal",
+  "execution": "Signals and operator state only; no exchange orders",
+  "status": "Production v3 candidate; anti-chase pullback/breakout continuation with scaled TP1/TP2/TP3 reference management"
+}
