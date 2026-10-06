@@ -43,6 +43,15 @@ snapshot rejects the candidate as `BTC_15M_TIMING_CONFLICT`.
 The 15-minute layer is a veto only. It cannot originate a signal or change the
 1H/4H signal direction.
 
+## Safety analytics freshness
+
+The directional circuit breaker depends on persisted completed-1m outcome
+milestones. Publication therefore fails closed when the `outcome-analytics`
+worker heartbeat is missing or older than **45 seconds**. The decision remains
+pending inside its normal entry window and may proceed only after the safety
+analytics worker becomes current again. The web feed reports this condition as
+a degraded **Market Safety Mode** rather than presenting the system as normal.
+
 ## Directional concentration
 
 At most **two V4 signals in the same direction** may be published for one exact
@@ -62,9 +71,13 @@ V4 reference outcomes continue to be measured from completed Binance 1-minute
 candles. For the circuit breaker only, a signal is considered deteriorated when
 it reaches **-0.5R before +0.5R**.
 
-If two V4 signals published within the preceding 120 minutes deteriorate in the
-same direction, that direction is paused for **120 minutes from the later
--0.5R event**. The opposite direction remains eligible.
+If two V4 signals whose publications formed a 120-minute cluster deteriorate in
+the same direction, that direction is paused for **120 minutes from the later
+-0.5R event**. The pause remains active for the full 120 minutes even after an
+older signal leaves the rolling publication window. If +0.5R and -0.5R first
+appear in the same completed 1-minute candle, ordering is unknowable and the
+safety governor treats that candle conservatively as adverse-first. The
+opposite direction remains eligible.
 
 New candidates in the paused direction are rejected as
 `DIRECTIONAL_CIRCUIT_BREAKER`. Already published plans remain immutable, but
