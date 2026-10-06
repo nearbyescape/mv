@@ -4,7 +4,7 @@ services:
     environment:
       MV_AI_ENABLED: "true"
   ai:
-    image: mv-signal-api:0.13.0
+    image: mv-signal-api:0.14.0
     command: [python, -m, app.ai.worker]
     environment:
       MV_ENVIRONMENT: production
