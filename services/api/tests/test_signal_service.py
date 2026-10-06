@@ -435,37 +435,37 @@ def test_changed_v3_financial_contract_is_refused_before_worker_start(state, mon
 def test_same_direction_signal_is_suppressed_for_rest_of_ist_session(state):
     seed(state)
     identity = pending(state)
-    publish(state, identity)
+    prior_id = decision_id("BTCUSDT", BOUNDARY - 2 * STEP)
     with state.sessions.begin() as session:
-        first = session.get(SignalDecision, identity)
-        assert first.direction == "long"
-        session.execute(
-            __import__("sqlalchemy").delete(SignalSlot).where(SignalSlot.signal_id == identity)
-        )
-        later_open = first.source_open_time + 2 * STEP
-        later_id = decision_id("BTCUSDT", later_open)
         session.add(
             SignalDecision(
-                id=later_id,
+                id=prior_id,
                 symbol="BTCUSDT",
                 strategy=STRATEGY_ID,
-                source_open_time=later_open,
-                direction=None,
-                outcome="PENDING",
-                reason="test-repeat",
-                updated_at=state.clock[0],
-                expires_at=later_open + STEP + 300_000,
+                source_open_time=BOUNDARY - 2 * STEP,
+                direction="long",
+                outcome="PUBLISHED",
+                reason="fixture-prior-same-session",
+                updated_at=state.clock[0] - STEP,
+                expires_at=BOUNDARY - STEP + 300_000,
                 evidence_json={},
             )
         )
-        # Test the durable session-level guard directly; market context for a
-        # future fixture candle is intentionally not fabricated here.
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert (row.outcome, row.reason) == (
+            "REJECTED",
+            "SAME_DIRECTION_SIGNAL_THIS_SESSION",
+        )
         assert service._same_direction_signal_this_session(
-            session, "BTCUSDT", "long", later_open + STEP
+            session, "BTCUSDT", "long", BOUNDARY
         )
         assert not service._same_direction_signal_this_session(
-            session, "BTCUSDT", "short", later_open + STEP
+            session, "BTCUSDT", "short", BOUNDARY
         )
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
 
 
 def test_rate_limit_is_respected_across_candidates_and_retries(state):
