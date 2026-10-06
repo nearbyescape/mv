@@ -235,6 +235,7 @@ class SignalOutcome(Base):
     stop: Mapped[str] = mapped_column(String(80))
     target: Mapped[str] = mapped_column(String(80))
     risk_distance: Mapped[str] = mapped_column(String(80))
+    target_r: Mapped[str] = mapped_column(String(80))
     frozen_atr: Mapped[str] = mapped_column(String(80))
     status: Mapped[str] = mapped_column(String(24), index=True)
     terminal_at: Mapped[int | None] = mapped_column(BigInteger)
