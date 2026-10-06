@@ -626,10 +626,10 @@ def performance_summary(session, strategy=LIVE_ANALYTICS_STRATEGY):
         "method": "reference-plan analytics; not exchange fills or account P&L",
         "minute_observation": "first full completed Binance 1m candle at/after publication; pre-publication portion of a minute is never used",
         "ambiguous_policy": (
-            "V3 protective-stop changes become active from the next completed 1m observation; "
+            "Scaled-target protective-stop changes become active from the next completed 1m observation; "
             "if the previously active stop and a new target occur in the same 1m candle, "
             "the conservative result assumes the stop occurred first"
-            if strategy == V3_STRATEGY
+            if strategy in (V3_STRATEGY, V4_STRATEGY)
             else "if stop and target occur in the same 1m candle, status is ambiguous and conservative reference result is -1R"
         ),
         "overall": _summary(outcomes),
