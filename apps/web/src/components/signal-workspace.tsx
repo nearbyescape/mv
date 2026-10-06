@@ -25,8 +25,16 @@ import {
 
 const price = (
   signal: EngineSignal,
-  key: "entry" | "stop" | "target" | "frozen_atr" | "risk_distance",
-) => displayPrice(Number(signal[key]), signal.tick_size);
+  key:
+    | "entry"
+    | "stop"
+    | "target"
+    | "tp1"
+    | "tp2"
+    | "tp3"
+    | "frozen_atr"
+    | "risk_distance",
+) => displayPrice(Number(signal[key] ?? signal.target), signal.tick_size);
 const labels: Record<string, string> = {
   order_1h: "1H EMA20 / EMA50 / SMA200 ordering",
   previous_close: "Previous close on the pullback side of EMA20",
@@ -50,6 +58,7 @@ const labels: Record<string, string> = {
   close_location: "Source candle closes strongly in its direction",
   source_extension_atr: "Source close is not overextended from EMA20",
   structure_break: "Source close breaks recent 1H structure",
+  recent_run_atr: "Recent six-hour directional run remains within the anti-chase limit",
 };
 
 function saveFile(text: string, filename: string, mime: string) {
@@ -172,11 +181,35 @@ function SignalDetails({
               <span>Frozen stop</span>
               <strong>${price(signal, "stop")}</strong>
             </div>
-            <div>
-              <span>Full target</span>
-              <strong>${price(signal, "target")}</strong>
-            </div>
+            {signal.tp1 && signal.tp2 && signal.tp3 ? (
+              <>
+                <div>
+                  <span>TP1 · 30% · +1R</span>
+                  <strong>${price(signal, "tp1")}</strong>
+                </div>
+                <div>
+                  <span>TP2 · 30% · +1.5R</span>
+                  <strong>${price(signal, "tp2")}</strong>
+                </div>
+                <div>
+                  <span>TP3 · 40% · +2R</span>
+                  <strong>${price(signal, "tp3")}</strong>
+                </div>
+              </>
+            ) : (
+              <div>
+                <span>Full target</span>
+                <strong>${price(signal, "target")}</strong>
+              </div>
+            )}
           </div>
+          {signal.exit_management && (
+            <p className="signal-management-note">
+              After TP1, move the remaining stop to entry. After TP2, move the
+              remaining stop to TP1. Reference management only; MV does not
+              execute orders or record fills.
+            </p>
+          )}
           <div className="signal-facts">
             <span>
               Frozen ATR14 <b>{price(signal, "frozen_atr")}</b>
@@ -342,9 +375,11 @@ function SignalDetails({
           <div className="signal-operator">
             <h3>Position slot</h3>
             <p>
-              Mark a position as held to block new signals for this coin.
-              Release it when you are done. This records your state only; no
-              order, fill or profit is recorded.
+              V3 automatically suppresses another signal in the same direction
+              for this coin during the same IST session. Marking a position as
+              held additionally blocks any new signal for this coin until you
+              release it. This records operator state only; no order or fill is
+              recorded.
             </p>
             <label>
               State note
@@ -490,9 +525,23 @@ export function LiveSignalPanel({
               <span>
                 Stop <b>${price(signal, "stop")}</b>
               </span>
-              <span>
-                Target <b>${price(signal, "target")}</b>
-              </span>
+              {signal.tp1 && signal.tp2 && signal.tp3 ? (
+                <>
+                  <span>
+                    TP1 · 30% <b>${price(signal, "tp1")}</b>
+                  </span>
+                  <span>
+                    TP2 · 30% <b>${price(signal, "tp2")}</b>
+                  </span>
+                  <span>
+                    TP3 · 40% <b>${price(signal, "tp3")}</b>
+                  </span>
+                </>
+              ) : (
+                <span>
+                  Target <b>${price(signal, "target")}</b>
+                </span>
+              )}
             </div>
             <div className="setup-rule">
               <ShieldCheck size={16} />
@@ -672,7 +721,7 @@ export function SignalJournal({
               <tr>
                 <th>Market / signal ID</th>
                 <th>Direction</th>
-                <th>Entry / stop / target</th>
+                <th>Entry / stop / targets</th>
                 <th>Source close · IST</th>
                 <th>Status</th>
                 <th>
@@ -701,7 +750,9 @@ export function SignalJournal({
                   <td className="signal-journal-prices">
                     ${price(signal, "entry")}
                     <small>
-                      S ${price(signal, "stop")} · T ${price(signal, "target")}
+                      {signal.tp1 && signal.tp2 && signal.tp3
+                        ? `S ${price(signal, "stop")} · T1 ${price(signal, "tp1")} · T2 ${price(signal, "tp2")} · T3 ${price(signal, "tp3")}`
+                        : `S ${price(signal, "stop")} · T ${price(signal, "target")}`}
                     </small>
                   </td>
                   <td className="muted">
