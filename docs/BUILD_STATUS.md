@@ -1,6 +1,6 @@
 # Phased delivery status
 
-Milestone: **5 October 2026 — release 0.10.0 implemented; deployment verification pending**. The application is live at https://mv.jaleshwarima.com on the owner's Linux VPS. The owner created their account and core readiness passed. OpenRouter evidence review is implemented, deployed and exercised with one real DeepSeek diagnostic. Telegram outbox and the 09:00 AM–11:00 PM IST operating window are implemented; actual destination/send and reset verification are pending. Paper observation is canceled; it is not a release gate.
+Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 source candidate implemented; regression/VPS cutover verification pending**. Production currently runs the verified 0.10.0 stack at https://mv.jaleshwarima.com until the 0.11.0 validation gates pass. V2 is a direct-production replacement for new signal decisions, not a paper/shadow runtime. Existing V1 research and historical plans are preserved. Telegram and the 09:00 AM–11:00 PM IST operating window are already active in production. Paper observation remains canceled.
 
 | Phase | Status | Exit evidence |
 | --- | --- | --- |
@@ -17,6 +17,14 @@ Milestone: **5 October 2026 — release 0.10.0 implemented; deployment verificat
 | 9. DeepSeek / OpenRouter | Implemented and deployed; real signal reviews observed | Pinned model, isolated fenced worker, durable daily request/retry bounds, schema/reference validation and commentary UI; eight accepted real signal reviews; two failed commentary attempts are labeled |
 | 10. Hardening and hosting | Core deployed and checked on VPS | Public trusted HTTPS, owner onboarding, live PostgreSQL/market workers, VPS backup restore and preservation of existing websites; endurance/off-server transport remain pending |
 | 11. Forward paper pilot | Canceled by owner; originals preserved | Observer stopped, default disabled, omitted from live workflow; no continuity or assessment claim |
+
+## Release 0.11.0 V2 production strategy candidate
+
+Implemented in source on a dedicated branch: `MV-TREND-DUAL-v2` keeps completed 1H/4H EMA20/EMA50/SMA200/Wilder ATR14 evidence, the existing 2 ATR stop / 2R reference geometry, the registered IST session and all durable publication/Telegram/AI guards. It adds quality-controlled pullback continuation plus 12-bar structural momentum breakout, established/emerging trend regimes, ATR-normalized candle/extension checks, a 10 bps spread ceiling and a BTC contradiction veto for altcoins.
+
+The strategy identity is distinct from V1. First V2 startup baselines every ready symbol at the current head, so no historical V2 opportunity is replayed. The V2 worker ignores V1 pending rows and checks active slots across strategy versions. V2 structure and BTC regime source snapshots are checksummed and revision-monitored.
+
+The old V1 strategy module/contract and research pipeline remain unchanged so historical reports stay reproducible. No schema migration is required. Source implementation is **not** a profitability claim; regression, isolated Linux image checks and controlled production cutover remain required before 0.11.0 becomes active. See [full V2 behavior](STRATEGY_V2.md).
 
 ## Release 0.10.0 client handover, Telegram and daily session
 
