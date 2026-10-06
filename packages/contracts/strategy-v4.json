@@ -56,7 +56,9 @@
       "pause_minutes": 120,
       "rule": "Pause a direction when two recent V4 published signals reach -0.5R before +0.5R. The opposite direction remains eligible."
     },
-    "fail_closed_on_missing_btc_15m": true
+    "fail_closed_on_missing_btc_15m": true,
+    "analytics_max_age_seconds": 45,
+    "fail_closed_on_stale_safety_analytics": true
   },
   "execution_quality": {
     "max_quote_age_seconds": 5,
