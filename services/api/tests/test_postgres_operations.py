@@ -182,13 +182,13 @@ def test_postgres_stale_owner_cannot_commit_after_handoff(pg):
         assert lease.OWNERS["signal-engine"]==old
 
 
-def test_postgres_exact_decimal_v3_signal_publication_and_notification_retry(pg):
+def test_postgres_exact_decimal_v4_signal_publication_and_notification_retry(pg):
     seed(pg);identity=pending(pg);publish(pg,identity)
     with pg.sessions.begin() as session:
         plan=session.get(SignalPlan,identity)
         payload=plan.plan_json
         entry,stop,tp1,tp2,tp3,risk=map(Decimal,(payload["entry"],payload["stop"],payload["tp1"],payload["tp2"],payload["tp3"],payload["risk_distance"]))
-        assert payload["strategy"]=="MV-TREND-DUAL-v3"
+        assert payload["strategy"]=="MV-TREND-DUAL-v4"
         assert payload["setup_type"] in ("pullback_continuation","momentum_breakout")
         assert entry==Decimal("200.1")
         assert stop < entry < tp1 < tp2 < tp3
