@@ -483,7 +483,7 @@ export function LiveSignalPanel({
               : "Waiting"}
           </span>
         </div>
-        {feed.data?.safety.status !== "normal" && (
+        {feed.data?.safety && feed.data.safety.status !== "normal" && (
           <p className="signal-alert" role="alert">
             <strong>Market Safety Mode</strong> · {feed.data.safety.message}
           </p>
