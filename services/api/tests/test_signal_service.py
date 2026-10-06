@@ -15,7 +15,7 @@ from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
 from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Quote, canonical_hash
-from mv_strategy.strategy_v2 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
+from mv_strategy.strategy_v3 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
 from app.database import Base, get_session
 from app.main import app
 from app.market import views
@@ -283,7 +283,7 @@ def test_alt_signal_btc_regime_veto_is_directional_and_uses_completed_context(st
         assert evidence["passed"] is True
 
 
-def test_existing_v1_held_slot_blocks_v2_candidate_for_same_symbol(state):
+def test_existing_v1_held_slot_blocks_v3_candidate_for_same_symbol(state):
     seed(state)
     identity = pending(state)
     old = "d" * 64
@@ -324,7 +324,7 @@ def test_existing_v1_held_slot_blocks_v2_candidate_for_same_symbol(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan).where(SignalPlan.strategy == STRATEGY_ID)) == 0
 
 
-def test_existing_v1_cursor_cannot_replay_history_when_v2_first_starts(state):
+def test_existing_v1_cursor_cannot_replay_history_when_v3_first_starts(state):
     seed(state)
     with state.sessions.begin() as session:
         checkpoint = session.get(service.IndicatorCheckpoint, ("BTCUSDT", "1h"))
@@ -337,9 +337,9 @@ def test_existing_v1_cursor_cannot_replay_history_when_v2_first_starts(state):
         ))
     with state.sessions.begin() as session:
         discover(session, state.clock[0])
-        v2 = session.get(EngineCursor, ("BTCUSDT", STRATEGY_ID))
-        assert v2 is not None
-        assert v2.last_open_time == BOUNDARY - STEP
+        v3 = session.get(EngineCursor, ("BTCUSDT", STRATEGY_ID))
+        assert v3 is not None
+        assert v3.last_open_time == BOUNDARY - STEP
         rows = list(session.scalars(select(SignalDecision).where(SignalDecision.strategy == STRATEGY_ID)))
         assert len(rows) == 1
         assert rows[0].outcome == "BASELINE"
@@ -400,7 +400,7 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
 
 
-def test_v2_worker_ignores_leftover_v1_pending_decisions(state):
+def test_v3_worker_ignores_leftover_v1_pending_decisions(state):
     seed(state)
     legacy_id = "f" * 64
     with state.sessions.begin() as session:
@@ -417,19 +417,55 @@ def test_v2_worker_ignores_leftover_v1_pending_decisions(state):
         ))
     class NoQuote:
         async def quote(self, *args):
-            pytest.fail("V2 worker must not request a quote for a V1 decision")
+            pytest.fail("V3 worker must not request a quote for a V1 decision")
     asyncio.run(SignalWorker(NoQuote()).process(legacy_id))
     with state.sessions() as session:
         row = session.get(SignalDecision, legacy_id)
         assert (row.outcome, row.reason, row.attempts) == ("PENDING", "legacy-pending", 0)
 
 
-def test_changed_v2_financial_contract_is_refused_before_worker_start(state, monkeypatch):
+def test_changed_v3_financial_contract_is_refused_before_worker_start(state, monkeypatch):
     changed = json.loads(json.dumps(service.LIVE_CONTRACT))
     changed["setups"]["momentum_breakout"]["min_body_atr"] = "0.10"
     monkeypatch.setattr(service, "LIVE_CONTRACT", changed)
-    with pytest.raises(ValueError, match="Production V2 financial contract changed"):
+    with pytest.raises(ValueError, match="Production V3 financial contract changed"):
         service.check_live_contract()
+
+
+def test_same_direction_signal_is_suppressed_for_rest_of_ist_session(state):
+    seed(state)
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        first = session.get(SignalDecision, identity)
+        assert first.direction == "long"
+        session.execute(
+            __import__("sqlalchemy").delete(SignalSlot).where(SignalSlot.signal_id == identity)
+        )
+        later_open = first.source_open_time + 2 * STEP
+        later_id = decision_id("BTCUSDT", later_open)
+        session.add(
+            SignalDecision(
+                id=later_id,
+                symbol="BTCUSDT",
+                strategy=STRATEGY_ID,
+                source_open_time=later_open,
+                direction=None,
+                outcome="PENDING",
+                reason="test-repeat",
+                updated_at=state.clock[0],
+                expires_at=later_open + STEP + 300_000,
+                evidence_json={},
+            )
+        )
+        # Test the durable session-level guard directly; market context for a
+        # future fixture candle is intentionally not fabricated here.
+        assert service._same_direction_signal_this_session(
+            session, "BTCUSDT", "long", later_open + STEP
+        )
+        assert not service._same_direction_signal_this_session(
+            session, "BTCUSDT", "short", later_open + STEP
+        )
 
 
 def test_rate_limit_is_respected_across_candidates_and_retries(state):
