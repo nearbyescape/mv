@@ -8,7 +8,7 @@ Release 0.14.0 preserves the V3 financial core and adds a client-facing market-s
 
 The V3 two-ATR stop and TP1/TP2/TP3 30/30/40 reference management remain unchanged. The signal feed exposes Market Safety Mode when a directional circuit breaker is active. See [V4 strategy contract](docs/STRATEGY_V4.md).
 
-**Production is currently release 0.13.0 / schema 0008 with the signal engine intentionally stopped while 0.14.0 is validated.** No V3 signal has been published since the V3 cutover.
+**Production is currently release 0.13.0 / schema 0008 with the V3 engine running. Its first production startup established 30 durable baselines with zero retroactive V3 publications. Release 0.14.0 remains isolated until validation and a controlled cutover.**
 
 ## Release 0.13.0 — MV-TREND-DUAL-v3
 
