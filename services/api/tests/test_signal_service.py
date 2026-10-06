@@ -14,7 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
-from mv_strategy.signals import Quote, canonical_hash
+from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Quote, canonical_hash
 from mv_strategy.strategy_v2 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
 from app.database import Base, get_session
 from app.main import app
@@ -264,6 +264,69 @@ def test_held_slot_blocks_new_candidate_and_database_enforces_unique_source_and_
     with pytest.raises(IntegrityError):
         with state.sessions.begin() as session:
             session.add(SignalDecision(id="c" * 64, symbol="BTCUSDT", strategy=STRATEGY_ID, source_open_time=BOUNDARY - STEP, outcome="PENDING", reason="duplicate", updated_at=state.clock[0], expires_at=BOUNDARY + 300_000, evidence_json={}))
+
+
+def test_existing_v1_held_slot_blocks_v2_candidate_for_same_symbol(state):
+    seed(state)
+    identity = pending(state)
+    old = "d" * 64
+    with state.sessions.begin() as session:
+        session.add(SignalDecision(
+            id=old,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            source_open_time=BOUNDARY - 2 * STEP,
+            outcome="PUBLISHED",
+            reason="retained-v1-held",
+            updated_at=state.clock[0],
+            expires_at=BOUNDARY + 3_600_000,
+            evidence_json={},
+        ))
+        session.flush()
+        session.add(SignalPlan(
+            id=old,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            created_at=BOUNDARY - STEP,
+            expires_at=BOUNDARY + 3_600_000,
+            plan_json={},
+            evidence_json={},
+            evidence_hash="e" * 64,
+        ))
+        session.flush()
+        session.add(SignalSlot(
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            signal_id=old,
+            state="held",
+        ))
+    with state.sessions.begin() as session:
+        evaluate_decision(session, session.get(SignalDecision, identity), state.clock[0], fresh_quote(state))
+        row = session.get(SignalDecision, identity)
+        assert (row.outcome, row.reason) == ("REJECTED", "ACTIVE_SIGNAL_OR_HELD_POSITION")
+        assert session.scalar(select(func.count()).select_from(SignalPlan).where(SignalPlan.strategy == STRATEGY_ID)) == 0
+
+
+def test_existing_v1_cursor_cannot_replay_history_when_v2_first_starts(state):
+    seed(state)
+    with state.sessions.begin() as session:
+        checkpoint = session.get(service.IndicatorCheckpoint, ("BTCUSDT", "1h"))
+        head = checkpoint.state_json["last_open_time"]
+        session.add(EngineCursor(
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            last_open_time=head - 20 * STEP,
+            initialized_at=BOUNDARY - 20 * STEP,
+        ))
+    with state.sessions.begin() as session:
+        discover(session, state.clock[0])
+        v2 = session.get(EngineCursor, ("BTCUSDT", STRATEGY_ID))
+        assert v2 is not None
+        assert v2.last_open_time == BOUNDARY - STEP
+        rows = list(session.scalars(select(SignalDecision).where(SignalDecision.strategy == STRATEGY_ID)))
+        assert len(rows) == 1
+        assert rows[0].outcome == "BASELINE"
+        assert rows[0].reason == "STARTUP_BASELINE_NO_RETROACTIVE_ENTRY"
 
 
 def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
