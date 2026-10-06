@@ -15,7 +15,7 @@ from app.database import Session
 from app.market.binance import BinancePublic, RateLimited, now_ms
 from app.market.views import collector_health
 from app.models import EngineStatus, SignalDecision
-from .service import PENDING, check_contract, check_source_revisions, context_at, canonical_hash, discover, engine_health, evaluate_decision, expire_slots
+from .service import PENDING, STRATEGY_ID, check_live_contract, check_source_revisions, context_at, canonical_hash, discover, engine_health, evaluate_decision, expire_slots
 
 log = logging.getLogger("mv.engine")
 
@@ -40,6 +40,8 @@ class SignalWorker:
             return
         with worker_transaction("signal-engine", Session) as session:
             row = session.get(SignalDecision, identity)
+            if row is None or row.strategy != STRATEGY_ID:
+                return
             from app.operations.market_lock import lock_market
             lock_market(session,row.symbol)
             fingerprint = evaluate_decision(session, row, now_ms())
@@ -57,7 +59,7 @@ class SignalWorker:
                 self.rate_limit_until = time.monotonic() + exc.retry_after
             with worker_transaction("signal-engine", Session) as session:
                 row = session.get(SignalDecision, identity)
-                if row.outcome == PENDING:
+                if row is not None and row.strategy == STRATEGY_ID and row.outcome == PENDING:
                     row.reason = "QUOTE_RATE_LIMITED" if isinstance(exc, RateLimited) else "QUOTE_UNAVAILABLE"
                     row.updated_at = now_ms()
                     row.evidence_json = {**row.evidence_json, "quote_error": str(exc)[:200]}
@@ -67,14 +69,17 @@ class SignalWorker:
                 if session.get_bind().dialect.name == "sqlite":
                     session.execute(text("BEGIN IMMEDIATE"))
                 row = session.get(SignalDecision, identity)
+                if row is None or row.strategy != STRATEGY_ID:
+                    return
                 from app.operations.market_lock import lock_market
                 lock_market(session,row.symbol)
                 if row.outcome != PENDING:
                     return
                 evidence = context_at(session, symbol, row.source_open_time)[-1]
                 # Compare the exact pre-quote source, checks and metadata; changed input retries safely.
-                old_checks = row.evidence_json.get("checks", [])
-                evidence["checks"] = old_checks
+                for key in ("checks", "setup", "btc_regime"):
+                    if key in row.evidence_json:
+                        evidence[key] = row.evidence_json[key]
                 if canonical_hash(evidence) != fingerprint:
                     row.reason, row.updated_at = "SOURCE_CHANGED_DURING_QUOTE", now_ms()
                     return
@@ -102,7 +107,11 @@ class SignalWorker:
             self.status("maintenance")
             return
         with Session() as session:
-            identities = list(session.scalars(select(SignalDecision.id).where(SignalDecision.outcome == PENDING, SignalDecision.updated_at <= local_now - 1500).order_by(SignalDecision.source_open_time).limit(50)))
+            identities = list(session.scalars(select(SignalDecision.id).where(
+                SignalDecision.strategy == STRATEGY_ID,
+                SignalDecision.outcome == PENDING,
+                SignalDecision.updated_at <= local_now - 1500,
+            ).order_by(SignalDecision.source_open_time).limit(50)))
         for identity in identities:
             await self.process(identity)
             # A many-symbol close must not make engine health stale while quotes
@@ -111,7 +120,7 @@ class SignalWorker:
         self.status("waiting-data" if not health["live"] else "running" if session_view(now_ms()+health["clock_offset_ms"])["open"] else "session-paused")
 
     async def run(self, once=False):
-        check_contract()
+        check_live_contract()
         from .session import check_policy
         check_policy()
         try:
