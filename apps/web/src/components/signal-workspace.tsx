@@ -35,6 +35,21 @@ const labels: Record<string, string> = {
   order_4h: "Required completed 4H trend agrees",
   close_4h: "4H close beyond EMA20 in the signal direction",
   positive_atr: "Source ATR14 is positive",
+  ema20_ema50_1h: "1H EMA20 / EMA50 direction agrees",
+  ema50_slope_1h: "1H EMA50 slope agrees with direction",
+  price_sma200_1h: "Price is on the directional side of SMA200",
+  established_1h: "Full 1H EMA20 / EMA50 / SMA200 ordering",
+  ema20_ema50_4h: "Completed 4H EMA20 / EMA50 direction agrees",
+  ema20_side_4h: "Completed 4H close is beyond EMA20",
+  established_4h: "Full completed 4H EMA20 / EMA50 / SMA200 ordering",
+  pullback_side: "Previous 1H close reached the EMA20 pullback side",
+  pullback_depth_atr: "Pullback depth remains controlled",
+  reclaim_strength_atr: "EMA20 reclaim / loss has sufficient strength",
+  directional_body: "Source candle body agrees with direction",
+  body_atr: "Source candle body is meaningful versus ATR",
+  close_location: "Source candle closes strongly in its direction",
+  source_extension_atr: "Source close is not overextended from EMA20",
+  structure_break: "Source close breaks recent 1H structure",
 };
 
 function saveFile(text: string, filename: string, mime: string) {
@@ -452,7 +467,13 @@ export function LiveSignalPanel({
                     {signal.direction}
                   </span>
                 </strong>
-                <p>1H reclaim / loss · completed 4H trend</p>
+                <p>
+                  {signal.setup_type === "momentum_breakout"
+                    ? "1H momentum breakout · completed 4H trend"
+                    : signal.setup_type === "pullback_continuation"
+                      ? "1H pullback continuation · completed 4H trend"
+                      : "1H trend setup · completed 4H trend"}
+                </p>
               </div>
             </div>
             <div className="level-grid">
@@ -507,8 +528,9 @@ export function LiveSignalPanel({
                 : "Waiting for a qualifying setup"}
             </h3>
             <p>
-              A fresh hourly EMA20 reclaim or loss and matching completed 4H
-              confirmation are required.
+              Scanning completed 1H candles for qualified pullback
+              continuations and structural momentum breakouts with matching 4H
+              trend confirmation.
             </p>
             {decision && (
               <span className="signal-decision-note">
