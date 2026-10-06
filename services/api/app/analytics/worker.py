@@ -106,15 +106,6 @@ async def run(once=False):
                     *seeded,
                 )
 
-            try:
-                server_now, _ = await public.clock()
-            except RateLimited as exc:
-                log.warning("Analytics clock rate limited; retrying in %.1fs", exc.retry_after)
-                if once:
-                    raise
-                await asyncio.sleep(exc.retry_after)
-                continue
-
             with Session() as session:
                 active = list(
                     session.scalars(
@@ -123,6 +114,21 @@ async def run(once=False):
                         .order_by(SignalOutcome.symbol, SignalOutcome.published_at, SignalOutcome.signal_id)
                     )
                 )
+
+            if not active:
+                if once:
+                    return
+                await asyncio.sleep(15)
+                continue
+
+            try:
+                server_now, _ = await public.clock()
+            except RateLimited as exc:
+                log.warning("Analytics clock rate limited; retrying in %.1fs", exc.retry_after)
+                if once:
+                    raise
+                await asyncio.sleep(exc.retry_after)
+                continue
 
             grouped = {}
             for row in active:
