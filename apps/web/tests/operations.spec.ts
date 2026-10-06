@@ -66,7 +66,8 @@ test("paused IST session remains healthy and Telegram status is visible", async 
   );
   await page.goto("/");
   await expect(page.locator(".preview-banner")).toContainText("Session paused");
-  await expect(page.locator(".live-signal-panel")).toContainText(
+  await expect(page.locator(".live-signal-panel")).toContainText("Session paused");
+  await expect(page.locator(".live-signal-panel")).not.toContainText(
     "09:00 AM–11:00 PM IST",
   );
   if (isMobile)
