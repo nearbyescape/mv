@@ -116,18 +116,21 @@ async def run(once=False):
                 continue
 
             with Session() as session:
-                active = [
-                    (row.signal_id, row.symbol, row.first_observed_minute, row.last_minute_open_time)
-                    for row in session.scalars(
+                active = list(
+                    session.scalars(
                         select(SignalOutcome)
                         .where(SignalOutcome.status == "open")
-                        .order_by(SignalOutcome.published_at, SignalOutcome.signal_id)
-                        .limit(100)
+                        .order_by(SignalOutcome.symbol, SignalOutcome.published_at, SignalOutcome.signal_id)
                     )
-                ]
+                )
 
-            for signal_id, symbol, first_minute, last_minute in active:
-                start = first_minute if last_minute is None else last_minute + MINUTE_MS
+            grouped = {}
+            for row in active:
+                start = row.first_observed_minute if row.last_minute_open_time is None else row.last_minute_open_time + MINUTE_MS
+                grouped.setdefault(row.symbol, []).append((row.signal_id, start))
+
+            for symbol, signals in grouped.items():
+                start = min(item[1] for item in signals)
                 try:
                     bars = await fetch_completed_minutes(public, symbol, start, server_now)
                 except RateLimited as exc:
@@ -137,24 +140,28 @@ async def run(once=False):
                     await asyncio.sleep(exc.retry_after)
                     break
                 except Exception as exc:
-                    log.warning("Analytics fetch failed for %s/%s: %s", symbol, signal_id[:12], exc)
+                    log.warning("Analytics fetch failed for %s: %s", symbol, exc)
                     with worker_transaction("outcome-analytics", Session) as session:
-                        row = session.get(SignalOutcome, signal_id)
-                        if row and row.status == "open":
-                            row.error_code = type(exc).__name__[:80]
-                            row.updated_at = now_ms()
+                        for signal_id, _ in signals:
+                            row = session.get(SignalOutcome, signal_id)
+                            if row and row.status == "open":
+                                row.error_code = type(exc).__name__[:80]
+                                row.updated_at = now_ms()
                     continue
 
                 if not bars:
                     continue
                 with worker_transaction("outcome-analytics", Session) as session:
-                    row = session.get(SignalOutcome, signal_id)
-                    if row is None or row.status != "open":
-                        continue
-                    for bar in bars:
-                        apply_minute(row, bar)
-                        if row.status != "open":
-                            break
+                    for signal_id, required_start in signals:
+                        row = session.get(SignalOutcome, signal_id)
+                        if row is None or row.status != "open":
+                            continue
+                        for bar in bars:
+                            if bar.open_time < required_start:
+                                continue
+                            apply_minute(row, bar)
+                            if row.status != "open":
+                                break
 
             sync_local_analytics(now_ms())
             if once:
