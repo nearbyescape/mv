@@ -9,13 +9,14 @@ from uuid import uuid4, uuid5, NAMESPACE_URL
 from sqlalchemy import delete, select, update
 from mv_strategy import INTERVAL_MS, confirmation_open_time
 from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Snapshot, PriceFilter, canonical_hash, PlanRejected
-from mv_strategy.strategy_v2 import (
+from mv_strategy.strategy_v3 import (
     LIVE_STRATEGY_ID,
     EXPIRY_MS,
     STRUCTURE_BARS,
+    RECENT_RUN_BARS,
     live_decision_id,
-    evaluate_setup_v2,
-    build_plan_v2,
+    evaluate_setup_v3,
+    build_plan_v3,
 )
 from app.market.binance import now_ms, validate_contract
 from app.market.store import as_bar
@@ -24,7 +25,7 @@ from app.models import Candle, EngineCursor, EngineStatus, IndicatorCheckpoint, 
 
 CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v1.json").read_text(encoding="utf-8"))
 V1_CONTRACT_HASH = canonical_hash(CONTRACT)
-LIVE_CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v2.json").read_text(encoding="utf-8"))
+LIVE_CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v3.json").read_text(encoding="utf-8"))
 LIVE_CONTRACT_HASH = canonical_hash(LIVE_CONTRACT)
 
 # Service-local aliases keep the persistence code compact while V1 remains
@@ -45,25 +46,30 @@ def check_contract():
 
 
 def check_live_contract():
-    """Refuse silent production-rule edits; V2 changes require a new contract version."""
+    """Refuse silent production-rule edits; V3 changes require a new contract version."""
     expected_indicators = {"ema_fast": 20, "ema_slow": 50, "sma_trend": 200, "atr_wilder": 14}
     expected_pullback = {
         "max_previous_ema20_depth_atr": "0.75",
         "min_reclaim_or_loss_atr": "0.10",
         "min_body_atr": "0.20",
         "min_directional_close_location": "0.60",
-        "max_source_extension_atr": "1.25",
+        "max_source_extension_atr": "1.00",
         "max_entry_drift_atr": "0.50",
-        "max_entry_extension_atr": "1.50",
+        "max_entry_extension_atr": "1.00",
     }
     expected_breakout = {
         "lookback_bars": 12,
         "min_break_distance_atr": "0.05",
         "min_body_atr": "0.35",
         "min_directional_close_location": "0.70",
-        "max_source_extension_atr": "1.75",
+        "max_source_extension_atr": "1.50",
         "max_entry_drift_atr": "0.75",
-        "max_entry_extension_atr": "2.00",
+        "max_entry_extension_atr": "1.50",
+    }
+    expected_anti_chase = {
+        "recent_run_bars": 6,
+        "max_recent_run_atr": "2.50",
+        "same_direction_signals_per_symbol_per_ist_session": 1,
     }
     expected_execution = {
         "max_quote_age_seconds": 5,
@@ -74,13 +80,19 @@ def check_live_contract():
     }
     expected_risk = {
         "stop_atr_multiple": "2",
-        "target_r_multiple": "2",
-        "partial_exits": False,
+        "targets": [
+            {"id": "TP1", "r_multiple": "1.0", "allocation": "0.30"},
+            {"id": "TP2", "r_multiple": "1.5", "allocation": "0.30"},
+            {"id": "TP3", "r_multiple": "2.0", "allocation": "0.40"},
+        ],
+        "after_tp1": "move_remaining_stop_to_entry",
+        "after_tp2": "move_remaining_stop_to_tp1",
+        "reference_only": True,
         "trailing_stop": False,
     }
     valid = (
         LIVE_CONTRACT.get("id") == LIVE_STRATEGY_ID
-        and LIVE_CONTRACT.get("version") == 2
+        and LIVE_CONTRACT.get("version") == 3
         and LIVE_CONTRACT.get("indicators") == expected_indicators
         and LIVE_CONTRACT.get("entry_timeframe") == "1h"
         and LIVE_CONTRACT.get("confirmation_timeframe") == "4h"
@@ -88,12 +100,14 @@ def check_live_contract():
         and LIVE_CONTRACT.get("structure_lookback_bars") == STRUCTURE_BARS
         and LIVE_CONTRACT.get("setups", {}).get("pullback_continuation") == expected_pullback
         and LIVE_CONTRACT.get("setups", {}).get("momentum_breakout") == expected_breakout
+        and LIVE_CONTRACT.get("anti_chase") == expected_anti_chase
         and LIVE_CONTRACT.get("execution_quality") == expected_execution
         and LIVE_CONTRACT.get("risk") == expected_risk
         and LIVE_CONTRACT.get("market_regime", {}).get("alt_btc_contradiction_veto") is True
+        and RECENT_RUN_BARS == 6
     )
     if not valid:
-        raise ValueError("Production V2 financial contract changed; create and validate a new strategy version")
+        raise ValueError("Production V3 financial contract changed; create and validate a new strategy version")
 
 
 def engine_health(session):
@@ -263,6 +277,32 @@ def discover(session, local_now):
             cursor.last_open_time = time
 
 
+
+IST_OFFSET_MS = 330 * 60_000
+DAY_MS = 86_400_000
+SESSION_OPEN_MS = 9 * 3_600_000
+
+
+def _same_direction_signal_this_session(session, symbol, direction, source_close):
+    """Suppress repeated same-direction V3 signals for a symbol in one IST session."""
+    if direction not in ("long", "short"):
+        return False
+    ist_day_start = ((source_close + IST_OFFSET_MS) // DAY_MS) * DAY_MS - IST_OFFSET_MS
+    session_open = ist_day_start + SESSION_OPEN_MS
+    earliest_source_open = session_open - INTERVAL_MS["1h"]
+    return session.scalar(
+        select(SignalDecision.id)
+        .where(
+            SignalDecision.strategy == STRATEGY_ID,
+            SignalDecision.symbol == symbol,
+            SignalDecision.direction == direction,
+            SignalDecision.outcome == "PUBLISHED",
+            SignalDecision.source_open_time >= earliest_source_open,
+            SignalDecision.source_open_time < source_close,
+        )
+        .limit(1)
+    ) is not None
+
 def evaluate_decision(session, row, local_now, quote=None):
     """Two-phase evaluation: quote fetched outside transaction; all guards repeated before commit."""
     if row.outcome != PENDING or row.strategy != STRATEGY_ID:
@@ -281,7 +321,7 @@ def evaluate_decision(session, row, local_now, quote=None):
     try:
         current, previous, confirmation, structure, contract, evidence = context_at(session, row.symbol, row.source_open_time)
         row.evidence_json = deepcopy(evidence)
-        setup = evaluate_setup_v2(current, previous, confirmation, structure) if current else None
+        setup = evaluate_setup_v3(current, previous, confirmation, structure) if current else None
     except (ValueError, ArithmeticError, KeyError) as exc:
         row.reason = "INVALID_SOURCE_DATA"
         row.evidence_json = {"error": str(exc)[:200], "contract_hash": CONTRACT_HASH}
@@ -295,6 +335,7 @@ def evaluate_decision(session, row, local_now, quote=None):
             "type": setup.setup_type,
             "regime": setup.regime,
             "structure_level": str(setup.structure_level) if setup.structure_level is not None else None,
+            "recent_run_anchor": str(setup.recent_run_anchor) if setup.recent_run_anchor is not None else None,
         }
         row.evidence_json = deepcopy(evidence)
         if setup.outcome == "NO_SETUP":
@@ -322,6 +363,14 @@ def evaluate_decision(session, row, local_now, quote=None):
             row.outcome = "REJECTED"
         row.reason = blocked
         return None
+    if _same_direction_signal_this_session(
+        session,
+        row.symbol,
+        setup.direction,
+        row.source_open_time + INTERVAL_MS["1h"],
+    ):
+        row.outcome, row.reason = "REJECTED", "SAME_DIRECTION_SIGNAL_THIS_SESSION"
+        return None
     expire_slots(session, now)
     if session.scalar(select(SignalSlot).where(SignalSlot.symbol == row.symbol).limit(1)) is not None:
         row.outcome, row.reason = "REJECTED", "ACTIVE_SIGNAL_OR_HELD_POSITION"
@@ -332,7 +381,7 @@ def evaluate_decision(session, row, local_now, quote=None):
     price = next((f for f in contract.metadata_json["filters"] if f["filterType"] == "PRICE_FILTER"), {})
     evidence["quote"] = quote.evidence()
     try:
-        plan = build_plan_v2(row.symbol, setup, current, quote, PriceFilter(*(Decimal(price[k]) for k in ("tickSize", "minPrice", "maxPrice"))), now)
+        plan = build_plan_v3(row.symbol, setup, current, quote, PriceFilter(*(Decimal(price[k]) for k in ("tickSize", "minPrice", "maxPrice"))), now)
     except PlanRejected as exc:
         row.evidence_json = deepcopy(evidence)
         row.reason = exc.code
@@ -358,6 +407,8 @@ def evaluate_decision(session, row, local_now, quote=None):
         "entry_ema20_side": True,
         "spread_quality_passed": True,
         "price_filter_passed": True,
+        "anti_chase_passed": True,
+        "same_direction_session_limit_passed": True,
     }
     evidence_hash = canonical_hash(evidence)
     plan.update({"id": row.id, "evidence_hash": evidence_hash, "confirmation_open_time": confirmation.bar.open_time})
