@@ -24,6 +24,9 @@ export type SignalChartPlan = {
   entry: string;
   stop: string;
   target: string;
+  tp1?: string;
+  tp2?: string;
+  tp3?: string;
   startTime: number;
   direction: "long" | "short";
 };
@@ -133,7 +136,15 @@ export function MarketChart({
       autoscaleInfoProvider: (original: () => AutoscaleInfo | null) => {
         const range = original();
         if (range?.priceRange && signalPlan) {
-          const levels = [signalPlan.entry, signalPlan.stop, signalPlan.target]
+          const levels = [
+            signalPlan.entry,
+            signalPlan.stop,
+            signalPlan.tp1,
+            signalPlan.tp2,
+            signalPlan.tp3,
+            signalPlan.target,
+          ]
+            .filter((value): value is string => value != null)
             .map(Number)
             .filter(Number.isFinite);
           range.priceRange.minValue = Math.min(
@@ -184,13 +195,22 @@ export function MarketChart({
     }
     chart.panes()[1].setHeight(80);
     if (signalPlan) {
-      for (const [key, title, color] of [
-        ["entry", "Entry", "#2875ac"],
-        ["stop", "SL", "#b95350"],
-        ["target", "Target", "#17836b"],
-      ] as const) {
+      const levels: Array<[string, string, string]> = [
+        [signalPlan.entry, "Entry", "#2875ac"],
+        [signalPlan.stop, "SL", "#b95350"],
+      ];
+      if (signalPlan.tp1 && signalPlan.tp2 && signalPlan.tp3) {
+        levels.push(
+          [signalPlan.tp1, "TP1", "#17836b"],
+          [signalPlan.tp2, "TP2", "#17836b"],
+          [signalPlan.tp3, "TP3", "#17836b"],
+        );
+      } else {
+        levels.push([signalPlan.target, "Target", "#17836b"]);
+      }
+      for (const [value, title, color] of levels) {
         candles.createPriceLine({
-          price: Number(signalPlan[key]),
+          price: Number(value),
           color,
           lineWidth: 2,
           lineStyle: LineStyle.Dashed,
