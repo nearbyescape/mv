@@ -233,6 +233,12 @@
     "direction_details": {},
     "max_same_direction_signals_per_source_close": 2,
     "btc_15m_timing_veto": true,
-    "message": "Market safety governor active."
+    "message": "Market safety governor active.",
+    "publication_enabled": true,
+    "analytics": {
+      "ready": true,
+      "max_age_ms": 45000,
+      "age_ms": 1000
+    }
   }
 }
