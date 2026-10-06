@@ -383,6 +383,38 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
 
 
+def test_v2_worker_ignores_leftover_v1_pending_decisions(state):
+    seed(state)
+    legacy_id = "f" * 64
+    with state.sessions.begin() as session:
+        session.add(SignalDecision(
+            id=legacy_id,
+            symbol="BTCUSDT",
+            strategy=V1_STRATEGY_ID,
+            source_open_time=BOUNDARY - STEP,
+            outcome="PENDING",
+            reason="legacy-pending",
+            updated_at=state.clock[0] - 5000,
+            expires_at=BOUNDARY + 300_000,
+            evidence_json={},
+        ))
+    class NoQuote:
+        async def quote(self, *args):
+            pytest.fail("V2 worker must not request a quote for a V1 decision")
+    asyncio.run(SignalWorker(NoQuote()).process(legacy_id))
+    with state.sessions() as session:
+        row = session.get(SignalDecision, legacy_id)
+        assert (row.outcome, row.reason, row.attempts) == ("PENDING", "legacy-pending", 0)
+
+
+def test_changed_v2_financial_contract_is_refused_before_worker_start(state, monkeypatch):
+    changed = json.loads(json.dumps(service.LIVE_CONTRACT))
+    changed["setups"]["momentum_breakout"]["min_body_atr"] = "0.10"
+    monkeypatch.setattr(service, "LIVE_CONTRACT", changed)
+    with pytest.raises(ValueError, match="Production V2 financial contract changed"):
+        service.check_live_contract()
+
+
 def test_rate_limit_is_respected_across_candidates_and_retries(state):
     seed(state)
     identity = pending(state)
