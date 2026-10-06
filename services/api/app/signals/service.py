@@ -297,45 +297,77 @@ def btc_timing_guard(session, direction, source_open_time):
 
 
 def directional_circuit_breaker(session, direction, now):
-    """Pause one direction after two recent V4 signals hit -0.5R before +0.5R."""
+    """Pause one direction for 120m after two clustered V4 signals deteriorate."""
+    empty = {
+        "paused": False,
+        "direction": direction,
+        "triggered_signals": [],
+        "pause_until": None,
+    }
     if direction not in ("long", "short"):
-        return False, {"paused": False, "direction": direction, "triggered_signals": [], "pause_until": None}
+        return False, empty
+
+    # A trigger can remain active for another 120 minutes after it occurs, so
+    # retain enough publication history to reconstruct an active trigger
+    # without a separate mutable circuit-breaker state table.
     rows = list(
         session.scalars(
             select(SignalOutcome)
             .where(
                 SignalOutcome.strategy == STRATEGY_ID,
                 SignalOutcome.direction == direction,
-                SignalOutcome.published_at >= now - CIRCUIT_RECENT_MS,
+                SignalOutcome.published_at
+                >= now - CIRCUIT_RECENT_MS - CIRCUIT_PAUSE_MS,
                 SignalOutcome.adverse_050_at.is_not(None),
             )
             .order_by(SignalOutcome.adverse_050_at, SignalOutcome.signal_id)
         )
     )
     deteriorated = [
-        row for row in rows
-        if row.favorable_050_at is None or row.adverse_050_at < row.favorable_050_at
+        row
+        for row in rows
+        # Same-minute +/-0.5R ordering is unknowable, so the safety governor
+        # treats equality conservatively as adverse-first.
+        if row.favorable_050_at is None
+        or row.adverse_050_at <= row.favorable_050_at
     ]
-    if len(deteriorated) < 2:
-        return False, {
-            "paused": False,
-            "direction": direction,
-            "triggered_signals": [row.signal_id for row in deteriorated],
-            "pause_until": None,
-        }
-    triggered = deteriorated[-2:]
-    triggered_at = max(row.adverse_050_at for row in triggered)
-    pause_until = triggered_at + CIRCUIT_PAUSE_MS
-    paused = now < pause_until
-    return paused, {
-        "paused": paused,
+
+    active_pair = None
+    active_trigger_at = None
+    for index, row in enumerate(deteriorated):
+        trigger_at = row.adverse_050_at
+        if trigger_at is None or trigger_at > now:
+            continue
+        if now >= trigger_at + CIRCUIT_PAUSE_MS:
+            continue
+        clustered = [
+            candidate
+            for candidate in deteriorated[: index + 1]
+            if candidate.adverse_050_at is not None
+            and candidate.adverse_050_at <= trigger_at
+            and trigger_at - CIRCUIT_RECENT_MS <= candidate.published_at <= trigger_at
+        ]
+        if len(clustered) >= 2:
+            active_pair = clustered[-2:]
+            active_trigger_at = trigger_at
+
+    if active_pair is None or active_trigger_at is None:
+        recent = [
+            row.signal_id
+            for row in deteriorated
+            if row.published_at >= now - CIRCUIT_RECENT_MS
+        ]
+        return False, {**empty, "triggered_signals": recent[-2:]}
+
+    pause_until = active_trigger_at + CIRCUIT_PAUSE_MS
+    return True, {
+        "paused": True,
         "direction": direction,
-        "triggered_signals": [row.signal_id for row in triggered],
-        "triggered_at": triggered_at,
+        "triggered_signals": [row.signal_id for row in active_pair],
+        "triggered_at": active_trigger_at,
         "pause_until": pause_until,
         "threshold_r": str(CIRCUIT_THRESHOLD_R),
     }
-
 
 def market_safety_view(session, now):
     paused = {}
