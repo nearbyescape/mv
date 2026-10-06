@@ -86,6 +86,7 @@ class SignalWorker:
                     "checks",
                     "setup",
                     "btc_timing",
+                    "safety_analytics",
                     "directional_circuit_breaker",
                     "market_concentration",
                 ):
