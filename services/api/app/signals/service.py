@@ -386,7 +386,7 @@ def directional_circuit_breaker(session, direction, now):
     }
 
 def market_safety_view(session, now):
-    analytics_reason, analytics_evidence = safety_analytics_guard(session, now)
+    analytics_reason, analytics_evidence = safety_analytics_guard(session, now_ms())
     paused = {}
     for direction in ("long", "short"):
         active, evidence = directional_circuit_breaker(session, direction, now)
