@@ -21,7 +21,7 @@ from mv_strategy.strategy_v4 import (
 from app.market.binance import now_ms, validate_contract
 from app.market.store import as_bar
 from app.market.views import collector_health
-from app.models import Candle, EngineCursor, EngineStatus, IndicatorCheckpoint, IndicatorSnapshot, MarketContract, SignalDecision, SignalPlan, SignalSlot, SignalEvent, SignalOutcome, WatchlistItem
+from app.models import Candle, EngineCursor, EngineStatus, IndicatorCheckpoint, IndicatorSnapshot, MarketContract, SignalDecision, SignalPlan, SignalSlot, SignalEvent, SignalOutcome, ServiceLease, WatchlistItem
 
 CONTRACT = json.loads((Path(__file__).resolve().parents[4] / "packages" / "contracts" / "strategy-v1.json").read_text(encoding="utf-8"))
 V1_CONTRACT_HASH = canonical_hash(CONTRACT)
@@ -116,6 +116,8 @@ def check_live_contract():
                 "rule": "Pause a direction when two recent V4 published signals reach -0.5R before +0.5R. The opposite direction remains eligible.",
             },
             "fail_closed_on_missing_btc_15m": True,
+            "analytics_max_age_seconds": 45,
+            "fail_closed_on_stale_safety_analytics": True,
         }
         and RECENT_RUN_BARS == 6
     )
@@ -251,6 +253,7 @@ MAX_DIRECTION_SIGNALS_PER_SOURCE = 2
 CIRCUIT_THRESHOLD_R = Decimal("0.50")
 CIRCUIT_RECENT_MS = 120 * 60_000
 CIRCUIT_PAUSE_MS = 120 * 60_000
+SAFETY_ANALYTICS_MAX_AGE_MS = 45_000
 
 
 def btc_timing_guard(session, direction, source_open_time):
@@ -294,6 +297,19 @@ def btc_timing_guard(session, direction, source_open_time):
         "previous": previous.evidence(),
     }
     return (None if passed else "BTC_15M_TIMING_CONFLICT"), evidence
+
+
+def safety_analytics_guard(session, local_now):
+    """Fail closed when the worker producing circuit-breaker milestones is stale."""
+    lease = session.get(ServiceLease, "outcome-analytics")
+    age_ms = local_now - lease.heartbeat if lease is not None else None
+    ready = bool(age_ms is not None and 0 <= age_ms <= SAFETY_ANALYTICS_MAX_AGE_MS)
+    evidence = {
+        "ready": ready,
+        "max_age_ms": SAFETY_ANALYTICS_MAX_AGE_MS,
+        "age_ms": age_ms,
+    }
+    return (None if ready else "SAFETY_ANALYTICS_UNAVAILABLE"), evidence
 
 
 def directional_circuit_breaker(session, direction, now):
@@ -370,25 +386,32 @@ def directional_circuit_breaker(session, direction, now):
     }
 
 def market_safety_view(session, now):
+    analytics_reason, analytics_evidence = safety_analytics_guard(session, now)
     paused = {}
     for direction in ("long", "short"):
         active, evidence = directional_circuit_breaker(session, direction, now)
         if active:
             paused[direction] = evidence
+    degraded = analytics_reason is not None
     return {
-        "status": "guarded" if paused else "normal",
+        "status": "degraded" if degraded else "guarded" if paused else "normal",
+        "publication_enabled": not degraded,
+        "analytics": analytics_evidence,
         "paused_directions": sorted(paused),
         "direction_details": paused,
         "max_same_direction_signals_per_source_close": MAX_DIRECTION_SIGNALS_PER_SOURCE,
         "btc_15m_timing_veto": True,
         "message": (
-            "Market Safety Mode: " + ", ".join(d.upper() for d in sorted(paused)) +
-            " opportunities are temporarily paused after correlated deterioration."
-            if paused
-            else "Market safety governor active."
+            "Market Safety Mode: signal publication is temporarily paused because safety analytics is unavailable."
+            if degraded
+            else (
+                "Market Safety Mode: " + ", ".join(d.upper() for d in sorted(paused)) +
+                " opportunities are temporarily paused after correlated deterioration."
+                if paused
+                else "Market safety governor active."
+            )
         ),
     }
-
 
 def _cluster_limit_reached(session, direction, source_open_time):
     published = list(
@@ -582,6 +605,15 @@ def evaluate_decision(session, row, local_now, quote=None):
     ):
         row.outcome, row.reason = "REJECTED", "SAME_DIRECTION_SIGNAL_THIS_SESSION"
         return None
+    analytics_reason, analytics_evidence = safety_analytics_guard(
+        session, local_now
+    )
+    evidence["safety_analytics"] = analytics_evidence
+    row.evidence_json = deepcopy(evidence)
+    if analytics_reason:
+        row.reason = analytics_reason
+        return None
+
     circuit_paused, circuit_evidence = directional_circuit_breaker(
         session, setup.direction, now
     )
@@ -632,6 +664,7 @@ def evaluate_decision(session, row, local_now, quote=None):
         "contract_valid": True,
         "btc_regime_passed": True,
         "btc_15m_timing_passed": True,
+        "safety_analytics_fresh": True,
         "directional_circuit_breaker_clear": True,
         "market_direction_concentration_limit_passed": True,
         "no_active_slot": True,
