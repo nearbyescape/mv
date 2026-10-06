@@ -30,11 +30,24 @@ def payload_for(event, plan, settings):
     else:
         setup={"momentum_breakout":"Momentum breakout","pullback_continuation":"Pullback continuation"}.get(p.get("setup_type"),"Trend setup")
         regime=str(p.get("trend_regime") or "confirmed").title()
+        if all(p.get(key) is not None for key in ("tp1", "tp2", "tp3")):
+            exits = p.get("exit_management") or {}
+            levels = (
+                f"TP1 (30% · +1R): {p['tp1']}\n"
+                f"TP2 (30% · +1.5R): {p['tp2']}\n"
+                f"TP3 (40% · +2R): {p['tp3']}\n"
+                "After TP1: move remaining stop to entry\n"
+                "After TP2: move remaining stop to TP1\n"
+            )
+            management = "Scaled targets are reference management only; execution and fills are not recorded."
+        else:
+            levels = f"Target: {p['target']}\n"
+            management = "Reference quote; execution and fills are not recorded."
         text=(f"MV Signal · {p['direction'].upper()}\n{plan.symbol} · Binance USDT futures · 1H\n"
               f"Setup: {setup} · {regime} trend\n"
-              f"Source close: {ist(p['source_close_boundary'])}\nEntry: {p['entry']}\nStop loss: {p['stop']}\nTarget: {p['target']}\n"
+              f"Source close: {ist(p['source_close_boundary'])}\nEntry: {p['entry']}\nStop loss: {p['stop']}\n{levels}"
               f"Entry window ends: {ist(plan.expires_at)}\nEMA20 / EMA50 / SMA200 + ATR14 · completed 4H confirmed\n"
-              f"Signal: {plan.id[:12]}\nReference quote; execution and fills are not recorded.")
+              f"Signal: {plan.id[:12]}\n{management}")
     return {"chat_id":settings.telegram_chat_id,"text":text,"link_preview_options":{"is_disabled":True},
             "reply_markup":{"inline_keyboard":[[{"text":"Open MV Signal","url":settings.public_origin}]]}}
 
