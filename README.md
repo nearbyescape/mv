@@ -2,15 +2,23 @@
 
 A private Binance futures signal workspace: EMA20 + EMA50 + SMA200 + Wilder ATR14. Deterministic backend rules create signals; a separate OpenRouter worker explains immutable evidence asynchronously. No exchange orders are placed.
 
-## Release 0.11.0 candidate — MV-TREND-DUAL-v2
+## Release 0.12.0 candidate — V2 Performance analytics
 
-Release 0.11.0 replaces **new live signal decisions** with the versioned deterministic `MV-TREND-DUAL-v2` engine after validation/cutover. It is designed for direct production use, not a paper or shadow runtime. V1 code and historical reports remain unchanged for reproducibility.
+Release 0.12.0 adds a strictly observational analytics subsystem around the live `MV-TREND-DUAL-v2` strategy. The signal engine and V2 financial contract are unchanged. A separate `outcome-analytics` worker records post-publication reference outcomes from completed Binance 1-minute candles, including MFE/MAE, +0.5R/+1R/+1.5R/+2R milestones, stop/target ordering and conservative same-minute ambiguity handling. It also measures six-hour future movement after `NO_SETUP` decisions in source-ATR units.
+
+Analytics has its own schema tables, worker lease, API namespace and a dedicated **Performance** page. It is deliberately absent from the Overview dashboard and cannot create, suppress, rank or modify a signal. The Performance page separates Pullback LONG, Pullback SHORT, Breakout LONG and Breakout SHORT, adds per-symbol reference statistics, blocker/missed-move diagnostics and CSV outcome export. See [V2 Performance analytics](docs/V2_PERFORMANCE_ANALYTICS.md).
+
+Reference outcomes are not exchange fills, realized P&L or account returns. They are descriptive evidence used to decide whether a later versioned strategy change is justified.
+
+## Release 0.11.0 — MV-TREND-DUAL-v2
+
+Release 0.11.0 is live in direct production with the versioned deterministic `MV-TREND-DUAL-v2` engine. It is not a paper or shadow runtime. V1 code and historical reports remain unchanged for reproducibility.
 
 V2 keeps completed 1H/4H EMA20/EMA50/SMA200/Wilder ATR14 evidence and the existing 2 ATR stop / 2R reference geometry, but adds two explicit setup families: **quality pullback continuation** and **12-bar structural momentum breakout**. The breakout path allows a valid short during a sustained selloff even when the previous candle is already below EMA20, addressing the principal V1 missed-opportunity blind spot. V2 also supports established/emerging trend regimes, ATR-normalized candle/extension quality, a 10 bps live spread ceiling and a BTC contradiction veto for altcoins. Existing 09:00 AM–11:00 PM IST session, quote freshness, source lineage, atomic publication, operator slots, AI commentary and Telegram delivery remain in force.
 
 The strategy ID is new. First production startup baselines V2 at the current completed candle and cannot replay historical candles. Old V1 plans remain visible, and any retained V1 slot blocks a V2 signal for the same coin. See [V2 financial and cutover behavior](docs/STRATEGY_V2.md).
 
-**Important:** implementation of V2 is not evidence of profitability or improved accuracy. Existing V1 research remains negative/fragile and does not validate V2 or the 29-coin universe.
+**Important:** implementation of V2 is not evidence of profitability or improved accuracy. Existing V1 research remains negative/fragile and does not validate V2 or the 30-coin universe.
 
 ## Release 0.10.0
 
@@ -22,7 +30,7 @@ New signals run daily from **09:00 AM to 11:00 PM IST**, with both source close 
 
 The Signal journal defaults to today’s committed backend plans in IST. Use its date picker for earlier days, Today to return to the current day, or All dates for complete history. **Inspect signal** opens its live completed-candle chart with source marker and frozen entry/SL/target, exact evidence, guards, IST timestamps and downloads. Signal charts include Price focus / Full indicator range, broader source context, the latest 96 completed candles and Reset view. Interface times use IST with AM/PM; chart axes and crosshairs follow the same timezone. Entries expire five minutes after source close. **Mark as held** records an operator-reported slot, blocking another setup for that coin until release; it does not prove an exchange position or fill. Full history uses backend pagination. CSV covers the loaded rows, explicitly disclosed. Inbox reads persist per account.
 
-BTCUSDT and ETHUSDT are starting defaults. The owner's live watchlist contains 29 coins; up to 30 are supported. Change chosen coins under **Manage markets**; the collector validates contracts and warms 500 completed bars on each timeframe before readiness. Explicit **Demo data** displays labeled synthetic charts. Missing live data never silently substitutes demo prices. Only the backend strategy engine originates real signals.
+BTCUSDT and ETHUSDT are starting defaults. The owner's live watchlist contains 30 coins; up to 30 are supported. Change chosen coins under **Manage markets**; the collector validates contracts and warms 500 completed bars on each timeframe before readiness. Explicit **Demo data** displays labeled synthetic charts. Missing live data never silently substitutes demo prices. Only the backend strategy engine originates real signals.
 
 Historical **Research** retains fixed BTC/ETH comparisons, costs, actual funding, source provenance and exact exports. The baseline returned −27.68% in 2024, −17.91% in early 2025 and +1.76% in late 2025; higher costs changed the latter to −7.03%. Exit/filter studies did not establish a reliable improvement and changed no live strategy. See [results](docs/PHASE5_RESULTS.md). Reports are optional read-only mounted artifacts on production; missing reports show an unavailable state.
 
@@ -50,6 +58,7 @@ Start three separate terminals from `services/api`, one command in each:
 ..\..\.venv\Scripts\python -m app.market.collector
 ..\..\.venv\Scripts\python -m app.signals.worker
 ..\..\.venv\Scripts\python -m app.operations.worker
+..\..\.venv\Scripts\python -m app.analytics.worker
 ```
 
 Allow the initial history download and connection to finish. Run all Python processes from `services/api` so they share the configured database. Collector/engine `--once` is a diagnostic scan and does not claim continuous service. One owner per worker is enforced. Do not start the canceled paper observer.
