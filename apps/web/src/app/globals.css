@@ -3571,6 +3571,21 @@ tbody tr:last-child td {
   font-size: 21px;
   font-weight: 500;
 }
+.performance-strategy-select {
+  display: grid;
+  gap: 5px;
+  color: var(--secondary);
+  font-size: 10px;
+}
+.performance-strategy-select select {
+  min-width: 220px;
+  padding: 8px 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 11px;
+}
 .signal-management-note {
   margin: 0;
   padding: 12px 0 4px;
