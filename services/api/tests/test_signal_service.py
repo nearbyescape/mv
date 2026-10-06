@@ -893,3 +893,139 @@ def test_v4_circuit_pause_survives_publication_window_until_full_pause_expires(s
         paused, evidence = service.directional_circuit_breaker(session, "long", now)
         assert paused is True
         assert evidence["pause_until"] == now + 61 * 60_000
+
+
+def test_v4_candidate_priority_is_recent_run_then_extension_then_regime_then_symbol(state, monkeypatch):
+    profiles = {
+        "AUSDT": ("1.20", "0.30", "emerging"),
+        "BUSDT": ("0.80", "0.80", "emerging"),
+        "CUSDT": ("0.80", "0.50", "emerging"),
+        "DUSDT": ("0.80", "0.50", "established"),
+        "EUSDT": ("0.80", "0.50", "established"),
+    }
+
+    def fake_context(session, symbol, source_open_time):
+        return object(), None, None, [], None, {}
+
+    def fake_setup(current, previous, confirmation, structure):
+        symbol = current.symbol
+        recent, extension, regime = profiles[symbol]
+        return SimpleNamespace(
+            outcome="LONG_SETUP",
+            checks=[
+                {"id": "long.recent_run_atr", "value": recent},
+                {"id": "long.source_extension_atr", "value": extension},
+            ],
+            regime=regime,
+        )
+
+    monkeypatch.setattr(
+        service,
+        "context_at",
+        lambda session, symbol, source_open_time: (
+            SimpleNamespace(symbol=symbol),
+            None,
+            None,
+            [],
+            None,
+            {},
+        ),
+    )
+    monkeypatch.setattr(service, "evaluate_setup_v4", fake_setup)
+
+    rows = [
+        SimpleNamespace(symbol=symbol, source_open_time=BOUNDARY - STEP)
+        for symbol in profiles
+    ]
+    ordered = sorted(rows, key=lambda row: service.decision_priority(None, row))
+    assert [row.symbol for row in ordered] == [
+        "DUSDT",
+        "EUSDT",
+        "CUSDT",
+        "BUSDT",
+        "AUSDT",
+    ]
+
+
+def test_v4_same_minute_half_r_is_conservatively_adverse_first(state):
+    seed(state, "long")
+    now = state.clock[0]
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(("ETHUSDT", "SOLUSDT"), start=1):
+            signal_id = chr(107 + index) * 64
+            published_at = now - index * 30 * 60_000
+            milestone = now - index * 60_000
+            session.add(
+                SignalDecision(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 6) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-same-minute",
+                    updated_at=published_at,
+                    expires_at=published_at + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+            session.add(
+                SignalPlan(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    created_at=published_at,
+                    expires_at=published_at + 300_000,
+                    plan_json={},
+                    evidence_json={},
+                    evidence_hash=str(index + 4) * 64,
+                )
+            )
+            session.add(
+                SignalOutcome(
+                    signal_id=signal_id,
+                    strategy=STRATEGY_ID,
+                    symbol=symbol,
+                    direction="long",
+                    setup_type="momentum_breakout",
+                    trend_regime="established",
+                    published_at=published_at,
+                    first_observed_minute=published_at,
+                    last_minute_open_time=None,
+                    entry="100",
+                    stop="98",
+                    target="104",
+                    risk_distance="2",
+                    target_r="2",
+                    frozen_atr="1",
+                    status="open",
+                    terminal_at=None,
+                    conservative_r=None,
+                    mfe_r="0.5",
+                    mae_r="0.5",
+                    favorable_050_at=milestone,
+                    favorable_100_at=None,
+                    favorable_150_at=None,
+                    favorable_200_at=None,
+                    adverse_050_at=milestone,
+                    adverse_100_at=None,
+                    intrabar_ambiguous=True,
+                    source_revised=False,
+                    observed_bars=1,
+                    updated_at=milestone,
+                    error_code=None,
+                    tp1="102",
+                    tp2="103",
+                    tp3="104",
+                    tp1_r="1",
+                    tp2_r="1.5",
+                    tp3_r="2",
+                )
+            )
+    with state.sessions() as session:
+        paused, evidence = service.directional_circuit_breaker(
+            session, "long", now
+        )
+        assert paused is True
+        assert len(evidence["triggered_signals"]) == 2
