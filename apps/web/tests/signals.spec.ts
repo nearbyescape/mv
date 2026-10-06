@@ -100,8 +100,9 @@ test("Market Safety Mode is visible when a direction is circuit-broken", async (
     route.fulfill({ json: data }),
   );
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("Market Safety Mode");
-  await expect(page.getByRole("alert")).toContainText(
+  const safetyAlert = page.locator(".signal-alert");
+  await expect(safetyAlert).toContainText("Market Safety Mode");
+  await expect(safetyAlert).toContainText(
     "LONG opportunities are temporarily paused",
   );
 });
