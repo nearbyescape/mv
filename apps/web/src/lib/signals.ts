@@ -40,6 +40,12 @@ export type EngineSignal = {
   entry: string;
   stop: string;
   target: string;
+  tp1?: string;
+  tp2?: string;
+  tp3?: string;
+  tp1_r?: string;
+  tp2_r?: string;
+  tp3_r?: string;
   frozen_atr: string;
   risk_distance: string;
   reward_risk: string;
@@ -50,6 +56,17 @@ export type EngineSignal = {
   entry_drift: string;
   entry_drift_limit_atr?: string;
   entry_extension_atr?: string;
+  recent_run_entry_atr?: string;
+  recent_run_anchor?: string;
+  exit_management?: {
+    tp1_allocation: string;
+    tp2_allocation: string;
+    tp3_allocation: string;
+    after_tp1: string;
+    after_tp2: string;
+    maximum_realized_r: string;
+    reference_only: boolean;
+  };
   source_open_time: number;
   source_close_boundary: number;
   confirmation_open_time: number;
@@ -200,6 +217,9 @@ export const reasonLabel = (reason: string) =>
       BTC_REGIME_UNAVAILABLE: "Waiting for BTC regime evidence",
       SPREAD_TOO_WIDE: "Live spread is too wide for publication",
       ENTRY_OVEREXTENDED: "Entry moved too far from EMA20",
+      RECENT_RUN_OVEREXTENDED: "Entry arrived after an excessive recent directional run",
+      SAME_DIRECTION_SIGNAL_THIS_SESSION:
+        "Same-direction signal already published for this coin this IST session",
       RULES_AND_GUARDS_PASSED: "Published · all rules and guards passed",
       WAITING_EXPECTED_4H: "Waiting for the required completed 4H candle",
       "4H_CONFIRMATION_FAILED": "4H trend confirmation failed",
