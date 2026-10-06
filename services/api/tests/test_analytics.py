@@ -38,7 +38,7 @@ def minute(open_time, open_, high, low, close):
     )
 
 
-def test_published_v2_plan_seeds_observational_row_without_mutating_signal_tables(state):
+def test_published_v3_plan_seeds_observational_row_without_mutating_signal_tables(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -51,6 +51,8 @@ def test_published_v2_plan_seeds_observational_row_without_mutating_signal_table
         assert seed_signal_outcomes(session, state.clock[0]) == 0
         row = session.get(SignalOutcome, identity)
         assert row is not None
+        assert row.strategy == "MV-TREND-DUAL-v3"
+        assert row.tp1 is not None and row.tp2 is not None and row.tp3 is not None
         assert row.setup_type in ("pullback_continuation", "momentum_breakout")
         assert row.direction == "long"
         assert row.status == "open"
@@ -62,7 +64,7 @@ def test_published_v2_plan_seeds_observational_row_without_mutating_signal_table
         assert after == before
 
 
-def test_target_milestones_and_mfe_are_reference_only_and_exact(state):
+def test_v3_tp3_records_all_milestones_and_weighted_reference_result(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -71,27 +73,97 @@ def test_target_milestones_and_mfe_are_reference_only_and_exact(state):
         row = session.get(SignalOutcome, identity)
         entry = D(row.entry)
         risk = D(row.risk_distance)
-        target = D(row.target)
+        tp3 = D(row.tp3)
         bar = minute(
             row.first_observed_minute,
             str(entry),
-            str(target),
+            str(tp3),
             str(entry - risk * D("0.2")),
-            str(target),
+            str(tp3),
         )
         assert apply_minute(row, bar)
-        assert row.status == "target"
-        assert D(row.conservative_r) == D(row.target_r)
+        assert row.status == "tp3"
+        expected = (
+            D("0.30") * D(row.tp1_r)
+            + D("0.30") * D(row.tp2_r)
+            + D("0.40") * D(row.tp3_r)
+        )
+        assert D(row.conservative_r) == expected
         assert row.favorable_050_at == bar.close_time
         assert row.favorable_100_at == bar.close_time
         assert row.favorable_150_at == bar.close_time
         assert row.favorable_200_at == bar.close_time
         assert row.adverse_100_at is None
-        assert D(row.mfe_r) >= D(row.target_r)
+        assert D(row.mfe_r) >= D(row.tp3_r)
         assert D(row.mae_r) == D("0.2")
 
 
-def test_same_minute_stop_and_target_is_ambiguous_and_conservative_loss(state):
+def test_v3_tp1_then_next_minute_breakeven_stop_banks_first_allocation(state):
+    seed(state, "long")
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        seed_signal_outcomes(session, state.clock[0])
+        row = session.get(SignalOutcome, identity)
+        entry, risk, tp1 = D(row.entry), D(row.risk_distance), D(row.tp1)
+        first = minute(
+            row.first_observed_minute,
+            str(entry),
+            str(tp1),
+            str(entry - risk * D("0.1")),
+            str(tp1),
+        )
+        apply_minute(row, first)
+        assert row.status == "open" and row.favorable_100_at == first.close_time
+        second = minute(
+            first.open_time + MINUTE_MS,
+            str(tp1),
+            str(tp1),
+            str(entry),
+            str(entry),
+        )
+        apply_minute(row, second)
+        assert row.status == "protected_be"
+        assert D(row.conservative_r) == D("0.30") * D(row.tp1_r)
+
+
+def test_v3_tp2_then_next_minute_tp1_stop_protects_runner(state):
+    seed(state, "long")
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        seed_signal_outcomes(session, state.clock[0])
+        row = session.get(SignalOutcome, identity)
+        entry, risk = D(row.entry), D(row.risk_distance)
+        tp1, tp2 = D(row.tp1), D(row.tp2)
+        first = minute(
+            row.first_observed_minute,
+            str(entry),
+            str(tp2),
+            str(entry - risk * D("0.1")),
+            str(tp2),
+        )
+        apply_minute(row, first)
+        assert row.status == "open"
+        assert row.favorable_100_at == row.favorable_150_at == first.close_time
+        second = minute(
+            first.open_time + MINUTE_MS,
+            str(tp2),
+            str(tp2),
+            str(tp1),
+            str(tp1),
+        )
+        apply_minute(row, second)
+        assert row.status == "protected_tp1"
+        expected = (
+            D("0.30") * D(row.tp1_r)
+            + D("0.30") * D(row.tp2_r)
+            + D("0.40") * D(row.tp1_r)
+        )
+        assert D(row.conservative_r) == expected
+
+
+def test_same_minute_original_stop_and_tp1_is_ambiguous_and_conservative_loss(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -100,11 +172,11 @@ def test_same_minute_stop_and_target_is_ambiguous_and_conservative_loss(state):
         row = session.get(SignalOutcome, identity)
         entry = D(row.entry)
         stop = D(row.stop)
-        target = D(row.target)
+        tp1 = D(row.tp1)
         bar = minute(
             row.first_observed_minute,
             str(entry),
-            str(target),
+            str(tp1),
             str(stop),
             str(entry),
         )
@@ -112,7 +184,8 @@ def test_same_minute_stop_and_target_is_ambiguous_and_conservative_loss(state):
         assert row.status == "ambiguous"
         assert row.intrabar_ambiguous is True
         assert row.conservative_r == "-1"
-        assert row.favorable_200_at == row.adverse_100_at == bar.close_time
+        assert row.adverse_100_at == bar.close_time
+        assert row.favorable_100_at is None
 
 
 def test_source_revision_terminates_only_still_open_analytics(state):
@@ -196,7 +269,7 @@ def test_performance_summary_separates_four_setup_direction_cohorts(state):
     with state.sessions.begin() as session:
         seed_signal_outcomes(session, state.clock[0])
         summary = performance_summary(session)
-        assert summary["strategy"] == "MV-TREND-DUAL-v2"
+        assert summary["strategy"] == "MV-TREND-DUAL-v3"
         assert summary["overall"]["signals"] == 1
         assert len(summary["cohorts"]) == 4
         matching = [
