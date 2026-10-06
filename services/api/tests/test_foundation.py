@@ -74,8 +74,11 @@ def test_health_reports_implemented_services_only(client):
 
 def test_strategy_is_versioned_and_ai_cannot_originate_signal(client):
     contract = client.get("/v1/strategy", headers=AUTH).json()
-    assert contract["id"] == "EMA-PULLBACK-ATR-v1"
+    assert contract["id"] == "MV-TREND-DUAL-v2"
+    assert contract["version"] == 2
     assert contract["indicators"] == {"ema_fast": 20, "ema_slow": 50, "sma_trend": 200, "atr_wilder": 14}
+    assert set(contract["setups"]) == {"pullback_continuation", "momentum_breakout"}
+    assert contract["execution_quality"]["max_spread_bps"] == "10"
     assert "cannot originate or change" in contract["ai_role"]
 
 
