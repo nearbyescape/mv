@@ -119,7 +119,7 @@ def seed_signal_outcomes(session, now):
             raise ValueError("Published plan has invalid analytics geometry")
 
         tp1 = tp2 = tp3 = tp1_r = tp2_r = tp3_r = None
-        if plan.strategy == V3_STRATEGY:
+        if plan.strategy in (V3_STRATEGY, V4_STRATEGY):
             tp1 = number(payload.get("tp1"), "tp1")
             tp2 = number(payload.get("tp2"), "tp2")
             tp3 = number(payload.get("tp3"), "tp3")
@@ -132,9 +132,9 @@ def seed_signal_outcomes(session, now):
                 else tp3 < tp2 < tp1 < entry < stop
             )
             if not levels_ok or tp1_r <= 0 or not tp1_r < tp2_r < tp3_r:
-                raise ValueError("Published V3 plan has invalid scaled targets")
+                raise ValueError("Published scaled-target plan has invalid targets")
             if tp3 != target or tp3_r != target_r:
-                raise ValueError("Published V3 TP3 must equal the compatibility target")
+                raise ValueError("Published TP3 must equal the compatibility target")
 
         session.add(
             SignalOutcome(
@@ -343,7 +343,7 @@ def apply_minute(outcome, bar):
     if outcome.last_minute_open_time is not None and bar.open_time != outcome.last_minute_open_time + MINUTE_MS:
         raise ValueError("Non-contiguous 1m outcome observations")
 
-    if outcome.strategy == V3_STRATEGY:
+    if outcome.strategy in (V3_STRATEGY, V4_STRATEGY):
         _apply_v3_minute(outcome, bar)
     else:
         entry = number(outcome.entry, "entry")
