@@ -182,7 +182,17 @@ test("performance analytics stay out of Overview and load only in their own sect
               published_at: 1791255000000,
               status: "target",
               terminal_at: 1791258600000,
+              strategy: "MV-TREND-DUAL-v3",
               target_r: "2",
+              tp1: "101",
+              tp2: "101.5",
+              tp3: "102",
+              tp1_r: "1",
+              tp2_r: "1.5",
+              tp3_r: "2",
+              tp1_reached: true,
+              tp2_reached: true,
+              tp3_reached: true,
               mfe_r: "2.1",
               mae_r: "0.2",
               one_r_before_stop: true,
@@ -198,7 +208,7 @@ test("performance analytics stay out of Overview and load only in their own sect
       });
     return route.fulfill({
       json: {
-        strategy: "MV-TREND-DUAL-v2",
+        strategy: "MV-TREND-DUAL-v3",
         method: "reference-plan analytics; not exchange fills or account P&L",
         minute_observation: "completed 1m candles",
         ambiguous_policy: "same-minute stop and target is conservative -1R",
@@ -208,6 +218,11 @@ test("performance analytics stay out of Overview and load only in their own sect
           open: 0,
           target: 1,
           stop: 0,
+          tp1_reached: 1,
+          tp2_reached: 1,
+          tp3_reached: 1,
+          protected_be: 0,
+          protected_tp1: 0,
           ambiguous: 0,
           source_revised: 0,
           resolved: 1,
@@ -215,8 +230,14 @@ test("performance analytics stay out of Overview and load only in their own sect
           expectancy_r: "2",
           profit_factor: null,
           one_r_before_stop: 1,
+          one5_r_before_stop: 1,
           two_r_before_stop: 1,
           one_r_before_stop_rate: "1",
+          one5_r_before_stop_rate: "1",
+          one5_r_before_stop_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
           two_r_before_stop_rate: "1",
           average_mfe_r: "2.1",
           average_mae_r: "0.2",
@@ -258,6 +279,10 @@ test("performance analytics stay out of Overview and load only in their own sect
             setup_type === "momentum_breakout" && direction === "short"
               ? "1"
               : null,
+          one5_r_before_stop_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
           two_r_before_stop_rate:
             setup_type === "momentum_breakout" && direction === "short"
               ? "1"
@@ -288,7 +313,11 @@ test("performance analytics stay out of Overview and load only in their own sect
             one_r_before_stop: 1,
             two_r_before_stop: 1,
             one_r_before_stop_rate: "1",
-            two_r_before_stop_rate: "1",
+            one5_r_before_stop_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
+          two_r_before_stop_rate: "1",
             average_mfe_r: "2.1",
             average_mae_r: "0.2",
           },
@@ -313,14 +342,14 @@ test("performance analytics stay out of Overview and load only in their own sect
   });
 
   await page.goto("/");
-  await expect(page.getByText("V2 REFERENCE OUTCOME ANALYTICS")).toHaveCount(0);
+  await expect(page.getByText("REFERENCE OUTCOME ANALYTICS")).toHaveCount(0);
   expect(requests).toBe(0);
 
   if (isMobile)
     await page.getByRole("button", { name: "Open navigation" }).click();
   await page.getByRole("button", { name: "Performance", exact: true }).click();
 
-  await expect(page.getByText("V2 REFERENCE OUTCOME ANALYTICS")).toBeVisible();
+  await expect(page.getByText("REFERENCE OUTCOME ANALYTICS")).toBeVisible();
   await expect(page.getByText("Four-engine performance matrix")).toBeVisible();
   await expect(page.getByText("Six-hour movement after NO_SETUP")).toBeVisible();
   await expect(page.locator(".performance-panel .table-symbol").filter({ hasText: "BTC" }).first()).toBeVisible();
