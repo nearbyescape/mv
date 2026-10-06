@@ -15,13 +15,13 @@ from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
 from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Quote, canonical_hash
-from mv_strategy.strategy_v3 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
+from mv_strategy.strategy_v4 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
 from app.database import Base, get_session
 from app.main import app
 from app.market import views
 from app.market.binance import RateLimited
 from app.market.store import apply_bars
-from app.models import Candle, CollectorStatus, EngineCursor, EngineStatus, SignalDecision, SignalPlan, SignalSlot, SignalEvent, MarketContract, WatchlistItem
+from app.models import Candle, CollectorStatus, EngineCursor, EngineStatus, IndicatorSnapshot, SignalDecision, SignalPlan, SignalSlot, SignalEvent, SignalOutcome, MarketContract, WatchlistItem
 from app.signals import service, worker
 from app.signals.service import discover, evaluate_decision, expire_slots, signal_view, slot_action, check_source_revisions
 from app.signals.worker import SignalWorker
@@ -64,6 +64,7 @@ def source_bars(count, timeframe, last_open, direction, pullback=False):
 def seed(state, direction="long", confirmation_count=500, initial_count=501):
     source = source_bars(501, "1h", BOUNDARY - STEP, direction, True)
     confirmation = source_bars(500, "4h", confirmation_open_time(BOUNDARY), direction)
+    timing = source_bars(500, "15m", BOUNDARY - INTERVAL_MS["15m"], direction)
     metadata = contract()
     metadata["filters"][0].update({"minPrice": "0.0", "maxPrice": "10000"})
     with state.sessions.begin() as session:
@@ -71,6 +72,7 @@ def seed(state, direction="long", confirmation_count=500, initial_count=501):
         session.add(MarketContract(symbol="BTCUSDT", valid=True, reason="verified fixture", checked_at=state.clock[0], metadata_json=metadata))
         session.add(CollectorStatus(id="collector", state="streaming", updated_at=state.clock[0], last_event_at=state.clock[0], clock_offset_ms=0, reconnects=0))
         session.add(EngineStatus(id="engine", state="running", updated_at=state.clock[0]))
+        apply_bars(session, "BTCUSDT", "15m", timing, state.clock[0])
         apply_bars(session, "BTCUSDT", "1h", source[:initial_count], state.clock[0])
         apply_bars(session, "BTCUSDT", "4h", confirmation[:confirmation_count], state.clock[0])
     return source, confirmation
@@ -283,7 +285,7 @@ def test_alt_signal_btc_regime_veto_is_directional_and_uses_completed_context(st
         assert evidence["passed"] is True
 
 
-def test_existing_v1_held_slot_blocks_v3_candidate_for_same_symbol(state):
+def test_existing_v1_held_slot_blocks_v4_candidate_for_same_symbol(state):
     seed(state)
     identity = pending(state)
     old = "d" * 64
@@ -324,7 +326,7 @@ def test_existing_v1_held_slot_blocks_v3_candidate_for_same_symbol(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan).where(SignalPlan.strategy == STRATEGY_ID)) == 0
 
 
-def test_existing_v1_cursor_cannot_replay_history_when_v3_first_starts(state):
+def test_existing_v1_cursor_cannot_replay_history_when_v4_first_starts(state):
     seed(state)
     with state.sessions.begin() as session:
         checkpoint = session.get(service.IndicatorCheckpoint, ("BTCUSDT", "1h"))
@@ -400,7 +402,7 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
 
 
-def test_v3_worker_ignores_leftover_v1_pending_decisions(state):
+def test_v4_worker_ignores_leftover_v1_pending_decisions(state):
     seed(state)
     legacy_id = "f" * 64
     with state.sessions.begin() as session:
@@ -417,18 +419,18 @@ def test_v3_worker_ignores_leftover_v1_pending_decisions(state):
         ))
     class NoQuote:
         async def quote(self, *args):
-            pytest.fail("V3 worker must not request a quote for a V1 decision")
+            pytest.fail("V4 worker must not request a quote for a V1 decision")
     asyncio.run(SignalWorker(NoQuote()).process(legacy_id))
     with state.sessions() as session:
         row = session.get(SignalDecision, legacy_id)
         assert (row.outcome, row.reason, row.attempts) == ("PENDING", "legacy-pending", 0)
 
 
-def test_changed_v3_financial_contract_is_refused_before_worker_start(state, monkeypatch):
+def test_changed_v4_financial_contract_is_refused_before_worker_start(state, monkeypatch):
     changed = json.loads(json.dumps(service.LIVE_CONTRACT))
     changed["setups"]["momentum_breakout"]["min_body_atr"] = "0.10"
     monkeypatch.setattr(service, "LIVE_CONTRACT", changed)
-    with pytest.raises(ValueError, match="Production V3 financial contract changed"):
+    with pytest.raises(ValueError, match="Production V4 financial contract changed"):
         service.check_live_contract()
 
 
