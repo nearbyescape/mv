@@ -3,7 +3,7 @@ x-logging: &logging
   driver: json-file
   options: { max-size: "10m", max-file: "3" }
 x-backend: &backend
-  image: mv-signal-api:0.10.0
+  image: mv-signal-api:0.11.0
   build: { context: ., dockerfile: services/api/Dockerfile }
   environment: &backend-env
     MV_ENVIRONMENT: production
@@ -86,7 +86,7 @@ services:
     depends_on:
       api: { condition: service_healthy }
   web:
-    image: mv-signal-web:0.10.0
+    image: mv-signal-web:0.11.0
     build: { context: ., dockerfile: apps/web/Dockerfile }
     environment:
       MV_ENVIRONMENT: production
