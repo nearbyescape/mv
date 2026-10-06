@@ -42,6 +42,19 @@ def test_private_configuration_requires_credentials(client):
     assert client.get("/v1/watchlist").status_code == 401
     assert client.put("/v1/watchlist", json={"symbols": ["SOLUSDT"]}).status_code == 401
     assert client.get("/v1/strategy", headers={"Authorization": "Bearer invalid"}).status_code == 401
+    assert client.get("/v1/analytics/performance").status_code == 401
+
+
+def test_empty_analytics_are_private_read_only_and_do_not_create_signals(client):
+    before = client.get("/v1/signals", headers=AUTH).json()["signals"]
+    result = client.get("/v1/analytics/performance", headers=AUTH)
+    assert result.status_code == 200
+    payload = result.json()
+    assert payload["strategy"] == "MV-TREND-DUAL-v2"
+    assert payload["overall"]["signals"] == 0
+    assert len(payload["cohorts"]) == 4
+    assert client.get("/v1/analytics/outcomes", headers=AUTH).json()["outcomes"] == []
+    assert client.get("/v1/signals", headers=AUTH).json()["signals"] == before
 
 
 def test_watchlist_saved_across_requests_and_order_preserved(client):
