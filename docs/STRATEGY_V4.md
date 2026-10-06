@@ -88,6 +88,24 @@ This use of outcome milestones is deliberately narrow: the signal engine reads
 only persisted timing milestones required for the safety circuit breaker. The
 analytics worker still cannot create or alter signal decisions or plans.
 
+## Retrospective validation gate
+
+Before V4 is eligible for production, the candidate includes a read-only
+retrospective command:
+
+`python -m app.research.v4_retrospective --ist-date YYYY-MM-DD`
+
+The command opens the production database transaction read-only, re-evaluates
+historical V2 publications through the V4 setup and entry constraints, fetches
+only public historical BTCUSDT 15-minute candles for the timing veto, and
+simulates same-session dedupe, deterministic concentration ranking and the
+directional circuit breaker. It writes no MV tables and cannot publish signals.
+
+For 6 October 2026 the intended gate is to compare the actual 20 V2
+publications with the exact set V4 would have allowed. The result is diagnostic
+evidence for the safety patch; it is not a backtest, profitability estimate or
+proof that future reversals will be avoided.
+
 ## Client surfaces
 
 The signal feed exposes the current market-safety state. When a directional
