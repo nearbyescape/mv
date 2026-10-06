@@ -267,12 +267,18 @@ def test_v3_live_entry_rejects_recent_run_and_ema_extension_chasing():
     assert setup.outcome == "LONG_SETUP"
     price_filter = PriceFilter(D("0.01"), D(0), D(10000))
 
+    extended_source = replace(
+        current,
+        ema20=D("98.8"),
+        ema50=D("98.0"),
+        sma200=D("97.0"),
+    )
     with pytest.raises(PlanRejected) as extension:
         build_plan_v3(
             "BTCUSDT",
             setup,
-            current,
-            quote("long", bid="101.99", ask="102.00"),
+            extended_source,
+            quote("long", bid="100.89", ask="100.90"),
             price_filter,
             BOUNDARY + 1000,
         )
