@@ -3,7 +3,7 @@ import { backend } from "@/lib/backend";
 export async function GET(request: Request) {
   const incoming = new URL(request.url).searchParams;
   const params = new URLSearchParams();
-  for (const key of ["limit", "symbol", "direction", "setup_type"]) {
+  for (const key of ["limit", "symbol", "direction", "setup_type", "strategy"]) {
     if (incoming.has(key)) params.set(key, incoming.get(key)!);
   }
   try {
