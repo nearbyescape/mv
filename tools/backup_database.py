@@ -50,9 +50,9 @@ if args.verify_restore:
             run(["pg_restore","-U","postgres","-d",restored,"--no-owner","--role=mv","--exit-on-error"],stdin=source)
         critical = [("watchlist","symbol"),("users","id"),("signal_plans","id"),("signal_events","id"),("signal_decisions","id"),("signal_slots","symbol,strategy"),("candles","symbol,timeframe,open_time"),("indicator_snapshots","symbol,timeframe,open_time"),("engine_cursors","symbol,strategy"),("indicator_checkpoints","symbol,timeframe")]
         version = run(["psql","-U","postgres","-d","mv_signal","-At","-c","SELECT version_num FROM alembic_version"],capture_output=True).stdout.decode().strip()
-        if version in ("0005","0006","0007"):
+        if version in ("0005","0006","0007","0008"):
             critical.extend([("ai_reviews","signal_id"),("ai_requests","id")])
-        if version in ("0006","0007"):
+        if version in ("0006","0007","0008"):
             critical.extend([("telegram_deliveries","event_id")])
         if version == "0007":
             critical.extend([("signal_outcomes","signal_id"),("decision_opportunities","decision_id")])
