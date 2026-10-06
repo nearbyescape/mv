@@ -217,27 +217,23 @@ test("performance analytics stay out of Overview and load only in their own sect
           observed: 1,
           open: 0,
           target: 1,
-          stop: 0,
           tp1_reached: 1,
           tp2_reached: 1,
           tp3_reached: 1,
+          stop: 0,
           protected_be: 0,
           protected_tp1: 0,
           ambiguous: 0,
           source_revised: 0,
           resolved: 1,
           target_rate: "1",
-          expectancy_r: "2",
+          expectancy_r: "1.55",
           profit_factor: null,
           one_r_before_stop: 1,
           one5_r_before_stop: 1,
           two_r_before_stop: 1,
           one_r_before_stop_rate: "1",
           one5_r_before_stop_rate: "1",
-          one5_r_before_stop_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
           two_r_before_stop_rate: "1",
           average_mfe_r: "2.1",
           average_mae_r: "0.2",
@@ -247,55 +243,38 @@ test("performance analytics stay out of Overview and load only in their own sect
           ["pullback_continuation", "short"],
           ["momentum_breakout", "long"],
           ["momentum_breakout", "short"],
-        ].map(([setup_type, direction]) => ({
-          setup_type,
-          direction,
-          signals:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          observed:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          open: 0,
-          target:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          stop: 0,
-          ambiguous: 0,
-          source_revised: 0,
-          resolved:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          target_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
-          expectancy_r:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "2"
-              : null,
-          profit_factor: null,
-          one_r_before_stop:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          two_r_before_stop:
-            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
-          one_r_before_stop_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
-          one5_r_before_stop_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
-          two_r_before_stop_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
-          average_mfe_r:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "2.1"
-              : null,
-          average_mae_r:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "0.2"
-              : null,
-        })),
+        ].map(([setup_type, direction]) => {
+          const matching =
+            setup_type === "momentum_breakout" && direction === "short";
+          return {
+            setup_type,
+            direction,
+            signals: matching ? 1 : 0,
+            observed: matching ? 1 : 0,
+            open: 0,
+            target: matching ? 1 : 0,
+            tp1_reached: matching ? 1 : 0,
+            tp2_reached: matching ? 1 : 0,
+            tp3_reached: matching ? 1 : 0,
+            stop: 0,
+            protected_be: 0,
+            protected_tp1: 0,
+            ambiguous: 0,
+            source_revised: 0,
+            resolved: matching ? 1 : 0,
+            target_rate: matching ? "1" : null,
+            expectancy_r: matching ? "1.55" : null,
+            profit_factor: null,
+            one_r_before_stop: matching ? 1 : 0,
+            one5_r_before_stop: matching ? 1 : 0,
+            two_r_before_stop: matching ? 1 : 0,
+            one_r_before_stop_rate: matching ? "1" : null,
+            one5_r_before_stop_rate: matching ? "1" : null,
+            two_r_before_stop_rate: matching ? "1" : null,
+            average_mfe_r: matching ? "2.1" : null,
+            average_mae_r: matching ? "0.2" : null,
+          };
+        }),
         by_symbol: [
           {
             symbol: "BTCUSDT",
@@ -303,21 +282,24 @@ test("performance analytics stay out of Overview and load only in their own sect
             observed: 1,
             open: 0,
             target: 1,
+            tp1_reached: 1,
+            tp2_reached: 1,
+            tp3_reached: 1,
             stop: 0,
+            protected_be: 0,
+            protected_tp1: 0,
             ambiguous: 0,
             source_revised: 0,
             resolved: 1,
             target_rate: "1",
-            expectancy_r: "2",
+            expectancy_r: "1.55",
             profit_factor: null,
             one_r_before_stop: 1,
+            one5_r_before_stop: 1,
             two_r_before_stop: 1,
             one_r_before_stop_rate: "1",
-            one5_r_before_stop_rate:
-            setup_type === "momentum_breakout" && direction === "short"
-              ? "1"
-              : null,
-          two_r_before_stop_rate: "1",
+            one5_r_before_stop_rate: "1",
+            two_r_before_stop_rate: "1",
             average_mfe_r: "2.1",
             average_mae_r: "0.2",
           },
