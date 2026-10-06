@@ -1,7 +1,9 @@
-"""Observational V2/V3 performance analytics.
+"""V2/V3/V4 reference outcome analytics.
 
-Nothing in this module is imported by the signal engine. It consumes immutable
-published plans and completed market data after publication.
+The analytics worker consumes immutable published plans and completed market
+data after publication. V4's signal service may read only the persisted
++/-0.5R timing milestones for its fail-safe directional circuit breaker; this
+module still cannot create or modify signal decisions or plans.
 """
 from dataclasses import dataclass
 from decimal import Decimal as D, localcontext, ROUND_HALF_EVEN
@@ -19,8 +21,9 @@ from app.models import (
 
 V2_STRATEGY = "MV-TREND-DUAL-v2"
 V3_STRATEGY = "MV-TREND-DUAL-v3"
-ANALYTICS_STRATEGIES = (V2_STRATEGY, V3_STRATEGY)
-LIVE_ANALYTICS_STRATEGY = V3_STRATEGY
+V4_STRATEGY = "MV-TREND-DUAL-v4"
+ANALYTICS_STRATEGIES = (V2_STRATEGY, V3_STRATEGY, V4_STRATEGY)
+LIVE_ANALYTICS_STRATEGY = V4_STRATEGY
 
 V3_TP1_ALLOCATION = D("0.30")
 V3_TP2_ALLOCATION = D("0.30")
