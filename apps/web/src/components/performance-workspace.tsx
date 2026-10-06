@@ -148,9 +148,12 @@ export function PerformanceWorkspace() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const initial = setTimeout(() => void load(), 0);
     const timer = setInterval(() => void load(), 30_000);
-    return () => clearInterval(timer);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(timer);
+    };
   }, [load]);
 
   if (!performance) {
