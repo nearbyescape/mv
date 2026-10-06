@@ -80,6 +80,8 @@ test("Market Safety Mode is visible when a direction is circuit-broken", async (
   const data = feed();
   data.safety = {
     status: "guarded",
+    publication_enabled: true,
+    analytics: { ready: true, max_age_ms: 45000, age_ms: 1000 },
     paused_directions: ["long"],
     direction_details: {
       long: {
