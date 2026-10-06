@@ -14,7 +14,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
-from mv_strategy.signals import STRATEGY_ID, Quote, canonical_hash, decision_id
+from mv_strategy.signals import Quote, canonical_hash
+from mv_strategy.strategy_v2 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
 from app.database import Base, get_session
 from app.main import app
 from app.market import views
@@ -53,7 +54,7 @@ def source_bars(count, timeframe, last_open, direction, pullback=False):
     for i in range(count):
         close = D(100) + D(i) / 5 if direction == "long" else D(300) - D(i) / 5
         if pullback and i == 499:
-            close += -D("9.8") if direction == "long" else D("9.8")
+            close += -D("2.2") if direction == "long" else D("2.2")
         opening = result[-1].close if result else close
         time = last_open - (count - 1 - i) * step
         result.append(Bar(time, time + step - 1, opening, max(opening, close) + 1, min(opening, close) - 1, close, D(10)))
