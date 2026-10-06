@@ -266,6 +266,23 @@ def test_held_slot_blocks_new_candidate_and_database_enforces_unique_source_and_
             session.add(SignalDecision(id="c" * 64, symbol="BTCUSDT", strategy=STRATEGY_ID, source_open_time=BOUNDARY - STEP, outcome="PENDING", reason="duplicate", updated_at=state.clock[0], expires_at=BOUNDARY + 300_000, evidence_json={}))
 
 
+def test_alt_signal_btc_regime_veto_is_directional_and_uses_completed_context(state):
+    seed(state, "long")
+    with state.sessions() as session:
+        source_open = BOUNDARY - STEP
+        reason, evidence = service.btc_regime_guard(session, "ETHUSDT", "short", source_open)
+        assert reason == "BTC_REGIME_CONTRADICTION"
+        assert evidence["state"] == "bullish"
+        assert evidence["passed"] is False
+        assert evidence["source_1h"]["open_time"] == source_open
+        assert evidence["confirmation_4h"]["open_time"] == confirmation_open_time(BOUNDARY)
+
+        reason, evidence = service.btc_regime_guard(session, "ETHUSDT", "long", source_open)
+        assert reason is None
+        assert evidence["state"] == "bullish"
+        assert evidence["passed"] is True
+
+
 def test_existing_v1_held_slot_blocks_v2_candidate_for_same_symbol(state):
     seed(state)
     identity = pending(state)
