@@ -35,6 +35,8 @@ export type EngineSignal = {
   direction: "long" | "short";
   strategy: string;
   risk_policy: string;
+  setup_type?: "pullback_continuation" | "momentum_breakout";
+  trend_regime?: "established" | "emerging";
   entry: string;
   stop: string;
   target: string;
@@ -44,7 +46,10 @@ export type EngineSignal = {
   tick_size: string;
   entry_side: string;
   spread: string;
+  spread_bps?: string;
   entry_drift: string;
+  entry_drift_limit_atr?: string;
+  entry_extension_atr?: string;
   source_open_time: number;
   source_close_boundary: number;
   confirmation_open_time: number;
@@ -64,7 +69,14 @@ export type EngineSignal = {
     source: SnapshotEvidence;
     previous: SnapshotEvidence;
     confirmation: SnapshotEvidence;
-    checks: { id: string; passed: boolean }[];
+    structure?: SnapshotEvidence[];
+    setup?: {
+      type: "pullback_continuation" | "momentum_breakout" | null;
+      regime: "established" | "emerging" | null;
+      structure_level: string | null;
+    };
+    btc_regime?: { state: string; passed: boolean };
+    checks: { id: string; passed: boolean; value?: string; minimum?: string; maximum?: string }[];
     guards: Record<string, boolean>;
     quote: { bid: string; ask: string; time: number; received_at: number };
     contract_hash: string;
@@ -180,6 +192,14 @@ export const reasonLabel = (reason: string) =>
       STARTUP_BASELINE_NO_RETROACTIVE_ENTRY:
         "Startup baseline · waiting for the next closed candle",
       NO_FRESH_RECLAIM_OR_LOSS: "No fresh EMA20 reclaim or loss",
+      TREND_REGIME_NOT_READY: "No qualified 1H trend regime",
+      NO_PULLBACK_OR_BREAKOUT_TRIGGER:
+        "No qualified pullback continuation or structural breakout",
+      "4H_TREND_NOT_ALIGNED": "Completed 4H trend is not aligned",
+      BTC_REGIME_CONTRADICTION: "BTC regime strongly contradicts this alt setup",
+      BTC_REGIME_UNAVAILABLE: "Waiting for BTC regime evidence",
+      SPREAD_TOO_WIDE: "Live spread is too wide for publication",
+      ENTRY_OVEREXTENDED: "Entry moved too far from EMA20",
       RULES_AND_GUARDS_PASSED: "Published · all rules and guards passed",
       WAITING_EXPECTED_4H: "Waiting for the required completed 4H candle",
       "4H_CONFIRMATION_FAILED": "4H trend confirmation failed",
