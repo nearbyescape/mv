@@ -5,11 +5,16 @@ from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base
-from app.market.collector import Collector
+from app.market.collector import Collector, frames_for_symbol
 from app.market import collector as collector_module
 from app.market.store import apply_bars
 from app.models import Candle, IndicatorCheckpoint
 from test_indicators import bars, replay
+
+
+def test_only_btc_collects_15m_timing_stream():
+    assert frames_for_symbol("BTCUSDT") == ("15m", "1h", "4h")
+    assert frames_for_symbol("ETHUSDT") == ("1h", "4h")
 
 
 def test_paginated_reconciliation_repairs_more_than_1000_missed_bars(monkeypatch):
