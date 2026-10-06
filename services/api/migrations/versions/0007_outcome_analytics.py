@@ -23,6 +23,7 @@ def upgrade():
         sa.Column("stop", sa.String(80), nullable=False),
         sa.Column("target", sa.String(80), nullable=False),
         sa.Column("risk_distance", sa.String(80), nullable=False),
+        sa.Column("target_r", sa.String(80), nullable=False),
         sa.Column("frozen_atr", sa.String(80), nullable=False),
         sa.Column("status", sa.String(24), nullable=False),
         sa.Column("terminal_at", sa.BigInteger()),
