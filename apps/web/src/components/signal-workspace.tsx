@@ -483,6 +483,11 @@ export function LiveSignalPanel({
               : "Waiting"}
           </span>
         </div>
+        {feed.data?.safety.status === "guarded" && (
+          <p className="signal-alert" role="alert">
+            <strong>Market Safety Mode</strong> · {feed.data.safety.message}
+          </p>
+        )}
         {signal ? (
           <>
             <div className="setup-direction">
@@ -579,7 +584,8 @@ export function LiveSignalPanel({
             <p>
               Scanning completed 1H candles for qualified pullback
               continuations and structural momentum breakouts with matching 4H
-              trend confirmation.
+              trend confirmation, completed BTC 15-minute timing and portfolio
+              concentration safeguards.
             </p>
             {decision && (
               <span className="signal-decision-note">
