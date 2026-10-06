@@ -21,7 +21,7 @@ def clear_generated(session, now, backup_receipt):
         raise ValueError("A verified backup receipt is required")
     for row in session.scalars(select(ServiceLease).where(ServiceLease.name.in_(WRITERS))):
         if 0<=now-row.heartbeat<30_000:
-            raise ValueError("Stop signal, web-delivery, AI, Telegram and outcome-analytics workers before resetting")
+            raise ValueError("Stop signal-engine, web-delivery, AI, Telegram and outcome-analytics workers before resetting")
     engine=session.get(EngineStatus,"engine")
     if engine and engine.state not in ("stopped","maintenance") and 0<=now-engine.updated_at<30_000:
         raise ValueError("Stop the signal engine before resetting")
