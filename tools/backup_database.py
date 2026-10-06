@@ -54,7 +54,7 @@ if args.verify_restore:
             critical.extend([("ai_reviews","signal_id"),("ai_requests","id")])
         if version in ("0006","0007","0008"):
             critical.extend([("telegram_deliveries","event_id")])
-        if version == "0007":
+        if version in ("0007","0008"):
             critical.extend([("signal_outcomes","signal_id"),("decision_opportunities","decision_id")])
         critical.extend([("web_notifications","id"),("notification_reads","user_id,notification_id"),("user_sessions","token_hash"),("invites","token_hash"),("market_contracts","symbol"),("audit_events","id")])
         for table,order in critical:
