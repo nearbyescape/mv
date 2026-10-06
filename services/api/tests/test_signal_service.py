@@ -65,7 +65,9 @@ def source_bars(count, timeframe, last_open, direction, pullback=False):
 def seed(state, direction="long", confirmation_count=500, initial_count=501):
     source = source_bars(501, "1h", BOUNDARY - STEP, direction, True)
     confirmation = source_bars(500, "4h", confirmation_open_time(BOUNDARY), direction)
-    timing = source_bars(500, "15m", BOUNDARY - INTERVAL_MS["15m"], direction)
+    timing_step = INTERVAL_MS["15m"]
+    timing_last_open = state.clock[0] // timing_step * timing_step - timing_step
+    timing = source_bars(500, "15m", timing_last_open, direction)
     metadata = contract()
     metadata["filters"][0].update({"minPrice": "0.0", "maxPrice": "10000"})
     with state.sessions.begin() as session:
@@ -365,6 +367,13 @@ def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
         session.get(MarketContract, "BTCUSDT").checked_at = state.clock[0]
         session.get(EngineStatus, "engine").updated_at = state.clock[0]
         apply_bars(session, "BTCUSDT", "1h", [source[-1]], state.clock[0])
+        timing = source_bars(
+            4,
+            "15m",
+            BOUNDARY - INTERVAL_MS["15m"],
+            "long",
+        )
+        apply_bars(session, "BTCUSDT", "15m", timing, state.clock[0])
     with state.sessions.begin() as session:
         discover(session, state.clock[0])
     identity = decision_id("BTCUSDT", source[-1].open_time)
