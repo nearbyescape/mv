@@ -144,7 +144,7 @@ export function PerformanceWorkspace() {
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [strategy, setStrategy] = useState("MV-TREND-DUAL-v3");
+  const [strategy, setStrategy] = useState("MV-TREND-DUAL-v4");
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -205,8 +205,9 @@ export function PerformanceWorkspace() {
           <span className="eyebrow">REFERENCE OUTCOME ANALYTICS</span>
           <h2>{performance.strategy}</h2>
           <p>
-            Observational measurements only. These are published reference-plan
-            outcomes, not exchange fills, realized P&amp;L or account returns.
+            Reference-plan measurements, not exchange fills, realized P&amp;L or
+            account returns. V4 may use persisted ±0.5R timing milestones only
+            for its fail-safe directional circuit breaker; V2/V3 remain historical.
           </p>
         </div>
         <div className="performance-actions">
@@ -218,6 +219,7 @@ export function PerformanceWorkspace() {
               disabled={busy}
               onChange={(event) => setStrategy(event.target.value)}
             >
+              <option value="MV-TREND-DUAL-v4">V4 · market safety governor</option>
               <option value="MV-TREND-DUAL-v3">V3 · anti-chase + scaled targets</option>
               <option value="MV-TREND-DUAL-v2">V2 · historical comparison</option>
             </select>
@@ -243,7 +245,7 @@ export function PerformanceWorkspace() {
         <div className="summary-card">
           <span className="summary-icon"><Activity size={20} /></span>
           <div>
-            <span>{performance.strategy.endsWith("v3") ? "V3" : "V2"} signals observed</span>
+            <span>{performance.strategy.endsWith("v4") ? "V4" : performance.strategy.endsWith("v3") ? "V3" : "V2"} signals observed</span>
             <strong>{overall.signals}<small>{overall.resolved} resolved</small></strong>
           </div>
         </div>
@@ -257,7 +259,7 @@ export function PerformanceWorkspace() {
         <div className="summary-card">
           <span className="summary-icon"><Activity size={20} /></span>
           <div>
-            <span>{performance.strategy.endsWith("v3") ? "TP1 reached" : "+1R before -1R"}</span>
+            <span>{!performance.strategy.endsWith("v2") ? "TP1 reached" : "+1R before -1R"}</span>
             <strong>{percent(overall.one_r_before_stop_rate)}<small>{overall.one_r_before_stop} observed signals</small></strong>
           </div>
         </div>
@@ -398,7 +400,7 @@ export function PerformanceWorkspace() {
         <div className="panel-head">
           <div>
             <span className="eyebrow">REFERENCE OUTCOME JOURNAL</span>
-            <h2>Recent {performance.strategy.endsWith("v3") ? "V3" : "V2"} outcome observations</h2>
+            <h2>Recent {performance.strategy.endsWith("v4") ? "V4" : performance.strategy.endsWith("v3") ? "V3" : "V2"} outcome observations</h2>
           </div>
           <span className="tag">{outcomes.length} loaded</span>
         </div>
