@@ -38,7 +38,7 @@ def minute(open_time, open_, high, low, close):
     )
 
 
-def test_published_v3_plan_seeds_observational_row_without_mutating_signal_tables(state):
+def test_published_v4_plan_seeds_observational_row_without_mutating_signal_tables(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -51,7 +51,7 @@ def test_published_v3_plan_seeds_observational_row_without_mutating_signal_table
         assert seed_signal_outcomes(session, state.clock[0]) == 0
         row = session.get(SignalOutcome, identity)
         assert row is not None
-        assert row.strategy == "MV-TREND-DUAL-v3"
+        assert row.strategy == "MV-TREND-DUAL-v4"
         assert row.tp1 is not None and row.tp2 is not None and row.tp3 is not None
         assert row.setup_type in ("pullback_continuation", "momentum_breakout")
         assert row.direction == "long"
@@ -64,7 +64,7 @@ def test_published_v3_plan_seeds_observational_row_without_mutating_signal_table
         assert after == before
 
 
-def test_v3_tp3_records_all_milestones_and_weighted_reference_result(state):
+def test_v4_tp3_records_all_milestones_and_weighted_reference_result(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -98,7 +98,7 @@ def test_v3_tp3_records_all_milestones_and_weighted_reference_result(state):
         assert D(row.mae_r) == D("0.2")
 
 
-def test_v3_tp1_then_next_minute_breakeven_stop_banks_first_allocation(state):
+def test_v4_tp1_then_next_minute_breakeven_stop_banks_first_allocation(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -127,7 +127,7 @@ def test_v3_tp1_then_next_minute_breakeven_stop_banks_first_allocation(state):
         assert D(row.conservative_r) == D("0.30") * D(row.tp1_r)
 
 
-def test_v3_tp2_then_next_minute_tp1_stop_protects_runner(state):
+def test_v4_tp2_then_next_minute_tp1_stop_protects_runner(state):
     seed(state, "long")
     identity = pending(state)
     publish(state, identity)
@@ -269,7 +269,7 @@ def test_performance_summary_separates_four_setup_direction_cohorts(state):
     with state.sessions.begin() as session:
         seed_signal_outcomes(session, state.clock[0])
         summary = performance_summary(session)
-        assert summary["strategy"] == "MV-TREND-DUAL-v3"
+        assert summary["strategy"] == "MV-TREND-DUAL-v4"
         assert summary["overall"]["signals"] == 1
         assert len(summary["cohorts"]) == 4
         matching = [
