@@ -6,10 +6,10 @@ from sqlalchemy import select, func, delete, update
 from app.database import Session
 from app.market.binance import now_ms
 from app.models import (SignalPlan,SignalDecision,SignalEvent,SignalSlot,WebNotification,NotificationRead,
-                        AIReview,AIRequest,TelegramDelivery,EngineCursor,IndicatorCheckpoint,EngineStatus,ServiceLease,AuditEvent)
+                        AIReview,AIRequest,TelegramDelivery,SignalOutcome,DecisionOpportunity,EngineCursor,IndicatorCheckpoint,EngineStatus,ServiceLease,AuditEvent)
 
-GENERATED=(NotificationRead,WebNotification,TelegramDelivery,SignalSlot,SignalEvent,AIReview,SignalPlan,SignalDecision)
-WRITERS=("signal-engine","web-delivery","ai-review","telegram-delivery")
+GENERATED=(NotificationRead,WebNotification,TelegramDelivery,SignalOutcome,DecisionOpportunity,SignalSlot,SignalEvent,AIReview,SignalPlan,SignalDecision)
+WRITERS=("signal-engine","web-delivery","ai-review","telegram-delivery","outcome-analytics")
 
 
 def counts(session):
@@ -21,7 +21,7 @@ def clear_generated(session, now, backup_receipt):
         raise ValueError("A verified backup receipt is required")
     for row in session.scalars(select(ServiceLease).where(ServiceLease.name.in_(WRITERS))):
         if 0<=now-row.heartbeat<30_000:
-            raise ValueError("Stop signal, web-delivery, AI and Telegram workers before resetting")
+            raise ValueError("Stop signal, web-delivery, AI, Telegram and outcome-analytics workers before resetting")
     engine=session.get(EngineStatus,"engine")
     if engine and engine.state not in ("stopped","maintenance") and 0<=now-engine.updated_at<30_000:
         raise ValueError("Stop the signal engine before resetting")
