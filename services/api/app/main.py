@@ -20,9 +20,9 @@ from .research.reports import read_report, download_path, read_study, study_down
 from fastapi.responses import FileResponse
 from typing import Literal
 
-app = FastAPI(title="MV Signal API", version="0.10.0", description="Private deterministic futures signals, historical research and optional AI evidence commentary. No exchange orders; Telegram delivery is deferred.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
+app = FastAPI(title="MV Signal API", version="0.11.0", description="Private deterministic V2 futures signals with preserved historical research, optional AI evidence commentary and Telegram delivery. No exchange orders.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
 security = HTTPBearer(auto_error=False)
-STRATEGY_FILE = Path(__file__).resolve().parents[3] / "packages" / "contracts" / "strategy-v1.json"
+STRATEGY_FILE = Path(__file__).resolve().parents[3] / "packages" / "contracts" / "strategy-v2.json"
 
 
 def authorize(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)], request: Request, session: Annotated[Session, Depends(get_session)]):
