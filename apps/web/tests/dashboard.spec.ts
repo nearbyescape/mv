@@ -160,3 +160,169 @@ test("offline API does not appear live and screen has no horizontal overflow", a
     2,
   );
 });
+
+
+test("performance analytics stay out of Overview and load only in their own section", async ({
+  page,
+  isMobile,
+}) => {
+  let requests = 0;
+  await page.route("**/api/performance**", (route) => {
+    requests += 1;
+    if (route.request().url().includes("/outcomes"))
+      return route.fulfill({
+        json: {
+          outcomes: [
+            {
+              signal_id: "a".repeat(64),
+              symbol: "BTCUSDT",
+              direction: "short",
+              setup_type: "momentum_breakout",
+              trend_regime: "established",
+              published_at: 1791255000000,
+              status: "target",
+              terminal_at: 1791258600000,
+              target_r: "2",
+              mfe_r: "2.1",
+              mae_r: "0.2",
+              one_r_before_stop: true,
+              two_r_before_stop: true,
+              intrabar_ambiguous: false,
+              source_revised: false,
+              observed_bars: 60,
+              conservative_r: "2",
+            },
+          ],
+          limit: 500,
+        },
+      });
+    return route.fulfill({
+      json: {
+        strategy: "MV-TREND-DUAL-v2",
+        method: "reference-plan analytics; not exchange fills or account P&L",
+        minute_observation: "completed 1m candles",
+        ambiguous_policy: "same-minute stop and target is conservative -1R",
+        overall: {
+          signals: 1,
+          observed: 1,
+          open: 0,
+          target: 1,
+          stop: 0,
+          ambiguous: 0,
+          source_revised: 0,
+          resolved: 1,
+          target_rate: "1",
+          expectancy_r: "2",
+          profit_factor: null,
+          one_r_before_stop: 1,
+          two_r_before_stop: 1,
+          one_r_before_stop_rate: "1",
+          two_r_before_stop_rate: "1",
+          average_mfe_r: "2.1",
+          average_mae_r: "0.2",
+        },
+        cohorts: [
+          ["pullback_continuation", "long"],
+          ["pullback_continuation", "short"],
+          ["momentum_breakout", "long"],
+          ["momentum_breakout", "short"],
+        ].map(([setup_type, direction]) => ({
+          setup_type,
+          direction,
+          signals:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          observed:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          open: 0,
+          target:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          stop: 0,
+          ambiguous: 0,
+          source_revised: 0,
+          resolved:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          target_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
+          expectancy_r:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "2"
+              : null,
+          profit_factor: null,
+          one_r_before_stop:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          two_r_before_stop:
+            setup_type === "momentum_breakout" && direction === "short" ? 1 : 0,
+          one_r_before_stop_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
+          two_r_before_stop_rate:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "1"
+              : null,
+          average_mfe_r:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "2.1"
+              : null,
+          average_mae_r:
+            setup_type === "momentum_breakout" && direction === "short"
+              ? "0.2"
+              : null,
+        })),
+        by_symbol: [
+          {
+            symbol: "BTCUSDT",
+            signals: 1,
+            observed: 1,
+            open: 0,
+            target: 1,
+            stop: 0,
+            ambiguous: 0,
+            source_revised: 0,
+            resolved: 1,
+            target_rate: "1",
+            expectancy_r: "2",
+            profit_factor: null,
+            one_r_before_stop: 1,
+            two_r_before_stop: 1,
+            one_r_before_stop_rate: "1",
+            two_r_before_stop_rate: "1",
+            average_mfe_r: "2.1",
+            average_mae_r: "0.2",
+          },
+        ],
+        decision_blockers: [
+          { reason: "NO_PULLBACK_OR_BREAKOUT_TRIGGER", count: 12 },
+        ],
+        missed_opportunities_6h: [
+          {
+            reason: "NO_PULLBACK_OR_BREAKOUT_TRIGGER",
+            decisions: 6,
+            average_max_up_atr: "0.8",
+            average_max_down_atr: "2.2",
+            moves_up_ge_2atr: 0,
+            moves_down_ge_2atr: 3,
+          },
+        ],
+        next_review_milestone: 25,
+        completed_decision_windows: 6,
+      },
+    });
+  });
+
+  await page.goto("/");
+  await expect(page.getByText("V2 REFERENCE OUTCOME ANALYTICS")).toHaveCount(0);
+  expect(requests).toBe(0);
+
+  if (isMobile)
+    await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("button", { name: "Performance", exact: true }).click();
+
+  await expect(page.getByText("V2 REFERENCE OUTCOME ANALYTICS")).toBeVisible();
+  await expect(page.getByText("Four-engine performance matrix")).toBeVisible();
+  await expect(page.getByText("Six-hour movement after NO_SETUP")).toBeVisible();
+  await expect(page.getByText("BTC", { exact: true }).first()).toBeVisible();
+  expect(requests).toBeGreaterThanOrEqual(2);
+});
