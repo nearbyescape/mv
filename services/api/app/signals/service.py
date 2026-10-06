@@ -210,22 +210,27 @@ def btc_regime_guard(session, symbol, direction, open_time):
     evidence = {
         "state": state,
         "passed": not contradiction,
-        "source_1h_open_time": btc_1h.bar.open_time,
-        "confirmation_4h_open_time": btc_4h.bar.open_time,
-        "source_1h_lineage": btc_1h.lineage,
-        "confirmation_4h_lineage": btc_4h.lineage,
+        "symbol": "BTCUSDT",
+        "source_1h": btc_1h.evidence(),
+        "confirmation_4h": btc_4h.evidence(),
     }
     return ("BTC_REGIME_CONTRADICTION" if contradiction else None), evidence
 
 
-def _evidence_snapshots(evidence):
+def _evidence_snapshots(evidence, default_symbol):
     for key in ("source", "previous", "confirmation"):
         item = evidence.get(key)
         if item:
-            yield key, item
+            yield default_symbol, key, item
     for index, item in enumerate(evidence.get("structure") or []):
         if item:
-            yield f"structure:{index}", item
+            yield default_symbol, f"structure:{index}", item
+    btc = evidence.get("btc_regime") or {}
+    if btc.get("symbol") == "BTCUSDT":
+        for key in ("source_1h", "confirmation_4h"):
+            item = btc.get(key)
+            if item:
+                yield "BTCUSDT", f"btc_regime:{key}", item
 
 
 def discover(session, local_now):
@@ -375,8 +380,8 @@ def check_source_revisions(session, now):
         identity = str(uuid5(NAMESPACE_URL, plan.id + ":source-revised"))
         if session.get(SignalEvent, identity):
             continue
-        for key, evidence in _evidence_snapshots(plan.evidence_json):
-            snapshot = session.get(IndicatorSnapshot, (plan.symbol, evidence["timeframe"], evidence["open_time"]))
+        for evidence_symbol, key, evidence in _evidence_snapshots(plan.evidence_json, plan.symbol):
+            snapshot = session.get(IndicatorSnapshot, (evidence_symbol, evidence["timeframe"], evidence["open_time"]))
             if snapshot is None or snapshot.lineage != evidence["lineage"]:
                 add_event(session, plan.id, "source-revised", now, {"affected": key, "message": "Retained source lineage changed after publication; original plan remains immutable"}, identity)
                 session.execute(delete(SignalSlot).where(SignalSlot.signal_id == plan.id, SignalSlot.state == "reserved"))
@@ -395,8 +400,8 @@ def signal_view(session, row, now):
     if not revised:
         # Fail closed immediately; persisted withdrawal events may follow on
         # the worker's next scan. Original plan/evidence remain unchanged.
-        for _, evidence in _evidence_snapshots(row.evidence_json):
-            current=session.get(IndicatorSnapshot,(row.symbol,evidence["timeframe"],evidence["open_time"]))
+        for evidence_symbol, _, evidence in _evidence_snapshots(row.evidence_json, row.symbol):
+            current=session.get(IndicatorSnapshot,(evidence_symbol,evidence["timeframe"],evidence["open_time"]))
             if not current or current.lineage!=evidence["lineage"]:
                 revised=True
                 break
