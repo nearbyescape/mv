@@ -110,15 +110,36 @@ def _regime(current: Snapshot, previous: Snapshot, confirmation: Snapshot, direc
     one_ready = one_full or one_emerging
     four_ready = four_full or four_emerging
     regime = "established" if one_full and four_full else "emerging" if one_ready and four_ready else None
-    checks = [
-        _check(f"{direction}.ema20_ema50_1h", one_fast),
-        _check(f"{direction}.ema50_slope_1h", one_slope),
-        _check(f"{direction}.price_sma200_1h", one_price_sma),
-        _check(f"{direction}.established_1h", one_full),
-        _check(f"{direction}.ema20_ema50_4h", four_fast),
-        _check(f"{direction}.ema20_side_4h", four_close),
-        _check(f"{direction}.established_4h", four_full),
-    ]
+
+    # Persist only conditions that are actually required by the selected regime.
+    # This keeps published rule evidence unambiguous: an optional emerging-regime
+    # slope test cannot appear as a failed requirement on an established setup.
+    if regime == "established":
+        checks = [
+            _check(f"{direction}.ema20_ema50_1h", one_fast),
+            _check(f"{direction}.established_1h", one_full),
+            _check(f"{direction}.ema20_ema50_4h", four_fast),
+            _check(f"{direction}.ema20_side_4h", four_close),
+            _check(f"{direction}.established_4h", four_full),
+        ]
+    elif regime == "emerging":
+        checks = [
+            _check(f"{direction}.ema20_ema50_1h", one_fast),
+            _check(f"{direction}.ema50_slope_1h", one_slope),
+            _check(f"{direction}.price_sma200_1h", one_price_sma),
+            _check(f"{direction}.ema20_ema50_4h", four_fast),
+            _check(f"{direction}.ema20_side_4h", four_close),
+        ]
+    else:
+        checks = [
+            _check(f"{direction}.ema20_ema50_1h", one_fast),
+            _check(f"{direction}.established_1h", one_full),
+            _check(f"{direction}.ema50_slope_1h", one_slope),
+            _check(f"{direction}.price_sma200_1h", one_price_sma),
+            _check(f"{direction}.ema20_ema50_4h", four_fast),
+            _check(f"{direction}.ema20_side_4h", four_close),
+            _check(f"{direction}.established_4h", four_full),
+        ]
     return one_ready, four_ready, regime, checks
 
 
