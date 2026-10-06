@@ -97,6 +97,112 @@ def test_strategy_is_versioned_and_ai_cannot_originate_signal(client):
     assert "cannot originate or change" in contract["ai_role"]
 
 
+def test_0008_migration_backfills_existing_v2_outcome_and_downgrades_cleanly(tmp_path):
+    database = tmp_path / "migration-0008.db"
+    env = {
+        **os.environ,
+        "MV_DATABASE_URL": f"sqlite:///{database.as_posix()}",
+        "MV_ENVIRONMENT": "local",
+    }
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "0007"],
+        cwd=API_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    engine = create_engine(env["MV_DATABASE_URL"])
+    identity = "a" * 64
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO signal_decisions
+                (id,symbol,strategy,source_open_time,direction,outcome,reason,
+                 updated_at,expires_at,attempts,evidence_json)
+                VALUES
+                (:id,'BTCUSDT','MV-TREND-DUAL-v2',1,'long','PUBLISHED','fixture',
+                 2,3,1,'{}')
+                """
+            ),
+            {"id": identity},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO signal_plans
+                (id,symbol,strategy,created_at,expires_at,plan_json,evidence_json,evidence_hash)
+                VALUES
+                (:id,'BTCUSDT','MV-TREND-DUAL-v2',2,3,'{}','{}',:hash)
+                """
+            ),
+            {"id": identity, "hash": "b" * 64},
+        )
+        connection.execute(
+            text(
+                """
+                INSERT INTO signal_outcomes
+                (signal_id,symbol,direction,setup_type,trend_regime,published_at,
+                 first_observed_minute,last_minute_open_time,entry,stop,target,
+                 risk_distance,target_r,frozen_atr,status,terminal_at,conservative_r,
+                 mfe_r,mae_r,favorable_050_at,favorable_100_at,favorable_150_at,
+                 favorable_200_at,adverse_050_at,adverse_100_at,intrabar_ambiguous,
+                 source_revised,observed_bars,updated_at,error_code)
+                VALUES
+                (:id,'BTCUSDT','long','pullback_continuation','established',2,
+                 60000,NULL,'100','98','104','2','2','1','open',NULL,NULL,
+                 '0','0',NULL,NULL,NULL,NULL,NULL,NULL,0,0,0,2,NULL)
+                """
+            ),
+            {"id": identity},
+        )
+    engine.dispose()
+
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=API_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    engine = create_engine(env["MV_DATABASE_URL"])
+    with engine.connect() as connection:
+        row = connection.execute(
+            text(
+                "SELECT strategy,tp1,tp2,tp3,tp1_r,tp2_r,tp3_r "
+                "FROM signal_outcomes WHERE signal_id=:id"
+            ),
+            {"id": identity},
+        ).one()
+        assert tuple(row) == (
+            "MV-TREND-DUAL-v2",
+            None,
+            None,
+            "104",
+            None,
+            None,
+            "2",
+        )
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008"
+    engine.dispose()
+
+    subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "0007"],
+        cwd=API_ROOT,
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    engine = create_engine(env["MV_DATABASE_URL"])
+    with engine.connect() as connection:
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0007"
+        assert connection.scalar(
+            text("SELECT target FROM signal_outcomes WHERE signal_id=:id"),
+            {"id": identity},
+        ) == "104"
+    engine.dispose()
+
+
 def test_foundation_rejects_production_mode():
     with pytest.raises(RuntimeError, match="invite-only"):
         Settings(environment="production").check_local_only()
