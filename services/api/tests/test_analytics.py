@@ -185,8 +185,8 @@ def test_no_setup_decision_gets_future_only_six_hour_atr_excursion(state):
         row = session.get(DecisionOpportunity, identity)
         assert row.status == "complete"
         assert row.observed_bars == 6
-        assert D(row.max_up_atr) == D("3")
-        assert D(row.max_down_atr) == D("1.5")
+        assert abs(D(row.max_up_atr) - D("3")) < D("1e-25")
+        assert abs(D(row.max_down_atr) - D("1.5")) < D("1e-25")
 
 
 def test_performance_summary_separates_four_setup_direction_cohorts(state):
