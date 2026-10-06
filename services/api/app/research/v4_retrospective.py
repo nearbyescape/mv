@@ -49,6 +49,10 @@ class Candidate:
     source_extension_atr: D
     favorable_050_at: int | None
     adverse_050_at: int | None
+    historical_status: str | None = None
+    historical_mfe_r: str | None = None
+    historical_mae_r: str | None = None
+    historical_conservative_r: str | None = None
     preliminary_reason: str | None = None
     final_reason: str | None = None
 
@@ -299,6 +303,12 @@ def load_candidates(day: str) -> list[Candidate]:
                     source_extension_atr=extension,
                     favorable_050_at=outcome.favorable_050_at if outcome else None,
                     adverse_050_at=outcome.adverse_050_at if outcome else None,
+                    historical_status=outcome.status if outcome else None,
+                    historical_mfe_r=outcome.mfe_r if outcome else None,
+                    historical_mae_r=outcome.mae_r if outcome else None,
+                    historical_conservative_r=(
+                        outcome.conservative_r if outcome else None
+                    ),
                     preliminary_reason=reason,
                 )
             )
@@ -315,15 +325,49 @@ async def run(day: str) -> dict:
             )
     simulate(candidates)
     reasons = Counter(row.final_reason for row in candidates)
+    survivors = [
+        row for row in candidates if row.final_reason == "WOULD_PUBLISH_V4"
+    ]
+    suppressed = [
+        row for row in candidates if row.final_reason != "WOULD_PUBLISH_V4"
+    ]
+    by_close = {}
+    for row in candidates:
+        key = str(row.source_close)
+        bucket = by_close.setdefault(
+            key,
+            {"v2_publications": 0, "v4_would_publish": 0, "symbols": []},
+        )
+        bucket["v2_publications"] += 1
+        if row.final_reason == "WOULD_PUBLISH_V4":
+            bucket["v4_would_publish"] += 1
+        bucket["symbols"].append(
+            {
+                "symbol": row.symbol,
+                "direction": row.direction,
+                "result": row.final_reason,
+            }
+        )
     return {
         "ist_date": day,
         "source_strategy": V2,
         "candidate_strategy": "MV-TREND-DUAL-v4",
         "read_only": True,
+        "interpretation": (
+            "Counterfactual safety diagnostic using actual V2 publications and "
+            "their observational reference outcomes; not a profitability backtest."
+        ),
         "v2_publications": len(candidates),
         "v4_would_publish": reasons.get("WOULD_PUBLISH_V4", 0),
         "suppressed": len(candidates) - reasons.get("WOULD_PUBLISH_V4", 0),
         "reasons": dict(sorted(reasons.items())),
+        "survivor_historical_statuses": dict(
+            sorted(Counter(row.historical_status or "missing" for row in survivors).items())
+        ),
+        "suppressed_historical_statuses": dict(
+            sorted(Counter(row.historical_status or "missing" for row in suppressed).items())
+        ),
+        "by_source_close": by_close,
         "signals": [
             {
                 "v2_signal_id": row.signal_id,
@@ -336,6 +380,12 @@ async def run(day: str) -> dict:
                 "recent_run_atr": str(row.recent_run_atr),
                 "source_extension_atr": str(row.source_extension_atr),
                 "result": row.final_reason,
+                "historical_reference_outcome": {
+                    "status": row.historical_status,
+                    "mfe_r": row.historical_mfe_r,
+                    "mae_r": row.historical_mae_r,
+                    "conservative_r": row.historical_conservative_r,
+                },
             }
             for row in candidates
         ],
