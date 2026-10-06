@@ -382,14 +382,14 @@ def decision_priority(session, row):
         )
         setup = evaluate_setup_v4(current, previous, confirmation, structure) if current else None
         if not setup or setup.outcome not in ("LONG_SETUP", "SHORT_SETUP"):
-            return (row.source_open_time, 1, Decimal("999"), Decimal("999"), row.symbol)
+            return (row.source_open_time, Decimal("999"), Decimal("999"), 2, row.symbol)
         values = {item["id"].split(".")[-1]: item.get("value") for item in setup.checks}
         recent = Decimal(values.get("recent_run_atr") or "999")
         extension = Decimal(values.get("source_extension_atr") or "999")
         regime = 0 if setup.regime == "established" else 1
-        return (row.source_open_time, regime, recent, extension, row.symbol)
+        return (row.source_open_time, recent, extension, regime, row.symbol)
     except Exception:
-        return (row.source_open_time, 2, Decimal("999"), Decimal("999"), row.symbol)
+        return (row.source_open_time, Decimal("999"), Decimal("999"), 2, row.symbol)
 
 
 def _evidence_snapshots(evidence, default_symbol):
