@@ -1,5 +1,6 @@
 """Optional REAL PostgreSQL integration checks, isolated in a disposable schema."""
 import asyncio
+from decimal import Decimal
 from concurrent.futures import ThreadPoolExecutor
 import os
 from pathlib import Path
@@ -181,13 +182,19 @@ def test_postgres_stale_owner_cannot_commit_after_handoff(pg):
         assert lease.OWNERS["signal-engine"]==old
 
 
-def test_postgres_original_decimal_signal_publication_and_notification_retry(pg):
+def test_postgres_exact_decimal_v2_signal_publication_and_notification_retry(pg):
     seed(pg);identity=pending(pg);publish(pg,identity)
     with pg.sessions.begin() as session:
         plan=session.get(SignalPlan,identity)
-        assert plan.plan_json["entry"]=="200.1"
-        assert plan.plan_json["stop"]=="193.0"
-        assert plan.plan_json["target"]=="214.3"
+        payload=plan.plan_json
+        entry,stop,target,risk=map(Decimal,(payload["entry"],payload["stop"],payload["target"],payload["risk_distance"]))
+        assert payload["strategy"]=="MV-TREND-DUAL-v2"
+        assert payload["setup_type"] in ("pullback_continuation","momentum_breakout")
+        assert entry==Decimal("200.1")
+        assert stop < entry < target
+        assert entry-stop==risk
+        assert target-entry==Decimal(2)*risk
+        assert Decimal(payload["reward_risk"])==2
         assert session.scalar(select(func.count()).select_from(SignalSlot))==1
         assert sync_notifications(session)==1
     with pg.sessions.begin() as session:assert sync_notifications(session)==0
