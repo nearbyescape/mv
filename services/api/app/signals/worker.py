@@ -15,7 +15,7 @@ from app.database import Session
 from app.market.binance import BinancePublic, RateLimited, now_ms
 from app.market.views import collector_health
 from app.models import EngineStatus, SignalDecision
-from .service import PENDING, STRATEGY_ID, check_live_contract, check_source_revisions, context_at, canonical_hash, discover, engine_health, evaluate_decision, expire_slots
+from .service import PENDING, STRATEGY_ID, btc_regime_guard, check_live_contract, check_source_revisions, context_at, canonical_hash, discover, engine_health, evaluate_decision, expire_slots
 
 log = logging.getLogger("mv.engine")
 
@@ -76,10 +76,15 @@ class SignalWorker:
                 if row.outcome != PENDING:
                     return
                 evidence = context_at(session, symbol, row.source_open_time)[-1]
-                # Compare the exact pre-quote source, checks and metadata; changed input retries safely.
-                for key in ("checks", "setup", "btc_regime"):
+                # Compare the exact pre-quote source, strategy checks, metadata and
+                # BTC regime.  A BTC revision during an alt quote must force a
+                # fresh evaluation rather than publishing against stale context.
+                for key in ("checks", "setup"):
                     if key in row.evidence_json:
                         evidence[key] = row.evidence_json[key]
+                if row.direction:
+                    _, btc_evidence = btc_regime_guard(session, symbol, row.direction, row.source_open_time)
+                    evidence["btc_regime"] = btc_evidence
                 if canonical_hash(evidence) != fingerprint:
                     row.reason, row.updated_at = "SOURCE_CHANGED_DURING_QUOTE", now_ms()
                     return
