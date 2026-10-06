@@ -182,7 +182,7 @@ test("performance analytics stay out of Overview and load only in their own sect
               published_at: 1791255000000,
               status: "target",
               terminal_at: 1791258600000,
-              strategy: "MV-TREND-DUAL-v3",
+              strategy: "MV-TREND-DUAL-v4",
               target_r: "2",
               tp1: "101",
               tp2: "101.5",
@@ -208,7 +208,7 @@ test("performance analytics stay out of Overview and load only in their own sect
       });
     return route.fulfill({
       json: {
-        strategy: "MV-TREND-DUAL-v3",
+        strategy: "MV-TREND-DUAL-v4",
         method: "reference-plan analytics; not exchange fills or account P&L",
         minute_observation: "completed 1m candles",
         ambiguous_policy: "same-minute stop and target is conservative -1R",
