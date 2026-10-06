@@ -366,6 +366,7 @@ def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
         health.updated_at = health.last_event_at = state.clock[0]
         session.get(MarketContract, "BTCUSDT").checked_at = state.clock[0]
         session.get(EngineStatus, "engine").updated_at = state.clock[0]
+        session.get(ServiceLease, "outcome-analytics").heartbeat = state.clock[0]
         apply_bars(session, "BTCUSDT", "1h", [source[-1]], state.clock[0])
         timing = source_bars(
             4,
@@ -403,6 +404,7 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
     with state.sessions.begin() as session:
         health = session.get(CollectorStatus, "collector")
         health.updated_at = health.last_event_at = state.clock[0]
+        session.get(ServiceLease, "outcome-analytics").heartbeat = state.clock[0]
     class SlowQuote:
         async def quote(self, *args):
             state.clock[0] += 2000
@@ -857,6 +859,7 @@ def test_v4_circuit_pause_survives_publication_window_until_full_pause_expires(s
                     evidence_hash=str(index) * 64,
                 )
             )
+            session.flush()
             session.add(
                 SignalOutcome(
                     signal_id=signal_id,
@@ -991,6 +994,7 @@ def test_v4_same_minute_half_r_is_conservatively_adverse_first(state):
                     evidence_hash=str(index + 4) * 64,
                 )
             )
+            session.flush()
             session.add(
                 SignalOutcome(
                     signal_id=signal_id,
