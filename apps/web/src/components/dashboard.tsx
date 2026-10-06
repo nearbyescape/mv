@@ -43,6 +43,7 @@ import { LiveMarketPanel } from "./live-market-panel";
 import { LiveSignalPanel, SignalJournal } from "./signal-workspace";
 import { ResearchWorkspace } from "./research-workspace";
 import { NotificationInbox, SignalHistory } from "./live-operations";
+import { PerformanceWorkspace } from "./performance-workspace";
 import {
   AccountWorkspace,
   Administration,
@@ -60,6 +61,7 @@ type Page =
   | "overview"
   | "markets"
   | "signals"
+  | "performance"
   | "research"
   | "strategy"
   | "system"
@@ -95,6 +97,7 @@ const navigation: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "markets", label: "Chosen markets", icon: CandlestickChart },
   { id: "signals", label: "Signal journal", icon: Radio },
+  { id: "performance", label: "Performance", icon: Activity },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "account", label: "My account", icon: UserRound },
   { id: "admin", label: "Administration", icon: Users },
@@ -764,6 +767,8 @@ export function Dashboard({
                     ? "A focused universe of coins, chosen by you."
                     : page === "signals"
                       ? "Trace every setup from source candle to delivery."
+                      : page === "performance"
+                        ? "Measure V2 reference outcomes, setup quality and missed moves without changing the live engine."
                       : page === "research"
                         ? "Frozen rules, explicit costs and a reproducible historical record."
                         : page === "strategy"
@@ -786,8 +791,10 @@ export function Dashboard({
             </span>
             <p>
               <strong>
-                {page === "research"
-                  ? "Historical research · versioned report"
+                {page === "performance"
+                  ? "V2 observational analytics · separate from signal decisions"
+                  : page === "research"
+                    ? "Historical research · versioned report"
                   : mode === "demo"
                     ? "Design & foundation preview"
                     : engine?.ready && !signalFeed.error
@@ -797,8 +804,10 @@ export function Dashboard({
                       : "Binance signals · Waiting for engine"}
               </strong>
               <span>
-                {page === "research"
-                  ? "Registered experiments use historical futures data and explicit execution assumptions."
+                {page === "performance"
+                  ? "Reference outcomes use completed post-publication market data. They never create, suppress or modify a signal."
+                  : page === "research"
+                    ? "Registered experiments use historical futures data and explicit execution assumptions."
                   : mode === "demo"
                     ? "Charts and signal examples use synthetic data. Engine monitoring continues separately."
                     : engine?.session?.enabled
@@ -960,6 +969,7 @@ export function Dashboard({
               </div>
             </>
           )}
+          {page === "performance" && <PerformanceWorkspace />}
           {page === "research" && <ResearchWorkspace />}
           {page === "notifications" && (
             <NotificationInbox
