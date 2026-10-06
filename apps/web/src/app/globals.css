@@ -3855,3 +3855,107 @@ tbody tr:last-child td {
 .paper-notice.research-notice > .tag {
   display: inline-flex;
 }
+
+/* Dedicated V2 performance analytics workspace. Nothing here is rendered on Overview. */
+.performance-workspace {
+  display: grid;
+  gap: 20px;
+}
+.performance-intro {
+  padding: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.performance-intro h2 {
+  font-size: 22px;
+  margin-top: 10px;
+  letter-spacing: -0.5px;
+}
+.performance-intro p,
+.performance-method p,
+.performance-empty p {
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 1.8;
+  margin-top: 9px;
+  max-width: 780px;
+}
+.performance-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.performance-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 0;
+}
+.performance-summary .summary-card {
+  min-width: 0;
+}
+.performance-summary .summary-card strong {
+  font-size: 20px;
+  flex-wrap: wrap;
+}
+.performance-panel .table-scroll {
+  max-width: 100%;
+}
+.performance-panel table {
+  min-width: 900px;
+}
+.performance-two-column {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+.performance-two-column table {
+  min-width: 560px;
+}
+.performance-method {
+  padding: 6px 5px 18px;
+}
+.performance-method strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+.performance-method p {
+  margin-top: 6px;
+}
+.performance-empty {
+  padding: 48px 30px;
+  text-align: center;
+}
+.performance-empty svg {
+  color: var(--accent);
+}
+.performance-empty h2 {
+  font-size: 18px;
+  margin-top: 15px;
+}
+.performance-empty p {
+  margin: 10px auto 20px;
+}
+@media (max-width: 1100px) {
+  .performance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .performance-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .performance-intro {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 20px;
+  }
+  .performance-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .performance-summary {
+    grid-template-columns: 1fr;
+  }
+}
