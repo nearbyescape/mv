@@ -50,10 +50,12 @@ if args.verify_restore:
             run(["pg_restore","-U","postgres","-d",restored,"--no-owner","--role=mv","--exit-on-error"],stdin=source)
         critical = [("watchlist","symbol"),("users","id"),("signal_plans","id"),("signal_events","id"),("signal_decisions","id"),("signal_slots","symbol,strategy"),("candles","symbol,timeframe,open_time"),("indicator_snapshots","symbol,timeframe,open_time"),("engine_cursors","symbol,strategy"),("indicator_checkpoints","symbol,timeframe")]
         version = run(["psql","-U","postgres","-d","mv_signal","-At","-c","SELECT version_num FROM alembic_version"],capture_output=True).stdout.decode().strip()
-        if version in ("0005","0006"):
+        if version in ("0005","0006","0007"):
             critical.extend([("ai_reviews","signal_id"),("ai_requests","id")])
-        if version == "0006":
+        if version in ("0006","0007"):
             critical.extend([("telegram_deliveries","event_id")])
+        if version == "0007":
+            critical.extend([("signal_outcomes","signal_id"),("decision_opportunities","decision_id")])
         critical.extend([("web_notifications","id"),("notification_reads","user_id,notification_id"),("user_sessions","token_hash"),("invites","token_hash"),("market_contracts","symbol"),("audit_events","id")])
         for table,order in critical:
             sql=f"COPY (SELECT row_to_json(t) FROM (SELECT * FROM {table} ORDER BY {order}) t) TO STDOUT"

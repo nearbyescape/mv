@@ -1,6 +1,6 @@
 # Phased delivery status
 
-Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 source candidate implemented; regression/VPS cutover verification pending**. Production currently runs the verified 0.10.0 stack at https://mv.jaleshwarima.com until the 0.11.0 validation gates pass. V2 is a direct-production replacement for new signal decisions, not a paper/shadow runtime. Existing V1 research and historical plans are preserved. Telegram and the 09:00 AM–11:00 PM IST operating window are already active in production. Paper observation remains canceled.
+Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 is live and stabilized; release 0.12.0 observational performance analytics is implemented in source and under regression validation**. Production runs the 30-market direct-production V2 engine at https://mv.jaleshwarima.com with Telegram, AI commentary and the 09:00 AM–11:00 PM IST operating window. V1 history remains preserved. The 0.12.0 analytics subsystem is isolated from signal decisions and is not deployed until its regression and VPS migration gates pass.
 
 | Phase | Status | Exit evidence |
 | --- | --- | --- |
@@ -11,6 +11,7 @@ Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 source candidate
 | 5. Backtesting | Implemented and exercised; profitability not established | Pinned sources, actual funding, costs, independent complete-ledger checks |
 | 5.1. Diagnostics and exit studies | Implemented; no policy promoted | 27 experiments, exact original parity, independent accounting |
 | 5.2. Independent entry filters | Implemented; neither established improvement | 27 experiments, 2,935 checked records, original live strategy unchanged |
+| 5.3. V2 live outcome analytics | Implemented in 0.12.0 source; deployment pending | Isolated reference outcomes, R excursions, four setup/direction cohorts and six-hour NO_SETUP diagnostics |
 | 6. Durable live operations | Implemented and verified in Linux Docker | PostgreSQL ownership fencing, committed web notifications, heartbeat/backlog, recovery, maintenance and backup status |
 | 7. Private website | Implemented and verified | Responsive light/dark design, invitations/accounts/roles, administration, audit, full history and inbox |
 | 8. Telegram | Implemented; deployment checks pending | Server-only bot secret, fixed destination, durable fenced outbox, rate limits, sanitized errors and uncertain-send protection |
@@ -18,13 +19,19 @@ Milestone: **6 October 2026 — release 0.11.0 MV-TREND-DUAL-v2 source candidate
 | 10. Hardening and hosting | Core deployed and checked on VPS | Public trusted HTTPS, owner onboarding, live PostgreSQL/market workers, VPS backup restore and preservation of existing websites; endurance/off-server transport remain pending |
 | 11. Forward paper pilot | Canceled by owner; originals preserved | Observer stopped, default disabled, omitted from live workflow; no continuity or assessment claim |
 
-## Release 0.11.0 V2 production strategy candidate
+## Release 0.12.0 observational outcome analytics candidate
+
+Implemented on a separate branch without modifying `MV-TREND-DUAL-v2` rules. Migration 0007 adds `signal_outcomes` and `decision_opportunities`; the dedicated `outcome-analytics` worker is fenced independently and is never imported by the signal engine. Published V2 plans are measured from the first uncontaminated completed Binance 1-minute candle after publication. MFE/MAE and R milestones are retained with conservative same-minute stop/target ambiguity. Six-hour `NO_SETUP` diagnostics use future completed 1H candles and source ATR only, with no hypothetical fill/P&L claim.
+
+The web UI exposes analytics only under a dedicated **Performance** navigation section. Overview does not render or request analytics. See [measurement contract](V2_PERFORMANCE_ANALYTICS.md).
+
+## Release 0.11.0 V2 production strategy
 
 Implemented in source on a dedicated branch: `MV-TREND-DUAL-v2` keeps completed 1H/4H EMA20/EMA50/SMA200/Wilder ATR14 evidence, the existing 2 ATR stop / 2R reference geometry, the registered IST session and all durable publication/Telegram/AI guards. It adds quality-controlled pullback continuation plus 12-bar structural momentum breakout, established/emerging trend regimes, ATR-normalized candle/extension checks, a 10 bps spread ceiling and a BTC contradiction veto for altcoins.
 
 The strategy identity is distinct from V1. First V2 startup baselines every ready symbol at the current head, so no historical V2 opportunity is replayed. The V2 worker ignores V1 pending rows and checks active slots across strategy versions. V2 structure and BTC regime source snapshots are checksummed and revision-monitored.
 
-The old V1 strategy module/contract and research pipeline remain unchanged so historical reports stay reproducible. No schema migration is required. Source implementation is **not** a profitability claim; regression, isolated Linux image checks and controlled production cutover remain required before 0.11.0 becomes active. See [full V2 behavior](STRATEGY_V2.md).
+The old V1 strategy module/contract and research pipeline remain unchanged so historical reports stay reproducible. No schema migration is required. V2 is now active production. Its implementation remains **not** a profitability claim; outcome evidence is collected separately. See [full V2 behavior](STRATEGY_V2.md).
 
 ## Release 0.10.0 client handover, Telegram and daily session
 

@@ -20,7 +20,7 @@ from .research.reports import read_report, download_path, read_study, study_down
 from fastapi.responses import FileResponse
 from typing import Literal
 
-app = FastAPI(title="MV Signal API", version="0.11.0", description="Private deterministic V2 futures signals with preserved historical research, optional AI evidence commentary and Telegram delivery. No exchange orders.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
+app = FastAPI(title="MV Signal API", version="0.12.0", description="Private deterministic V2 futures signals with observational outcome analytics, preserved historical research, optional AI evidence commentary and Telegram delivery. No exchange orders.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
 security = HTTPBearer(auto_error=False)
 STRATEGY_FILE = Path(__file__).resolve().parents[3] / "packages" / "contracts" / "strategy-v2.json"
 
@@ -141,7 +141,7 @@ def health(session: Annotated[Session, Depends(get_session)]):
         if get_settings().environment=="production":
             from .models import User
             session.execute(select(User.id).limit(1))
-            if session.scalar(text("SELECT version_num FROM alembic_version"))!="0006":
+            if session.scalar(text("SELECT version_num FROM alembic_version"))!="0007":
                 raise RuntimeError("Database migration version mismatch")
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database unavailable or migrations pending") from exc
@@ -221,8 +221,10 @@ def signal_chart(signal_id: str, session: Annotated[Session, Depends(get_session
 
 from .auth.routes import router as auth_router
 from .operations.routes import router as operations_router
+from .analytics.routes import router as analytics_router
 app.include_router(auth_router)
 app.include_router(operations_router)
+app.include_router(analytics_router)
 
 
 class SignalAction(BaseModel):
