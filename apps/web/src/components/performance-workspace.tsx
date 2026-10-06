@@ -10,6 +10,11 @@ type Summary = {
   open: number;
   target: number;
   stop: number;
+  tp1_reached: number;
+  tp2_reached: number;
+  tp3_reached: number;
+  protected_be: number;
+  protected_tp1: number;
   ambiguous: number;
   source_revised: number;
   resolved: number;
@@ -17,8 +22,10 @@ type Summary = {
   expectancy_r: string | null;
   profit_factor: string | null;
   one_r_before_stop: number;
+  one5_r_before_stop: number;
   two_r_before_stop: number;
   one_r_before_stop_rate: string | null;
+  one5_r_before_stop_rate: string | null;
   two_r_before_stop_rate: string | null;
   average_mfe_r: string | null;
   average_mae_r: string | null;
@@ -47,6 +54,7 @@ type Performance = {
 
 type Outcome = {
   signal_id: string;
+  strategy: string;
   symbol: string;
   direction: "long" | "short";
   setup_type: "pullback_continuation" | "momentum_breakout";
@@ -55,6 +63,15 @@ type Outcome = {
   status: string;
   terminal_at: number | null;
   target_r: string;
+  tp1: string | null;
+  tp2: string | null;
+  tp3: string | null;
+  tp1_r: string | null;
+  tp2_r: string | null;
+  tp3_r: string | null;
+  tp1_reached: boolean;
+  tp2_reached: boolean;
+  tp3_reached: boolean;
   mfe_r: string;
   mae_r: string;
   one_r_before_stop: boolean;
@@ -77,6 +94,7 @@ const reasonLabel = (value: string) =>
 function downloadCsv(outcomes: Outcome[]) {
   const columns = [
     "signal_id",
+    "strategy",
     "symbol",
     "direction",
     "setup_type",
@@ -85,6 +103,15 @@ function downloadCsv(outcomes: Outcome[]) {
     "status",
     "terminal_at",
     "target_r",
+    "tp1",
+    "tp2",
+    "tp3",
+    "tp1_r",
+    "tp2_r",
+    "tp3_r",
+    "tp1_reached",
+    "tp2_reached",
+    "tp3_reached",
     "conservative_r",
     "mfe_r",
     "mae_r",
@@ -107,7 +134,7 @@ function downloadCsv(outcomes: Outcome[]) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "mv-v2-reference-outcomes.csv";
+  link.download = `mv-${outcomes[0]?.strategy?.toLowerCase() || "strategy"}-reference-outcomes.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -117,13 +144,14 @@ export function PerformanceWorkspace() {
   const [outcomes, setOutcomes] = useState<Outcome[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [strategy, setStrategy] = useState("MV-TREND-DUAL-v3");
 
   const load = useCallback(async () => {
     setBusy(true);
     try {
       const [summaryResponse, outcomesResponse] = await Promise.all([
-        fetch("/api/performance", { cache: "no-store" }),
-        fetch("/api/performance/outcomes?limit=500", { cache: "no-store" }),
+        fetch(`/api/performance?strategy=${encodeURIComponent(strategy)}`, { cache: "no-store" }),
+        fetch(`/api/performance/outcomes?limit=500&strategy=${encodeURIComponent(strategy)}`, { cache: "no-store" }),
       ]);
       if (summaryResponse.status === 401 || outcomesResponse.status === 401)
         location.assign("/login");
@@ -145,7 +173,7 @@ export function PerformanceWorkspace() {
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [strategy]);
 
   useEffect(() => {
     const initial = setTimeout(() => void load(), 0);
@@ -160,7 +188,7 @@ export function PerformanceWorkspace() {
     return (
       <section className="panel performance-empty">
         <Activity size={28} />
-        <h2>{busy ? "Loading V2 performance…" : "Performance unavailable"}</h2>
+        <h2>{busy ? "Loading performance…" : "Performance unavailable"}</h2>
         <p>{error || "Waiting for observational analytics."}</p>
         <button className="secondary-button" onClick={() => void load()}>
           <RefreshCw size={15} /> Retry
@@ -174,7 +202,7 @@ export function PerformanceWorkspace() {
     <div className="performance-workspace">
       <section className="panel performance-intro">
         <div>
-          <span className="eyebrow">V2 REFERENCE OUTCOME ANALYTICS</span>
+          <span className="eyebrow">REFERENCE OUTCOME ANALYTICS</span>
           <h2>{performance.strategy}</h2>
           <p>
             Observational measurements only. These are published reference-plan
@@ -182,6 +210,18 @@ export function PerformanceWorkspace() {
           </p>
         </div>
         <div className="performance-actions">
+          <label className="performance-strategy-select">
+            Strategy
+            <select
+              aria-label="Performance strategy"
+              value={strategy}
+              disabled={busy}
+              onChange={(event) => setStrategy(event.target.value)}
+            >
+              <option value="MV-TREND-DUAL-v3">V3 · anti-chase + scaled targets</option>
+              <option value="MV-TREND-DUAL-v2">V2 · historical comparison</option>
+            </select>
+          </label>
           <button
             className="secondary-button"
             disabled={busy}
@@ -203,7 +243,7 @@ export function PerformanceWorkspace() {
         <div className="summary-card">
           <span className="summary-icon"><Activity size={20} /></span>
           <div>
-            <span>V2 signals observed</span>
+            <span>{performance.strategy.endsWith("v3") ? "V3" : "V2"} signals observed</span>
             <strong>{overall.signals}<small>{overall.resolved} resolved</small></strong>
           </div>
         </div>
@@ -217,7 +257,7 @@ export function PerformanceWorkspace() {
         <div className="summary-card">
           <span className="summary-icon"><Activity size={20} /></span>
           <div>
-            <span>+1R before -1R</span>
+            <span>{performance.strategy.endsWith("v3") ? "TP1 reached" : "+1R before -1R"}</span>
             <strong>{percent(overall.one_r_before_stop_rate)}<small>{overall.one_r_before_stop} observed signals</small></strong>
           </div>
         </div>
@@ -225,7 +265,7 @@ export function PerformanceWorkspace() {
           <span className="summary-icon"><Activity size={20} /></span>
           <div>
             <span>Next formal review</span>
-            <strong>{performance.next_review_milestone ?? "300+"}<small>published V2 signals</small></strong>
+            <strong>{performance.next_review_milestone ?? "300+"}<small>published signals</small></strong>
           </div>
         </div>
       </div>
@@ -243,7 +283,7 @@ export function PerformanceWorkspace() {
               <tr>
                 <th>Setup</th><th>Direction</th><th>Signals</th><th>Resolved</th>
                 <th>Target rate</th><th>Expectancy</th><th>Profit factor</th>
-                <th>+1R first</th><th>+2R first</th><th>Avg MFE</th><th>Avg MAE</th>
+                <th>+1R first</th><th>+1.5R first</th><th>+2R first</th><th>Avg MFE</th><th>Avg MAE</th>
               </tr>
             </thead>
             <tbody>
@@ -255,6 +295,7 @@ export function PerformanceWorkspace() {
                   <td>{percent(row.target_rate)}</td><td>{rValue(row.expectancy_r)}</td>
                   <td>{row.profit_factor == null ? "—" : Number(row.profit_factor).toFixed(2)}</td>
                   <td>{percent(row.one_r_before_stop_rate)}</td>
+                  <td>{percent(row.one5_r_before_stop_rate)}</td>
                   <td>{percent(row.two_r_before_stop_rate)}</td>
                   <td>{rValue(row.average_mfe_r)}</td><td>{rValue(row.average_mae_r)}</td>
                 </tr>
@@ -277,7 +318,7 @@ export function PerformanceWorkspace() {
               <tr>
                 <th>Market</th><th>Signals</th><th>Resolved</th><th>Target rate</th>
                 <th>Expectancy</th><th>Profit factor</th><th>+1R first</th>
-                <th>+2R first</th><th>Avg MFE</th><th>Avg MAE</th>
+                <th>+1.5R first</th><th>+2R first</th><th>Avg MFE</th><th>Avg MAE</th>
               </tr>
             </thead>
             <tbody>
@@ -288,11 +329,12 @@ export function PerformanceWorkspace() {
                   <td>{rValue(row.expectancy_r)}</td>
                   <td>{row.profit_factor == null ? "—" : Number(row.profit_factor).toFixed(2)}</td>
                   <td>{percent(row.one_r_before_stop_rate)}</td>
+                  <td>{percent(row.one5_r_before_stop_rate)}</td>
                   <td>{percent(row.two_r_before_stop_rate)}</td>
                   <td>{rValue(row.average_mfe_r)}</td><td>{rValue(row.average_mae_r)}</td>
                 </tr>
               )) : (
-                <tr><td colSpan={10}>No V2 signals have been published yet.</td></tr>
+                <tr><td colSpan={11}>No signals have been published for this strategy yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -356,7 +398,7 @@ export function PerformanceWorkspace() {
         <div className="panel-head">
           <div>
             <span className="eyebrow">REFERENCE OUTCOME JOURNAL</span>
-            <h2>Recent V2 outcome observations</h2>
+            <h2>Recent {performance.strategy.endsWith("v3") ? "V3" : "V2"} outcome observations</h2>
           </div>
           <span className="tag">{outcomes.length} loaded</span>
         </div>
@@ -366,7 +408,7 @@ export function PerformanceWorkspace() {
               <tr>
                 <th>Market</th><th>Setup</th><th>Direction</th><th>Published</th>
                 <th>Status</th><th>Reference R</th><th>MFE</th><th>MAE</th>
-                <th>+1R first</th><th>+2R first</th>
+                <th>TP1 / +1R</th><th>TP2 / +1.5R</th><th>TP3 / +2R</th>
               </tr>
             </thead>
             <tbody>
@@ -379,12 +421,13 @@ export function PerformanceWorkspace() {
                   <td>{row.status.replaceAll("_", " ")}</td>
                   <td>{rValue(row.conservative_r)}</td>
                   <td>{rValue(row.mfe_r)}</td><td>{rValue(row.mae_r)}</td>
-                  <td>{row.one_r_before_stop ? "Yes" : "No"}</td>
-                  <td>{row.two_r_before_stop ? "Yes" : "No"}</td>
+                  <td>{row.tp1_reached ? "Yes" : "No"}</td>
+                  <td>{row.tp2_reached ? "Yes" : "No"}</td>
+                  <td>{row.tp3_reached ? "Yes" : "No"}</td>
                 </tr>
               ))}
               {!outcomes.length && (
-                <tr><td colSpan={10}>No V2 published signals to analyze yet.</td></tr>
+                <tr><td colSpan={11}>No published signals to analyze for this strategy yet.</td></tr>
               )}
             </tbody>
           </table>
