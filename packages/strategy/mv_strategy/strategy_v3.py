@@ -229,7 +229,7 @@ def evaluate_setup_v3(current: Snapshot, previous: Snapshot | None, confirmation
         _check(f"{direction}.close_location", close_location >= PULLBACK_CLOSE_LOCATION_MIN, close_location, minimum=PULLBACK_CLOSE_LOCATION_MIN),
         _check(f"{direction}.source_extension_atr", 0 < source_extension <= PULLBACK_SOURCE_EXTENSION_MAX, source_extension, maximum=PULLBACK_SOURCE_EXTENSION_MAX),
     ]
-    pullback_ok = all(item["passed"] for item in pullback_checks)
+    pullback_ok = recent_run_check["passed"] and all(item["passed"] for item in pullback_checks)
 
     structure_level = (
         max(s.bar.high for s in structure)
@@ -244,7 +244,7 @@ def evaluate_setup_v3(current: Snapshot, previous: Snapshot | None, confirmation
         _check(f"{direction}.close_location", close_location >= BREAKOUT_CLOSE_LOCATION_MIN, close_location, minimum=BREAKOUT_CLOSE_LOCATION_MIN),
         _check(f"{direction}.source_extension_atr", 0 < source_extension <= BREAKOUT_SOURCE_EXTENSION_MAX, source_extension, maximum=BREAKOUT_SOURCE_EXTENSION_MAX),
     ]
-    breakout_ok = all(item["passed"] for item in breakout_checks)
+    breakout_ok = recent_run_check["passed"] and all(item["passed"] for item in breakout_checks)
 
     # Structural breakout gets precedence when the same candle also completes a pullback.
     if breakout_ok:
