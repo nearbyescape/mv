@@ -22,7 +22,12 @@ def upgrade():
         "SET strategy='MV-TREND-DUAL-v2', tp3=target, tp3_r=target_r "
         "WHERE strategy IS NULL"
     )
-    op.alter_column("signal_outcomes", "strategy", nullable=False)
+    with op.batch_alter_table("signal_outcomes") as batch:
+        batch.alter_column(
+            "strategy",
+            existing_type=sa.String(80),
+            nullable=False,
+        )
     op.create_index("ix_signal_outcomes_strategy", "signal_outcomes", ["strategy"])
 
 
