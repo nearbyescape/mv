@@ -20,9 +20,9 @@ from .research.reports import read_report, download_path, read_study, study_down
 from fastapi.responses import FileResponse
 from typing import Literal
 
-app = FastAPI(title="MV Signal API", version="0.13.0", description="Private deterministic V3 futures signals with observational V2/V3 outcome analytics, preserved historical research, optional AI evidence commentary and Telegram delivery. No exchange orders.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
+app = FastAPI(title="MV Signal API", version="0.14.0", description="Private deterministic V3 futures signals with observational V2/V3 outcome analytics, preserved historical research, optional AI evidence commentary and Telegram delivery. No exchange orders.", docs_url=None if get_settings().environment=="production" else "/docs", redoc_url=None if get_settings().environment=="production" else "/redoc", openapi_url=None if get_settings().environment=="production" else "/openapi.json")
 security = HTTPBearer(auto_error=False)
-STRATEGY_FILE = Path(__file__).resolve().parents[3] / "packages" / "contracts" / "strategy-v3.json"
+STRATEGY_FILE = Path(__file__).resolve().parents[3] / "packages" / "contracts" / "strategy-v4.json"
 
 
 def authorize(credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)], request: Request, session: Annotated[Session, Depends(get_session)]):
@@ -194,7 +194,8 @@ def signals(session: Annotated[Session, Depends(get_session)], limit: Annotated[
     active = list(session.scalars(select(SignalPlan).join(SignalSlot, SignalSlot.signal_id == SignalPlan.id)))
     plans = sorted({row.id: row for row in recent + active}.values(), key=lambda row: row.created_at, reverse=True)
     decisions = session.scalars(select(SignalDecision).order_by(SignalDecision.updated_at.desc()).limit(25))
-    return {"engine": engine_health(session), "server_time": now, "signals": [signal_view(session, row, now) for row in plans],
+    from .signals.service import market_safety_view
+    return {"engine": engine_health(session), "safety": market_safety_view(session, now), "server_time": now, "signals": [signal_view(session, row, now) for row in plans],
             "decisions": [{"id": row.id, "symbol": row.symbol, "source_open_time": row.source_open_time, "outcome": row.outcome, "reason": row.reason, "direction": row.direction, "updated_at": row.updated_at, "attempts": row.attempts} for row in decisions],
             "slots": [{"symbol": row.symbol, "signal_id": row.signal_id, "state": row.state} for row in session.scalars(select(SignalSlot))]}
 
