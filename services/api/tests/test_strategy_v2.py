@@ -170,6 +170,23 @@ def test_quality_pullback_remains_a_separate_valid_setup():
     assert setup.regime == "established"
 
 
+def test_emerging_trend_can_qualify_before_full_sma200_ordering():
+    current, previous, confirmation, structure = long_pullback_context()
+    # Break full 1H EMA50/SMA200 ordering while retaining rising EMA50 and
+    # price above SMA200.  This must use the emerging regime, not established.
+    previous = replace(previous, ema50=D("99.0"), sma200=D("99.4"))
+    structure = [*structure[:-1], previous]
+    current = replace(current, ema50=D("99.2"), sma200=D("99.4"))
+    setup = evaluate_setup_v2(current, previous, confirmation, structure)
+    assert setup.outcome == "LONG_SETUP"
+    assert setup.regime == "emerging"
+    ids = {check["id"] for check in setup.checks}
+    assert "long.ema50_slope_1h" in ids
+    assert "long.price_sma200_1h" in ids
+    assert "long.established_1h" not in ids
+    assert all(check["passed"] for check in setup.checks)
+
+
 def test_breakout_requires_completed_4h_alignment_and_full_structure_history():
     current, previous, confirmation, structure = short_breakout_context()
     assert evaluate_setup_v2(current, previous, None, structure).reason == "WAITING_EXPECTED_4H"
