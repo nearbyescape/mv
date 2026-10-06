@@ -729,7 +729,8 @@ def signal_view(session, row, now):
     status = "integrity-failed" if not integrity else "withdrawn" if revised else "held" if state == "held" else "released" if "released" in types else "expired" if now >= row.expires_at else "active" if state == "reserved" else "closed"
     ai_review = review_view(session,row,integrity,revised)
     circuit_paused, _ = directional_circuit_breaker(session, row.plan_json.get("direction"), now)
-    return {**row.plan_json, "status": status, "slot": state, "entry_actionable": status == "active" and engine_health(session)["ready"] and not circuit_paused and allowed(row.plan_json["source_close_boundary"],now), "source_revised": revised,
+    analytics_ready = safety_analytics_guard(session, now_ms())[0] is None
+    return {**row.plan_json, "status": status, "slot": state, "entry_actionable": status == "active" and engine_health(session)["ready"] and analytics_ready and not circuit_paused and allowed(row.plan_json["source_close_boundary"],now), "source_revised": revised,
             "integrity_valid": integrity, "evidence": row.evidence_json, "events": [{"type": e.type, "time": e.created_at, "detail": e.payload_json} for e in events], "ai": ai_review["status"], "ai_review": ai_review, "telegram": delivery_view(session,row.id)}
 
 
