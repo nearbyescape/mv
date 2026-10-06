@@ -2,13 +2,21 @@
 
 A private Binance futures signal workspace: EMA20 + EMA50 + SMA200 + Wilder ATR14. Deterministic backend rules create signals; a separate OpenRouter worker explains immutable evidence asynchronously. No exchange orders are placed.
 
-## Release 0.13.0 candidate — MV-TREND-DUAL-v3
+## Release 0.14.0 candidate — MV-TREND-DUAL-v4
 
-Release 0.13.0 introduces the versioned `MV-TREND-DUAL-v3` production candidate. It preserves V2 history while tightening anti-chase behavior: pullback source/live extension is capped at 1.00 ATR, breakout source/live extension at 1.50 ATR, every setup and live entry must remain within a 2.50 ATR directional run from the preceding six completed 1H bars, and a coin can publish only one signal in the same direction per IST operating session.
+Release 0.14.0 preserves the V3 financial core and adds a client-facing market-safety governor. Before publication, V4 requires completed BTC 15-minute timing to agree with the 1H/4H direction, caps one exact 1H close at two same-direction publications, and pauses a direction for two hours when two recent V4 signals reach -0.5R before +0.5R. The 15-minute layer is veto-only and cannot originate signals. Candidates inside a same-direction cluster are ranked deterministically by lower recent-run ATR, lower EMA20 extension, established regime, then symbol.
+
+The V3 two-ATR stop and TP1/TP2/TP3 30/30/40 reference management remain unchanged. The signal feed exposes Market Safety Mode when a directional circuit breaker is active. See [V4 strategy contract](docs/STRATEGY_V4.md).
+
+**Production is currently release 0.13.0 / schema 0008 with the signal engine intentionally stopped while 0.14.0 is validated.** No V3 signal has been published since the V3 cutover.
+
+## Release 0.13.0 — MV-TREND-DUAL-v3
+
+Release 0.13.0 introduced the versioned `MV-TREND-DUAL-v3` production release. It preserves V2 history while tightening anti-chase behavior: pullback source/live extension is capped at 1.00 ATR, breakout source/live extension at 1.50 ATR, every setup and live entry must remain within a 2.50 ATR directional run from the preceding six completed 1H bars, and a coin can publish only one signal in the same direction per IST operating session.
 
 V3 keeps the two-ATR initial stop but replaces the single target presentation with **TP1 +1R / 30%**, **TP2 +1.5R / 30%** and **TP3 +2R / 40%**. After TP1 the remaining reference stop moves to entry; after TP2 it moves to TP1. The web signal views/charts and Telegram delivery show all three targets. Analytics measures the scaled reference-management path conservatively and keeps V2 history separately queryable. See [V3 strategy contract](docs/STRATEGY_V3.md).
 
-**Production remains release 0.12.0 / schema 0007 until the 0.13.0 candidate passes CI and controlled VPS cutover.**
+**Release 0.13.0 passed CI, packaged-image and controlled VPS cutover gates on 6 October 2026. Schema 0008 is live; the V3 engine remained intentionally stopped before its first production scan while V4 safety work began.**
 
 ## Release 0.12.0 — V2 Performance analytics
 
