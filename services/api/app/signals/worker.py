@@ -79,7 +79,16 @@ class SignalWorker:
                 # Compare the exact pre-quote source, strategy checks, metadata and
                 # BTC regime.  A BTC revision during an alt quote must force a
                 # fresh evaluation rather than publishing against stale context.
-                for key in ("checks", "setup"):
+                # Reproduce the exact pre-quote V4 evidence fingerprint.
+                # Dynamic safety guards are rerun again inside evaluate_decision
+                # immediately before publication.
+                for key in (
+                    "checks",
+                    "setup",
+                    "btc_timing",
+                    "directional_circuit_breaker",
+                    "market_concentration",
+                ):
                     if key in row.evidence_json:
                         evidence[key] = row.evidence_json[key]
                 if row.direction:
