@@ -50,7 +50,7 @@ def test_empty_analytics_are_private_read_only_and_do_not_create_signals(client)
     result = client.get("/v1/analytics/performance", headers=AUTH)
     assert result.status_code == 200
     payload = result.json()
-    assert payload["strategy"] == "MV-TREND-DUAL-v3"
+    assert payload["strategy"] == "MV-TREND-DUAL-v4"
     assert payload["overall"]["signals"] == 0
     assert len(payload["cohorts"]) == 4
     assert client.get("/v1/analytics/outcomes", headers=AUTH).json()["outcomes"] == []
@@ -87,12 +87,15 @@ def test_health_reports_implemented_services_only(client):
 
 def test_strategy_is_versioned_and_ai_cannot_originate_signal(client):
     contract = client.get("/v1/strategy", headers=AUTH).json()
-    assert contract["id"] == "MV-TREND-DUAL-v3"
-    assert contract["version"] == 3
+    assert contract["id"] == "MV-TREND-DUAL-v4"
+    assert contract["version"] == 4
     assert contract["indicators"] == {"ema_fast": 20, "ema_slow": 50, "sma_trend": 200, "atr_wilder": 14}
     assert set(contract["setups"]) == {"pullback_continuation", "momentum_breakout"}
     assert contract["execution_quality"]["max_spread_bps"] == "10"
     assert contract["anti_chase"]["max_recent_run_atr"] == "2.50"
+    assert contract["market_regime"]["btc_15m_timing_veto"] is True
+    assert contract["portfolio_safety"]["max_same_direction_signals_per_source_close"] == 2
+    assert contract["portfolio_safety"]["directional_circuit_breaker"]["deterioration_threshold_r"] == "0.50"
     assert [row["id"] for row in contract["risk"]["targets"]] == ["TP1", "TP2", "TP3"]
     assert "cannot originate or change" in contract["ai_role"]
 
