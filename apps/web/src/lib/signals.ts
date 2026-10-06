@@ -123,7 +123,13 @@ export type EngineSignal = {
   telegram: string;
 };
 export type MarketSafety = {
-  status: "normal" | "guarded";
+  status: "normal" | "guarded" | "degraded";
+  publication_enabled: boolean;
+  analytics: {
+    ready: boolean;
+    max_age_ms: number;
+    age_ms: number | null;
+  };
   paused_directions: ("long" | "short")[];
   direction_details: Record<string, {
     paused: boolean;
@@ -245,6 +251,8 @@ export const reasonLabel = (reason: string) =>
         "Directional concentration cap reached for this 1H close",
       DIRECTIONAL_CIRCUIT_BREAKER:
         "Market Safety Mode paused this direction after correlated deterioration",
+      SAFETY_ANALYTICS_UNAVAILABLE:
+        "Market Safety Mode is fail-closed while safety analytics is unavailable",
       SPREAD_TOO_WIDE: "Live spread is too wide for publication",
       ENTRY_OVEREXTENDED: "Entry moved too far from EMA20",
       RECENT_RUN_OVEREXTENDED: "Entry arrived after an excessive recent directional run",
