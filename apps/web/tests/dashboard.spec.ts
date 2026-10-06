@@ -323,6 +323,6 @@ test("performance analytics stay out of Overview and load only in their own sect
   await expect(page.getByText("V2 REFERENCE OUTCOME ANALYTICS")).toBeVisible();
   await expect(page.getByText("Four-engine performance matrix")).toBeVisible();
   await expect(page.getByText("Six-hour movement after NO_SETUP")).toBeVisible();
-  await expect(page.getByText("BTC", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".performance-panel .table-symbol").filter({ hasText: "BTC" }).first()).toBeVisible();
   expect(requests).toBeGreaterThanOrEqual(2);
 });
