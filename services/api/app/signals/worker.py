@@ -15,7 +15,7 @@ from app.database import Session
 from app.market.binance import BinancePublic, RateLimited, now_ms
 from app.market.views import collector_health
 from app.models import EngineStatus, SignalDecision
-from .service import PENDING, STRATEGY_ID, btc_regime_guard, check_live_contract, check_source_revisions, context_at, canonical_hash, discover, engine_health, evaluate_decision, expire_slots
+from .service import PENDING, STRATEGY_ID, btc_regime_guard, check_live_contract, check_source_revisions, context_at, canonical_hash, decision_priority, discover, engine_health, evaluate_decision, expire_slots
 
 log = logging.getLogger("mv.engine")
 
@@ -112,11 +112,13 @@ class SignalWorker:
             self.status("maintenance")
             return
         with Session() as session:
-            identities = list(session.scalars(select(SignalDecision.id).where(
+            candidates = list(session.scalars(select(SignalDecision).where(
                 SignalDecision.strategy == STRATEGY_ID,
                 SignalDecision.outcome == PENDING,
                 SignalDecision.updated_at <= local_now - 1500,
             ).order_by(SignalDecision.source_open_time).limit(50)))
+            candidates.sort(key=lambda row: decision_priority(session, row))
+            identities = [row.id for row in candidates]
         for identity in identities:
             await self.process(identity)
             # A many-symbol close must not make engine health stale while quotes
