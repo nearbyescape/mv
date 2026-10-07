@@ -4,6 +4,7 @@ from mv_strategy import Bar
 from app.research.v4_retrospective import (
     Candidate,
     btc_timing_reason,
+    circuit_events,
     ist_session_bounds,
     scaled_outcome,
     simulate,
@@ -257,6 +258,37 @@ def test_simulation_circuit_breaker_pauses_only_deteriorating_direction():
     assert rows[1].final_reason == "WOULD_PUBLISH_V4"
     assert rows[2].final_reason == "DIRECTIONAL_CIRCUIT_BREAKER"
     assert rows[3].final_reason == "WOULD_PUBLISH_V4"
+
+
+def test_circuit_events_report_trigger_pair_even_without_later_candidate():
+    base = 10 * 3_600_000
+    rows = [
+        candidate(
+            "a",
+            "ETHUSDT",
+            "long",
+            base,
+            base + 3_600_000 + 1_000,
+            adverse=base + 4_000_000,
+        ),
+        candidate(
+            "b",
+            "SOLUSDT",
+            "long",
+            base + 3_600_000,
+            base + 2 * 3_600_000 + 1_000,
+            adverse=base + 2 * 3_600_000 + 600_000,
+        ),
+    ]
+    simulate(rows)
+    events = circuit_events(rows)
+    assert len(events) == 1
+    assert events[0]["direction"] == "long"
+    assert [item["symbol"] for item in events[0]["signals"]] == [
+        "ETHUSDT",
+        "SOLUSDT",
+    ]
+    assert events[0]["pause_until"] > events[0]["triggered_at"]
 
 
 def test_preliminary_veto_never_consumes_cluster_capacity():
