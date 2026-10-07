@@ -58,7 +58,9 @@ a degraded **Market Safety Mode** rather than presenting the system as normal.
 
 ## Directional concentration
 
-At most **two V4 signals in the same direction** may be published for one exact
+V4 applies two independent portfolio-concentration limits.
+
+First, at most **two V4 signals in the same direction** may be published for one exact
 1H source close. Candidates are processed deterministically by:
 
 1. lower preceding-six-hour directional run in ATR,
@@ -68,6 +70,23 @@ At most **two V4 signals in the same direction** may be published for one exact
 
 Later same-direction candidates are rejected as
 `MARKET_DIRECTION_CONCENTRATION_LIMIT`. LONG and SHORT limits are independent.
+
+Second, V4 will not publish a new signal when there are already **six unresolved
+published V4 reference plans in that direction**. A published plan whose scaled
+outcome is still `open` counts toward the limit; a newly published plan whose
+analytics row has not been seeded yet also counts as active. Terminal TP/stop/
+protected outcomes release capacity. This is a reference-plan exposure guard,
+not a claim about a client's actual positions.
+
+Candidates rejected by this portfolio-level cap receive
+`ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT`.
+
+The six-plan ceiling was added after the October 6 portfolio-health diagnostic:
+immediately before the 20:30 LONG cluster, six earlier V4 reference plans were
+still unresolved even though the aggregate mark-to-entry state had temporarily
+recovered. A deterioration-only health threshold therefore would not have
+prevented the cluster, while an unresolved directional-exposure ceiling would
+have prevented adding ETH/BCH on top of six existing LONG references.
 
 ## Directional circuit breaker
 
