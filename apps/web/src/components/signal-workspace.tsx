@@ -451,21 +451,20 @@ function SignalDetails({
 }
 
 export function LiveSignalPanel({
-  symbol,
   feed,
   canOperate = true,
 }: {
-  symbol: string;
   feed: SignalFeedState;
   canOperate?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const slot = feed.data?.slots.find((row) => row.symbol === symbol);
   const signal =
-    feed.data?.signals.find((row) =>
-      slot ? row.id === slot.signal_id : row.symbol === symbol,
-    ) || null;
-  const decision = feed.data?.decisions.find((row) => row.symbol === symbol);
+    (feed.data?.signals || []).reduce<EngineSignal | null>(
+      (latest, row) =>
+        !latest || row.published_at > latest.published_at ? row : latest,
+      null,
+    );
+  const decision = feed.data?.decisions[0];
   const ready = !feed.error && feed.data?.engine.ready;
   return (
     <>
