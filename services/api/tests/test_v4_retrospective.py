@@ -6,6 +6,7 @@ from app.research.v4_retrospective import (
     btc_timing_reason,
     circuit_events,
     ist_session_bounds,
+    portfolio_health_at,
     scaled_outcome,
     simulate,
 )
@@ -363,3 +364,54 @@ def test_scaled_retrospective_replays_v4_tp1_then_break_even_protection():
     assert result["tp1_reached"] is True
     assert result["tp2_reached"] is False
     assert result["observed_bars"] == 2
+
+
+def test_portfolio_health_reports_only_prior_open_same_direction_signals():
+    from decimal import Decimal as D
+    from app.analytics.service import MinuteBar
+
+    boundary = 300_000
+    prior = candidate("p", "ETHUSDT", "long", 0, 1_000)
+    prior.v4_plan = {
+        "entry": "100",
+        "stop": "98",
+        "risk_distance": "2",
+        "tp1": "102",
+        "tp2": "103",
+        "tp3": "104",
+        "tp1_r": "1",
+        "tp2_r": "1.5",
+        "tp3_r": "2",
+    }
+    future = candidate("f", "SOLUSDT", "long", 0, boundary + 1_000)
+    future.v4_plan = prior.v4_plan.copy()
+    short = candidate("s", "XRPUSDT", "short", 0, 1_000)
+    short.v4_plan = {
+        "entry": "100",
+        "stop": "102",
+        "risk_distance": "2",
+        "tp1": "98",
+        "tp2": "97",
+        "tp3": "96",
+        "tp1_r": "1",
+        "tp2_r": "1.5",
+        "tp3_r": "2",
+    }
+    bars = [
+        MinuteBar(60_000, 119_999, D("100"), D("100.2"), D("99.2"), D("99.4"), D("1")),
+        MinuteBar(120_000, 179_999, D("99.4"), D("99.5"), D("98.9"), D("99.0"), D("1")),
+        MinuteBar(180_000, 239_999, D("99.0"), D("99.1"), D("98.8"), D("99.0"), D("1")),
+    ]
+    health = portfolio_health_at(
+        [prior, future, short],
+        {"p": bars, "f": bars, "s": bars},
+        boundary,
+    )
+    assert health["long"]["active_count"] == 1
+    assert health["long"]["below_entry_count"] == 1
+    assert health["long"]["at_or_below_minus_025_count"] == 1
+    assert health["long"]["at_or_below_minus_050_count"] == 1
+    assert health["long"]["average_mark_r"] == "-0.5"
+    assert health["long"]["signals"][0]["symbol"] == "ETHUSDT"
+    assert health["short"]["active_count"] == 1
+    assert health["short"]["below_entry_count"] == 0
