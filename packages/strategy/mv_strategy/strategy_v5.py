@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+from .indicators import INTERVAL_MS, confirmation_open_time
 from .signals import Snapshot, canonical_hash
 from .strategy_v3 import (
     BREAKOUT_BODY_MIN,
@@ -121,15 +122,42 @@ def evaluate_context_v5(current: Snapshot, previous: Snapshot | None, confirmati
     if previous is None:
         return ArmedContext("BLOCKED_DATA", "MISSING_PREVIOUS_1H", None, None, [])
     previous.validate()
-    if previous.timeframe != "1h":
-        return ArmedContext("BLOCKED_DATA", "INVALID_PREVIOUS_1H", None, None, [])
+    if (
+        previous.timeframe != "1h"
+        or previous.bar.open_time + INTERVAL_MS["1h"] != current.bar.open_time
+        or previous.history_origin != current.history_origin
+    ):
+        return ArmedContext("BLOCKED_DATA", "NONCONTIGUOUS_PREVIOUS_1H", None, None, [])
     if confirmation is None:
         return ArmedContext("BLOCKED_DATA", "WAITING_EXPECTED_4H", None, None, [])
     confirmation.validate()
-    if confirmation.timeframe != "4h" or confirmation.count < 500:
+    expected_confirmation = confirmation_open_time(current.bar.close_time + 1)
+    if (
+        confirmation.timeframe != "4h"
+        or confirmation.bar.open_time != expected_confirmation
+    ):
+        return ArmedContext("BLOCKED_DATA", "WAITING_EXPECTED_4H", None, None, [])
+    if confirmation.count < 500:
         return ArmedContext("BLOCKED_DATA", "WARMUP_4H", None, None, [])
     if not structure or len(structure) != STRUCTURE_BARS:
         return ArmedContext("BLOCKED_DATA", "MISSING_STRUCTURE_HISTORY", None, None, [])
+    expected_times = [
+        current.bar.open_time - n * INTERVAL_MS["1h"]
+        for n in range(STRUCTURE_BARS, 0, -1)
+    ]
+    for snap, expected_time in zip(structure, expected_times):
+        snap.validate()
+        if (
+            snap.timeframe != "1h"
+            or snap.bar.open_time != expected_time
+            or snap.history_origin != current.history_origin
+        ):
+            return ArmedContext("BLOCKED_DATA", "NONCONTIGUOUS_STRUCTURE_HISTORY", None, None, [])
+    if (
+        structure[-1].bar.open_time != previous.bar.open_time
+        or structure[-1].lineage != previous.lineage
+    ):
+        return ArmedContext("BLOCKED_DATA", "STRUCTURE_PREVIOUS_MISMATCH", None, None, [])
     if current.atr <= 0:
         return ArmedContext("BLOCKED_DATA", "NONPOSITIVE_ATR", None, None, [])
 
@@ -207,10 +235,31 @@ def evaluate_trigger_v5(direction: str, current: Snapshot, previous: Snapshot | 
     if previous is None:
         return EntryTrigger("BLOCKED_DATA", "MISSING_PREVIOUS_15M", direction, None, [])
     previous.validate()
-    if previous.timeframe != TRIGGER_TIMEFRAME:
-        return EntryTrigger("BLOCKED_DATA", "INVALID_PREVIOUS_15M", direction, None, [])
+    if (
+        previous.timeframe != TRIGGER_TIMEFRAME
+        or previous.bar.open_time + INTERVAL_MS[TRIGGER_TIMEFRAME] != current.bar.open_time
+        or previous.history_origin != current.history_origin
+    ):
+        return EntryTrigger("BLOCKED_DATA", "NONCONTIGUOUS_PREVIOUS_15M", direction, None, [])
     if not structure or len(structure) != STRUCTURE_BARS:
         return EntryTrigger("BLOCKED_DATA", "MISSING_15M_STRUCTURE_HISTORY", direction, None, [])
+    expected_times = [
+        current.bar.open_time - n * INTERVAL_MS[TRIGGER_TIMEFRAME]
+        for n in range(STRUCTURE_BARS, 0, -1)
+    ]
+    for snap, expected_time in zip(structure, expected_times):
+        snap.validate()
+        if (
+            snap.timeframe != TRIGGER_TIMEFRAME
+            or snap.bar.open_time != expected_time
+            or snap.history_origin != current.history_origin
+        ):
+            return EntryTrigger("BLOCKED_DATA", "NONCONTIGUOUS_15M_STRUCTURE_HISTORY", direction, None, [])
+    if (
+        structure[-1].bar.open_time != previous.bar.open_time
+        or structure[-1].lineage != previous.lineage
+    ):
+        return EntryTrigger("BLOCKED_DATA", "15M_STRUCTURE_PREVIOUS_MISMATCH", direction, None, [])
     if current.atr <= 0 or previous.atr <= 0:
         return EntryTrigger("BLOCKED_DATA", "NONPOSITIVE_ATR", direction, None, [])
 
