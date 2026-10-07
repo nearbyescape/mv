@@ -108,6 +108,7 @@ def check_live_contract():
         and LIVE_CONTRACT.get("market_regime", {}).get("btc_15m_hard_contradiction_only") is True
         and LIVE_CONTRACT.get("portfolio_safety") == {
             "max_same_direction_signals_per_source_close": 2,
+            "max_active_same_direction_reference_plans": 6,
             "ranking": "Least stretched candidate first: lower recent-run ATR, then lower source EMA20 extension, then established before emerging, then symbol.",
             "directional_circuit_breaker": {
                 "deterioration_threshold_r": "0.50",
@@ -251,6 +252,7 @@ def btc_regime_guard(session, symbol, direction, open_time):
 BTC_TIMING_TIMEFRAME = "15m"
 BTC_TIMING_STEP = INTERVAL_MS[BTC_TIMING_TIMEFRAME]
 MAX_DIRECTION_SIGNALS_PER_SOURCE = 2
+MAX_ACTIVE_SAME_DIRECTION_REFERENCES = 6
 CIRCUIT_THRESHOLD_R = Decimal("0.50")
 CIRCUIT_RECENT_MS = 120 * 60_000
 CIRCUIT_PAUSE_MS = 120 * 60_000
@@ -408,6 +410,11 @@ def market_safety_view(session, now):
         "paused_directions": sorted(paused),
         "direction_details": paused,
         "max_same_direction_signals_per_source_close": MAX_DIRECTION_SIGNALS_PER_SOURCE,
+        "max_active_same_direction_reference_plans": MAX_ACTIVE_SAME_DIRECTION_REFERENCES,
+        "active_directional_reference_plans": {
+            direction: active_directional_reference_count(session, direction)
+            for direction in ("long", "short")
+        },
         "btc_15m_timing_veto": True,
         "message": (
             "Market Safety Mode: signal publication is temporarily paused because safety analytics is unavailable."
@@ -420,6 +427,25 @@ def market_safety_view(session, now):
             )
         ),
     }
+
+def active_directional_reference_count(session, direction):
+    """Count unresolved published V4 reference plans; missing analytics rows count active."""
+    rows = list(
+        session.execute(
+            select(SignalDecision.id, SignalOutcome.status)
+            .outerjoin(
+                SignalOutcome,
+                SignalOutcome.signal_id == SignalDecision.id,
+            )
+            .where(
+                SignalDecision.strategy == STRATEGY_ID,
+                SignalDecision.direction == direction,
+                SignalDecision.outcome == "PUBLISHED",
+            )
+        )
+    )
+    return sum(1 for _, status in rows if status is None or status == "open")
+
 
 def _cluster_limit_reached(session, direction, source_open_time):
     published = list(
@@ -630,6 +656,19 @@ def evaluate_decision(session, row, local_now, quote=None):
     if circuit_paused:
         row.outcome, row.reason = "REJECTED", "DIRECTIONAL_CIRCUIT_BREAKER"
         return None
+    active_directional = active_directional_reference_count(
+        session, setup.direction
+    )
+    evidence["active_directional_exposure"] = {
+        "passed": active_directional < MAX_ACTIVE_SAME_DIRECTION_REFERENCES,
+        "active_reference_plans": active_directional,
+        "max_active_same_direction_reference_plans": MAX_ACTIVE_SAME_DIRECTION_REFERENCES,
+    }
+    row.evidence_json = deepcopy(evidence)
+    if active_directional >= MAX_ACTIVE_SAME_DIRECTION_REFERENCES:
+        row.outcome, row.reason = "REJECTED", "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT"
+        return None
+
     if _cluster_limit_reached(session, setup.direction, row.source_open_time):
         evidence["market_concentration"] = {
             "passed": False,
@@ -674,6 +713,7 @@ def evaluate_decision(session, row, local_now, quote=None):
         "btc_15m_timing_passed": True,
         "safety_analytics_fresh": True,
         "directional_circuit_breaker_clear": True,
+        "active_directional_exposure_limit_passed": True,
         "market_direction_concentration_limit_passed": True,
         "no_active_slot": True,
         "source_current": True,
