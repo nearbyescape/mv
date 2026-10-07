@@ -28,6 +28,8 @@ from app.market.binance import BinancePublic, now_ms
 from app.models import Candle, WatchlistItem
 from app.research.v4_retrospective import (
     Candidate,
+    _active_scaled_count,
+    _circuit_paused_scaled,
     btc_timing_reason,
     fetch_minutes,
     replay_scaled,
@@ -64,6 +66,8 @@ MIN15 = INTERVAL_MS["15m"]
 HOUR = INTERVAL_MS["1h"]
 OBSERVATION_MS = 4 * HOUR
 WARMUP_15M_BARS = 520
+V5_ROLLING_CONCENTRATION_MS = HOUR
+V5_MAX_SAME_DIRECTION_ROLLING = 2
 
 
 def ist_session_bounds(day: str) -> tuple[int, int]:
@@ -344,6 +348,79 @@ def _observation_end_open(published_at: int, available_boundary: int):
     if end_boundary <= published_at:
         return None
     return end_boundary - MINUTE
+
+
+def simulate_v5_with_safety(
+    candidates: list[Candidate],
+    max_active: int = 6,
+    max_same_direction_rolling: int = V5_MAX_SAME_DIRECTION_ROLLING,
+) -> list[Candidate]:
+    """Chronological V5 safety replay with a rolling concentration guard.
+
+    V4 evaluated one market-wide cluster per completed 1H candle. V5 can
+    evaluate four completed 15m trigger clusters per hour, so carrying V4's
+    per-cluster limit forward unchanged would create a concentration loophole.
+    The V5 candidate therefore allows at most two same-direction publications
+    in the prior rolling hour while retaining V4 session dedupe, circuit
+    breaker, and six-active-directional-reference cap.
+    """
+    published: list[Candidate] = []
+    seen: set[tuple[str, str]] = set()
+    grouped: dict[int, list[Candidate]] = {}
+    for row in candidates:
+        grouped.setdefault(row.published_at, []).append(row)
+
+    for publication_at in sorted(grouped):
+        for row in sorted(
+            grouped[publication_at],
+            key=lambda item: item.ranking,
+        ):
+            if row.preliminary_reason:
+                row.capped_reason = row.preliminary_reason
+                continue
+
+            key = (row.symbol, row.direction)
+            if key in seen:
+                row.capped_reason = "SAME_DIRECTION_SIGNAL_THIS_SESSION"
+                continue
+
+            if _circuit_paused_scaled(
+                published,
+                row.direction,
+                row.published_at,
+            ):
+                row.capped_reason = "DIRECTIONAL_CIRCUIT_BREAKER"
+                continue
+
+            if (
+                _active_scaled_count(
+                    published,
+                    row.direction,
+                    row.published_at,
+                )
+                >= max_active
+            ):
+                row.capped_reason = "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT"
+                continue
+
+            recent_same_direction = sum(
+                prior.direction == row.direction
+                and prior.published_at
+                > row.published_at - V5_ROLLING_CONCENTRATION_MS
+                and prior.published_at <= row.published_at
+                for prior in published
+            )
+            if recent_same_direction >= max_same_direction_rolling:
+                row.capped_reason = (
+                    "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+                )
+                continue
+
+            row.capped_reason = "WOULD_PUBLISH_V4"
+            seen.add(key)
+            published.append(row)
+
+    return candidates
 
 
 def _replay_candidates_for_portfolio(
@@ -843,7 +920,7 @@ async def run_day(day: str):
     _replay_candidates_for_portfolio(v5_candidates, minute_cache)
 
     simulate_with_active_cap(v4_candidates)
-    simulate_with_active_cap(v5_candidates)
+    simulate_v5_with_safety(v5_candidates)
 
     v4_analysis, v4_mature_ids = _analysis_4h_outcomes(
         v4_candidates,
@@ -875,7 +952,8 @@ async def run_day(day: str):
         "v5_candidate": {
             "architecture": (
                 "4H confirmation -> completed 1H armed context -> "
-                "first completed 15m pullback/breakout trigger"
+                "first completed 15m pullback/breakout trigger -> "
+                "rolling-60m concentration safety"
             ),
             "context_reasons": dict(sorted(v5_context_reasons.items())),
             "trigger_reasons": dict(sorted(v5_trigger_reasons.items())),
