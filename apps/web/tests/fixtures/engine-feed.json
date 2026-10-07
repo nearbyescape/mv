@@ -239,6 +239,11 @@
       "ready": true,
       "max_age_ms": 45000,
       "age_ms": 1000
+    },
+    "max_active_same_direction_reference_plans": 6,
+    "active_directional_reference_plans": {
+      "long": 0,
+      "short": 0
     }
   }
 }
