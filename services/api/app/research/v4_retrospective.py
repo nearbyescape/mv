@@ -65,6 +65,7 @@ class Candidate:
     v4_scaled_outcome: dict | None = None
     preliminary_reason: str | None = None
     final_reason: str | None = None
+    capped_reason: str | None = None
 
     @property
     def ranking(self):
@@ -440,6 +441,96 @@ def simulate(candidates: list[Candidate]) -> list[Candidate]:
     return candidates
 
 
+def _scaled_milestone(row: Candidate, key: str):
+    replay = row.v4_scaled_outcome or {}
+    return replay.get(key)
+
+
+def _circuit_paused_scaled(
+    published: list[Candidate], direction: str, now: int
+) -> bool:
+    rows = []
+    for row in published:
+        if row.direction != direction:
+            continue
+        adverse = _scaled_milestone(row, "adverse_050_at")
+        favorable = _scaled_milestone(row, "favorable_050_at")
+        if adverse is None or adverse > now:
+            continue
+        if favorable is not None and adverse > favorable:
+            continue
+        if row.published_at < now - CIRCUIT_WINDOW - CIRCUIT_PAUSE:
+            continue
+        rows.append((row, adverse, favorable))
+    rows.sort(key=lambda item: (item[1], item[0].signal_id))
+    for index, (_, trigger, _) in enumerate(rows):
+        if now >= trigger + CIRCUIT_PAUSE:
+            continue
+        clustered = [
+            item
+            for item in rows[: index + 1]
+            if item[1] <= trigger
+            and trigger - CIRCUIT_WINDOW <= item[0].published_at <= trigger
+        ]
+        if len(clustered) >= 2:
+            return True
+    return False
+
+
+def _active_scaled_count(
+    published: list[Candidate], direction: str, now: int
+) -> int:
+    active = 0
+    for row in published:
+        if row.direction != direction or row.published_at >= now:
+            continue
+        replay = row.v4_scaled_outcome or {}
+        terminal = replay.get("terminal_at")
+        status = replay.get("status")
+        if status in (None, "unobserved") or terminal is None or terminal >= now:
+            active += 1
+    return active
+
+
+def simulate_with_active_cap(
+    candidates: list[Candidate], max_active: int = 6
+) -> list[Candidate]:
+    """Second-pass exact simulation after survivor outcomes are replayed."""
+    published: list[Candidate] = []
+    seen: set[tuple[str, str]] = set()
+    grouped: dict[int, list[Candidate]] = defaultdict(list)
+    for row in candidates:
+        grouped[row.source_open_time].append(row)
+
+    for source_open in sorted(grouped):
+        cluster_count: Counter[str] = Counter()
+        for row in sorted(grouped[source_open], key=lambda item: item.ranking):
+            if row.preliminary_reason:
+                row.capped_reason = row.preliminary_reason
+                continue
+            key = (row.symbol, row.direction)
+            if key in seen:
+                row.capped_reason = "SAME_DIRECTION_SIGNAL_THIS_SESSION"
+                continue
+            if _circuit_paused_scaled(published, row.direction, row.published_at):
+                row.capped_reason = "DIRECTIONAL_CIRCUIT_BREAKER"
+                continue
+            if (
+                _active_scaled_count(published, row.direction, row.published_at)
+                >= max_active
+            ):
+                row.capped_reason = "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT"
+                continue
+            if cluster_count[row.direction] >= 2:
+                row.capped_reason = "MARKET_DIRECTION_CONCENTRATION_LIMIT"
+                continue
+            row.capped_reason = "WOULD_PUBLISH_V4"
+            cluster_count[row.direction] += 1
+            seen.add(key)
+            published.append(row)
+    return candidates
+
+
 async def btc_15m_states(boundaries: list[int]) -> dict[int, dict]:
     if not boundaries:
         return {}
@@ -625,6 +716,11 @@ async def run(day: str) -> dict:
                 )
                 for boundary in boundaries
             }
+    simulate_with_active_cap(candidates)
+    capped_survivors = [
+        row for row in candidates if row.capped_reason == "WOULD_PUBLISH_V4"
+    ]
+    capped_reasons = Counter(row.capped_reason for row in candidates)
     suppressed = [
         row for row in candidates if row.final_reason != "WOULD_PUBLISH_V4"
     ]
@@ -657,6 +753,22 @@ async def run(day: str) -> dict:
         ),
         "v2_publications": len(candidates),
         "v4_would_publish": reasons.get("WOULD_PUBLISH_V4", 0),
+        "v4_with_active_exposure_cap_would_publish": capped_reasons.get(
+            "WOULD_PUBLISH_V4", 0
+        ),
+        "active_exposure_cap": 6,
+        "active_exposure_cap_reasons": dict(sorted(capped_reasons.items())),
+        "active_exposure_cap_scaled_conservative_r_sum": str(
+            sum(
+                (
+                    D(row.v4_scaled_outcome["conservative_r"])
+                    for row in capped_survivors
+                    if row.v4_scaled_outcome
+                    and row.v4_scaled_outcome.get("conservative_r") is not None
+                ),
+                D(0),
+            )
+        ),
         "suppressed": len(candidates) - reasons.get("WOULD_PUBLISH_V4", 0),
         "reasons": dict(sorted(reasons.items())),
         "directional_circuit_breaker_events": circuit,
@@ -700,6 +812,7 @@ async def run(day: str) -> dict:
                 "recent_run_atr": str(row.recent_run_atr),
                 "source_extension_atr": str(row.source_extension_atr),
                 "result": row.final_reason,
+                "result_with_active_exposure_cap": row.capped_reason,
                 "historical_reference_outcome": {
                     "status": row.historical_status,
                     "mfe_r": row.historical_mfe_r,
