@@ -109,6 +109,37 @@ test("Market Safety Mode is visible when a direction is circuit-broken", async (
   );
 });
 
+test("overview latest engine signal follows newest publication, not selected market", async ({
+  page,
+}) => {
+  const data = feed();
+  const newest = structuredClone(data.signals[0]);
+  newest.id = "a".repeat(64);
+  newest.symbol = "ETHUSDT";
+  newest.published_at = data.signals[0].published_at + 60_000;
+  newest.entry = "321.50";
+  newest.stop = "315.00";
+  newest.target = "334.50";
+  newest.slot = null;
+  newest.entry_actionable = false;
+
+  // Keep BTC selected and keep its reserved slot. The overview card must still
+  // display the globally newest persisted publication.
+  data.signals = [newest, data.signals[0]];
+
+  await page.route("**/api/signals**", (route) =>
+    route.fulfill({ json: data }),
+  );
+
+  await page.goto("/");
+
+  const latest = page.locator(".live-signal-panel");
+  await expect(latest).toContainText("Latest engine signal");
+  await expect(latest).toContainText("ETH / USDT");
+  await expect(latest).toContainText("$321.50");
+  await expect(latest).not.toContainText("BTC / USDT");
+});
+
 test("backend-generated plan displays exact evidence, downloads intact and passes accessibility checks", async ({
   page,
 }) => {
