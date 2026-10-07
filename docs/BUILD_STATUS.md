@@ -21,7 +21,7 @@ Milestone: **6 October 2026 — release 0.13.0/schema 0008 is deployed and its V
 
 ## Release 0.14.0 V4 market-safety candidate
 
-Implemented on `codex/mv-v4-market-safety-governor`: V4 keeps V3 setup/risk arithmetic and adds a fail-closed BTC completed-15m hard-contradiction veto, deterministic candidate ranking, a maximum of two same-direction publications per exact 1H source close and a two-hour directional circuit breaker after two recent signals reach -0.5R before +0.5R. Market Safety Mode is exposed on the signal feed and web workspace. BTC 15m is collected only for BTCUSDT. No schema migration is required beyond live schema 0008.
+Implemented on `codex/mv-v4-market-safety-governor`: V4 keeps V3 setup/risk arithmetic and adds a fail-closed BTC completed-15m hard-contradiction veto, deterministic candidate ranking, a maximum of two same-direction publications per exact 1H source close, a six-plan unresolved same-direction exposure ceiling and a two-hour directional circuit breaker after two recent signals reach -0.5R before +0.5R. Market Safety Mode is exposed on the signal feed and web workspace. BTC 15m is collected only for BTCUSDT. No schema migration is required beyond live schema 0008.
 
 The V4 implementation is a safety response to observed correlated clustering, not a profitability claim. Production remains on V3 while the V4 candidate passes CI, packaged-image and controlled VPS gates. See [V4 strategy contract](STRATEGY_V4.md).
 
