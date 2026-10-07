@@ -7,6 +7,7 @@ from app.research.v5_compare import (
     _is_mature_4h,
     _observation_end_open,
     _v5_reference_plan,
+    simulate_v5_with_safety,
 )
 from app.research.v4_retrospective import Candidate
 from test_strategy_v3 import BOUNDARY, short_breakout_context
@@ -96,3 +97,49 @@ def test_v5_four_hour_maturity_requires_complete_observation_window():
     )
     assert _is_mature_4h(row, published + four_hours) is True
     assert _is_mature_4h(row, published + four_hours - minute) is False
+
+
+def _safety_candidate(signal_id, symbol, published_at, direction="short"):
+    row = Candidate(
+        signal_id=signal_id,
+        symbol=symbol,
+        direction=direction,
+        source_open_time=published_at - 15 * 60_000,
+        source_close=published_at,
+        published_at=published_at,
+        setup_type="momentum_breakout",
+        regime="established",
+        recent_run_atr=D("1"),
+        source_extension_atr=D("0.5"),
+        favorable_050_at=None,
+        adverse_050_at=None,
+    )
+    row.v4_scaled_outcome = {
+        "status": "open",
+        "terminal_at": None,
+        "favorable_050_at": None,
+        "adverse_050_at": None,
+    }
+    return row
+
+
+def test_v5_safety_caps_same_direction_to_two_in_rolling_hour():
+    base = 30_000_000
+    rows = [
+        _safety_candidate("a", "AUSDT", base),
+        _safety_candidate("b", "BUSDT", base + 15 * 60_000),
+        _safety_candidate("c", "CUSDT", base + 30 * 60_000),
+        _safety_candidate("d", "DUSDT", base + 60 * 60_000),
+    ]
+
+    simulate_v5_with_safety(rows)
+
+    assert rows[0].capped_reason == "WOULD_PUBLISH_V4"
+    assert rows[1].capped_reason == "WOULD_PUBLISH_V4"
+    assert (
+        rows[2].capped_reason
+        == "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+    )
+    # Exactly one hour after the first publication, that first row has aged
+    # out of the rolling window and one slot is available again.
+    assert rows[3].capped_reason == "WOULD_PUBLISH_V4"
