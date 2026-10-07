@@ -753,6 +753,72 @@ def test_v4_caps_same_direction_publications_per_source_close_at_two(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
 
 
+def test_v4_caps_unresolved_same_direction_reference_plans_at_six(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(
+            ("ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "LINKUSDT", "AAVEUSDT"),
+            start=1,
+        ):
+            session.add(
+                SignalDecision(
+                    id=(str(index) * 64)[:64],
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 1) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-active-reference",
+                    updated_at=state.clock[0] - index * 1000,
+                    expires_at=state.clock[0] + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert (row.outcome, row.reason) == (
+            "REJECTED",
+            "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT",
+        )
+        assert row.evidence_json["active_directional_exposure"] == {
+            "passed": False,
+            "active_reference_plans": 6,
+            "max_active_same_direction_reference_plans": 6,
+        }
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v4_allows_sixth_active_same_direction_reference(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(
+            ("ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "LINKUSDT"),
+            start=1,
+        ):
+            session.add(
+                SignalDecision(
+                    id=(str(index) * 64)[:64],
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 1) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-active-reference",
+                    updated_at=state.clock[0] - index * 1000,
+                    expires_at=state.clock[0] + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+    publish(state, identity)
+    with state.sessions() as session:
+        assert session.get(SignalDecision, identity).outcome == "PUBLISHED"
+
+
 def test_v4_directional_circuit_breaker_pauses_only_deteriorating_direction(state):
     seed(state, "long")
     identity = pending(state)
