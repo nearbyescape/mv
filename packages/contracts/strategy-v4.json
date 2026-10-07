@@ -59,7 +59,9 @@
     },
     "fail_closed_on_missing_btc_15m": true,
     "analytics_max_age_seconds": 45,
-    "fail_closed_on_stale_safety_analytics": true
+    "fail_closed_on_stale_safety_analytics": true,
+    "max_active_same_direction_reference_plans": 6,
+    "active_reference_definition": "Published V4 reference plans whose scaled outcome is still open; a published plan without an analytics row counts as active."
   },
   "execution_quality": {
     "max_quote_age_seconds": 5,
