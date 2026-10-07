@@ -696,9 +696,24 @@ def test_v4_btc_15m_timing_conflict_blocks_publication(state):
     timing_open = BOUNDARY - INTERVAL_MS["15m"]
     with state.sessions.begin() as session:
         snapshot = session.get(IndicatorSnapshot, ("BTCUSDT", "15m", timing_open))
-        assert snapshot is not None
-        snapshot.ema20 = "100"
-        snapshot.ema50 = "101"
+        candle = session.get(Candle, ("BTCUSDT", "15m", timing_open))
+        assert snapshot is not None and candle is not None
+        # A LONG is vetoed only by a fully bearish BTC 15m stack with
+        # a declining EMA20; mixed/neutral structure is not a veto.
+        snapshot.ema20 = "190"
+        snapshot.ema50 = "195"
+        candle.close = "189"
+        candle.low = "188"
+        bar = Bar(
+            candle.open_time,
+            candle.close_time,
+            D(candle.open),
+            D(candle.high),
+            D(candle.low),
+            D(candle.close),
+            D(candle.volume),
+        )
+        candle.source_hash = bar.digest()
     identity = pending(state)
     with state.sessions.begin() as session:
         row = session.get(SignalDecision, identity)
