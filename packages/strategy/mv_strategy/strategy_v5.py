@@ -146,6 +146,8 @@ def evaluate_context_v5(current: Snapshot, previous: Snapshot | None, confirmati
         for n in range(STRUCTURE_BARS, 0, -1)
     ]
     for snap, expected_time in zip(structure, expected_times):
+        if snap is None:
+            return ArmedContext("BLOCKED_DATA", "MISSING_STRUCTURE_HISTORY", None, None, [])
         snap.validate()
         if (
             snap.timeframe != "1h"
@@ -248,6 +250,8 @@ def evaluate_trigger_v5(direction: str, current: Snapshot, previous: Snapshot | 
         for n in range(STRUCTURE_BARS, 0, -1)
     ]
     for snap, expected_time in zip(structure, expected_times):
+        if snap is None:
+            return EntryTrigger("BLOCKED_DATA", "MISSING_15M_STRUCTURE_HISTORY", direction, None, [])
         snap.validate()
         if (
             snap.timeframe != TRIGGER_TIMEFRAME
