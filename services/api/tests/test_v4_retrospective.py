@@ -9,6 +9,7 @@ from app.research.v4_retrospective import (
     portfolio_health_at,
     scaled_outcome,
     simulate,
+    simulate_with_active_cap,
 )
 
 
@@ -290,6 +291,75 @@ def test_circuit_events_report_trigger_pair_even_without_later_candidate():
         "SOLUSDT",
     ]
     assert events[0]["pause_until"] > events[0]["triggered_at"]
+
+
+def test_active_exposure_cap_allows_six_and_blocks_seventh():
+    rows = []
+    base = 10 * 3_600_000
+    for index, symbol in enumerate(
+        ("AUSDT", "BUSDT", "CUSDT", "DUSDT", "EUSDT", "FUSDT", "GUSDT")
+    ):
+        source = base + index * 3_600_000
+        row = candidate(
+            chr(97 + index),
+            symbol,
+            "long",
+            source,
+            source + 3_600_000 + 1_000,
+        )
+        row.v4_scaled_outcome = {
+            "status": "open",
+            "terminal_at": None,
+            "favorable_050_at": None,
+            "adverse_050_at": None,
+        }
+        rows.append(row)
+
+    simulate_with_active_cap(rows)
+
+    assert [row.capped_reason for row in rows[:6]] == [
+        "WOULD_PUBLISH_V4"
+    ] * 6
+    assert rows[6].capped_reason == "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT"
+
+
+def test_terminal_reference_frees_directional_exposure_capacity():
+    rows = []
+    base = 10 * 3_600_000
+    for index, symbol in enumerate(
+        ("AUSDT", "BUSDT", "CUSDT", "DUSDT", "EUSDT", "FUSDT")
+    ):
+        source = base + index * 3_600_000
+        row = candidate(
+            chr(97 + index),
+            symbol,
+            "long",
+            source,
+            source + 3_600_000 + 1_000,
+        )
+        row.v4_scaled_outcome = {
+            "status": "open",
+            "terminal_at": None,
+            "favorable_050_at": None,
+            "adverse_050_at": None,
+        }
+        rows.append(row)
+    rows[0].v4_scaled_outcome["status"] = "protected_be"
+    rows[0].v4_scaled_outcome["terminal_at"] = base + 7 * 3_600_000
+
+    source = base + 7 * 3_600_000
+    seventh = candidate("z", "GUSDT", "long", source, source + 3_600_000 + 1_000)
+    seventh.v4_scaled_outcome = {
+        "status": "open",
+        "terminal_at": None,
+        "favorable_050_at": None,
+        "adverse_050_at": None,
+    }
+    rows.append(seventh)
+
+    simulate_with_active_cap(rows)
+
+    assert rows[-1].capped_reason == "WOULD_PUBLISH_V4"
 
 
 def test_preliminary_veto_never_consumes_cluster_capacity():
