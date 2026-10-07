@@ -202,3 +202,24 @@ def test_v5_candidate_identity_is_deterministic_and_versions_trigger_time():
     assert CANDIDATE_STRATEGY_ID == "MV-TREND-DUAL-v5-candidate"
     assert first == same
     assert first != later
+
+
+def test_v5_15m_trigger_requires_directional_microtrend_alignment():
+    current, previous, structure = short_trigger_context("pullback")
+    countertrend = replace(
+        current,
+        ema20=D("102"),
+        ema50=D("101"),
+    )
+    trigger = evaluate_trigger_v5(
+        "short",
+        countertrend,
+        previous,
+        structure,
+    )
+    assert trigger.outcome == "NO_TRIGGER"
+    assert any(
+        check["id"] == "short.15m_ema20_ema50"
+        and check["passed"] is False
+        for check in trigger.checks
+    )
