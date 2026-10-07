@@ -270,6 +270,13 @@ def evaluate_trigger_v5(direction: str, current: Snapshot, previous: Snapshot | 
     body_atr, close_location, directional_body = _candle_quality(current, direction)
     source_extension = sign * (current.bar.close - current.ema20) / current.atr
 
+    micro_fast = sign * (current.ema20 - current.ema50) > 0
+    micro_slope = sign * (current.ema20 - previous.ema20) > 0
+    micro_checks = [
+        _check(f"{direction}.15m_ema20_ema50", micro_fast),
+        _check(f"{direction}.15m_ema20_slope", micro_slope),
+    ]
+
     recent = structure[-RECENT_RUN_BARS:]
     recent_run_anchor = min(s.bar.low for s in recent) if direction == "long" else max(s.bar.high for s in recent)
     recent_run_atr = sign * (current.bar.close - recent_run_anchor) / current.atr
@@ -292,7 +299,11 @@ def evaluate_trigger_v5(direction: str, current: Snapshot, previous: Snapshot | 
         _check(f"{direction}.15m_close_location", close_location >= PULLBACK_CLOSE_LOCATION_MIN, close_location, minimum=PULLBACK_CLOSE_LOCATION_MIN),
         _check(f"{direction}.15m_source_extension_atr", 0 < source_extension <= PULLBACK_SOURCE_EXTENSION_MAX, source_extension, maximum=PULLBACK_SOURCE_EXTENSION_MAX),
     ]
-    pullback_ok = recent_check["passed"] and all(item["passed"] for item in pullback_checks)
+    pullback_ok = (
+        recent_check["passed"]
+        and all(item["passed"] for item in micro_checks)
+        and all(item["passed"] for item in pullback_checks)
+    )
 
     structure_level = max(s.bar.high for s in structure) if direction == "long" else min(s.bar.low for s in structure)
     breakout_distance = sign * (current.bar.close - structure_level) / current.atr
@@ -303,22 +314,26 @@ def evaluate_trigger_v5(direction: str, current: Snapshot, previous: Snapshot | 
         _check(f"{direction}.15m_close_location", close_location >= BREAKOUT_CLOSE_LOCATION_MIN, close_location, minimum=BREAKOUT_CLOSE_LOCATION_MIN),
         _check(f"{direction}.15m_source_extension_atr", 0 < source_extension <= BREAKOUT_SOURCE_EXTENSION_MAX, source_extension, maximum=BREAKOUT_SOURCE_EXTENSION_MAX),
     ]
-    breakout_ok = recent_check["passed"] and all(item["passed"] for item in breakout_checks)
+    breakout_ok = (
+        recent_check["passed"]
+        and all(item["passed"] for item in micro_checks)
+        and all(item["passed"] for item in breakout_checks)
+    )
 
     if breakout_ok:
         return EntryTrigger(
             "TRIGGER", "RULES_PASSED", direction, "momentum_breakout_15m",
-            [recent_check, *breakout_checks], structure_level,
+            [recent_check, *micro_checks, *breakout_checks], structure_level,
             recent_run_anchor, recent_run_atr, source_extension
         )
     if pullback_ok:
         return EntryTrigger(
             "TRIGGER", "RULES_PASSED", direction, "pullback_continuation_15m",
-            [recent_check, *pullback_checks], None,
+            [recent_check, *micro_checks, *pullback_checks], None,
             recent_run_anchor, recent_run_atr, source_extension
         )
     return EntryTrigger(
         "NO_TRIGGER", "NO_15M_PULLBACK_OR_BREAKOUT_TRIGGER", direction, None,
-        [recent_check, *pullback_checks, *breakout_checks], structure_level,
+        [recent_check, *micro_checks, *pullback_checks, *breakout_checks], structure_level,
         recent_run_anchor, recent_run_atr, source_extension
     )
