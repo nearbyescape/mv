@@ -139,6 +139,11 @@ export type MarketSafety = {
     threshold_r?: string;
   }>;
   max_same_direction_signals_per_source_close: number;
+  max_active_same_direction_reference_plans: number;
+  active_directional_reference_plans: {
+    long: number;
+    short: number;
+  };
   btc_15m_timing_veto: boolean;
   message: string;
 };
@@ -248,6 +253,8 @@ export const reasonLabel = (reason: string) =>
       BTC_15M_TIMING_CONFLICT: "BTC 15-minute timing conflicts with this direction",
       MARKET_DIRECTION_CONCENTRATION_LIMIT:
         "Directional concentration cap reached for this 1H close",
+      ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT:
+        "Maximum unresolved same-direction reference exposure reached",
       DIRECTIONAL_CIRCUIT_BREAKER:
         "Market Safety Mode paused this direction after correlated deterioration",
       SAFETY_ANALYTICS_UNAVAILABLE:
