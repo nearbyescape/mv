@@ -95,6 +95,73 @@ def test_btc_15m_timing_guard_is_directional_and_fail_closed():
     )
 
 
+def test_btc_15m_mixed_structure_does_not_veto_long():
+    from decimal import Decimal as D
+
+    boundary = 1_800_000
+    current_open = boundary - 900_000
+    previous_open = boundary - 1_800_000
+    current = {
+        "bar": Bar(
+            current_open,
+            current_open + 900_000 - 1,
+            D("101"),
+            D("103"),
+            D("99"),
+            D("100.5"),
+            D("10"),
+        ),
+        "count": 500,
+        "ema20": D("101"),
+        "ema50": D("102"),
+    }
+    previous = {
+        "bar": SimpleNamespace(),
+        "count": 499,
+        "ema20": D("101.2"),
+        "ema50": D("102.1"),
+    }
+    # BTC is weak, but close is not below EMA20; this is not a hard opposite
+    # stack and therefore cannot veto an otherwise valid V4 LONG.
+    assert btc_timing_reason(
+        {current_open: current, previous_open: previous}, boundary, "long"
+    ) is None
+
+
+def test_btc_15m_full_bearish_stack_vetoes_long():
+    from decimal import Decimal as D
+
+    boundary = 1_800_000
+    current_open = boundary - 900_000
+    previous_open = boundary - 1_800_000
+    current = {
+        "bar": Bar(
+            current_open,
+            current_open + 900_000 - 1,
+            D("100"),
+            D("101"),
+            D("96"),
+            D("97"),
+            D("10"),
+        ),
+        "count": 500,
+        "ema20": D("98"),
+        "ema50": D("99"),
+    }
+    previous = {
+        "bar": SimpleNamespace(),
+        "count": 499,
+        "ema20": D("98.5"),
+        "ema50": D("99.2"),
+    }
+    assert (
+        btc_timing_reason(
+            {current_open: current, previous_open: previous}, boundary, "long"
+        )
+        == "BTC_15M_TIMING_CONFLICT"
+    )
+
+
 def test_simulation_ranks_then_caps_same_direction_cluster_at_two():
     source = 10 * 3_600_000
     published = source + 3_600_000 + 1_000
