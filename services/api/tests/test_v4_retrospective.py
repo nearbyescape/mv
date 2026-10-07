@@ -108,7 +108,7 @@ def test_btc_15m_mixed_structure_does_not_veto_long():
             D("101"),
             D("103"),
             D("99"),
-            D("100.5"),
+            D("101.5"),
             D("10"),
         ),
         "count": 500,
