@@ -1,7 +1,9 @@
-"""Observational V2/V3 performance analytics.
+"""V2/V3/V4 reference outcome analytics.
 
-Nothing in this module is imported by the signal engine. It consumes immutable
-published plans and completed market data after publication.
+The analytics worker consumes immutable published plans and completed market
+data after publication. V4's signal service may read only the persisted
++/-0.5R timing milestones for its fail-safe directional circuit breaker; this
+module still cannot create or modify signal decisions or plans.
 """
 from dataclasses import dataclass
 from decimal import Decimal as D, localcontext, ROUND_HALF_EVEN
@@ -19,8 +21,9 @@ from app.models import (
 
 V2_STRATEGY = "MV-TREND-DUAL-v2"
 V3_STRATEGY = "MV-TREND-DUAL-v3"
-ANALYTICS_STRATEGIES = (V2_STRATEGY, V3_STRATEGY)
-LIVE_ANALYTICS_STRATEGY = V3_STRATEGY
+V4_STRATEGY = "MV-TREND-DUAL-v4"
+ANALYTICS_STRATEGIES = (V2_STRATEGY, V3_STRATEGY, V4_STRATEGY)
+LIVE_ANALYTICS_STRATEGY = V4_STRATEGY
 
 V3_TP1_ALLOCATION = D("0.30")
 V3_TP2_ALLOCATION = D("0.30")
@@ -119,7 +122,7 @@ def seed_signal_outcomes(session, now):
             raise ValueError("Published plan has invalid analytics geometry")
 
         tp1 = tp2 = tp3 = tp1_r = tp2_r = tp3_r = None
-        if plan.strategy == V3_STRATEGY:
+        if plan.strategy in (V3_STRATEGY, V4_STRATEGY):
             tp1 = number(payload.get("tp1"), "tp1")
             tp2 = number(payload.get("tp2"), "tp2")
             tp3 = number(payload.get("tp3"), "tp3")
@@ -132,9 +135,9 @@ def seed_signal_outcomes(session, now):
                 else tp3 < tp2 < tp1 < entry < stop
             )
             if not levels_ok or tp1_r <= 0 or not tp1_r < tp2_r < tp3_r:
-                raise ValueError("Published V3 plan has invalid scaled targets")
+                raise ValueError("Published scaled-target plan has invalid targets")
             if tp3 != target or tp3_r != target_r:
-                raise ValueError("Published V3 TP3 must equal the compatibility target")
+                raise ValueError("Published TP3 must equal the compatibility target")
 
         session.add(
             SignalOutcome(
@@ -343,7 +346,7 @@ def apply_minute(outcome, bar):
     if outcome.last_minute_open_time is not None and bar.open_time != outcome.last_minute_open_time + MINUTE_MS:
         raise ValueError("Non-contiguous 1m outcome observations")
 
-    if outcome.strategy == V3_STRATEGY:
+    if outcome.strategy in (V3_STRATEGY, V4_STRATEGY):
         _apply_v3_minute(outcome, bar)
     else:
         entry = number(outcome.entry, "entry")
@@ -626,10 +629,10 @@ def performance_summary(session, strategy=LIVE_ANALYTICS_STRATEGY):
         "method": "reference-plan analytics; not exchange fills or account P&L",
         "minute_observation": "first full completed Binance 1m candle at/after publication; pre-publication portion of a minute is never used",
         "ambiguous_policy": (
-            "V3 protective-stop changes become active from the next completed 1m observation; "
+            "Scaled-target protective-stop changes become active from the next completed 1m observation; "
             "if the previously active stop and a new target occur in the same 1m candle, "
             "the conservative result assumes the stop occurred first"
-            if strategy == V3_STRATEGY
+            if strategy in (V3_STRATEGY, V4_STRATEGY)
             else "if stop and target occur in the same 1m candle, status is ambiguous and conservative reference result is -1R"
         ),
         "overall": _summary(outcomes),

@@ -1,6 +1,6 @@
 # Phased delivery status
 
-Milestone: **6 October 2026 — release 0.12.0 analytics is deployed; release 0.13.0 MV-TREND-DUAL-v3 is under regression validation**. Production remains on 0.12.0/schema 0007 while the signal engine is intentionally stopped during the V3 cutover preparation. V3 is versioned separately from V2 and adds anti-chase guards, same-direction same-session suppression and TP1/TP2/TP3 reference management.
+Milestone: **6 October 2026 — release 0.13.0/schema 0008 is deployed and its V3 engine is running; release 0.14.0 MV-TREND-DUAL-v4 is under validation**. V4 preserves the V3 financial core and adds a completed BTC 15-minute hard-contradiction veto, a two-signal same-direction source-close cap and a deterioration-triggered directional circuit breaker. V2/V3 history remains preserved.
 
 | Phase | Status | Exit evidence |
 | --- | --- | --- |
@@ -19,11 +19,17 @@ Milestone: **6 October 2026 — release 0.12.0 analytics is deployed; release 0.
 | 10. Hardening and hosting | Core deployed and checked on VPS | Public trusted HTTPS, owner onboarding, live PostgreSQL/market workers, VPS backup restore and preservation of existing websites; endurance/off-server transport remain pending |
 | 11. Forward paper pilot | Canceled by owner; originals preserved | Observer stopped, default disabled, omitted from live workflow; no continuity or assessment claim |
 
-## Release 0.13.0 V3 production candidate
+## Release 0.14.0 V4 market-safety candidate
+
+Implemented on `codex/mv-v4-market-safety-governor`: V4 keeps V3 setup/risk arithmetic and adds a fail-closed BTC completed-15m hard-contradiction veto, deterministic candidate ranking, a maximum of two same-direction publications per exact 1H source close, a six-plan unresolved same-direction exposure ceiling and a two-hour directional circuit breaker after two recent signals reach -0.5R before +0.5R. Market Safety Mode is exposed on the signal feed and web workspace. BTC 15m is collected only for BTCUSDT. No schema migration is required beyond live schema 0008.
+
+The V4 implementation is a safety response to observed correlated clustering, not a profitability claim. Production remains on V3 while the V4 candidate passes CI, packaged-image and controlled VPS gates. See [V4 strategy contract](STRATEGY_V4.md).
+
+## Release 0.13.0 V3 production release
 
 Implemented on `codex/mv-v3-anti-chase-multi-tp`: the candidate registers `MV-TREND-DUAL-v3`, schema 0008 and 0.13.0 images. V3 keeps the V2 trend/setup architecture but tightens EMA20 extension, adds a six-hour 2.50 ATR recent-run guard at source and live entry, suppresses repeated same-direction publications for the same symbol during one IST session, and publishes TP1/TP2/TP3 at nominal +1R/+1.5R/+2R with 30/30/40 reference allocation. Web, chart and Telegram surfaces expose the three targets. V2 source/history remain preserved.
 
-The candidate is **not production until CI, packaged-image, migration/rollback and VPS gates pass**. See [V3 strategy contract](STRATEGY_V3.md).
+Release 0.13.0 passed CI, package/build and controlled schema 0007→0008 cutover gates. Its engine was intentionally left stopped before first production scan while V4 safety work began. See [V3 strategy contract](STRATEGY_V3.md).
 
 ## Release 0.12.0 observational outcome analytics
 

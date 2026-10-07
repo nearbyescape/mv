@@ -1216,7 +1216,7 @@ export function Dashboard({
               <span className="muted">· Private market workspace</span>
             </span>
             <span>
-              Live operations v0.13.0 <i />
+              Live operations v0.14.0 <i />
               {mode === "demo"
                 ? "Synthetic preview"
                 : engine?.ready && !signalFeed.error

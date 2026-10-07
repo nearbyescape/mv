@@ -74,6 +74,41 @@ test("live mode has an honest empty state and never shows synthetic entries", as
   ).toBeVisible();
 });
 
+test("Market Safety Mode is visible when a direction is circuit-broken", async ({
+  page,
+}) => {
+  const data = feed();
+  data.safety = {
+    status: "guarded",
+    publication_enabled: true,
+    analytics: { ready: true, max_age_ms: 45000, age_ms: 1000 },
+    paused_directions: ["long"],
+    direction_details: {
+      long: {
+        paused: true,
+        triggered_signals: ["a".repeat(64), "b".repeat(64)],
+        pause_until: data.server_time + 60 * 60 * 1000,
+        threshold_r: "0.50",
+      },
+    },
+    max_same_direction_signals_per_source_close: 2,
+    max_active_same_direction_reference_plans: 6,
+    active_directional_reference_plans: { long: 2, short: 0 },
+    btc_15m_timing_veto: true,
+    message:
+      "Market Safety Mode: LONG opportunities are temporarily paused after correlated deterioration.",
+  };
+  await page.route("**/api/signals**", (route) =>
+    route.fulfill({ json: data }),
+  );
+  await page.goto("/");
+  const safetyAlert = page.locator(".signal-alert");
+  await expect(safetyAlert).toContainText("Market Safety Mode");
+  await expect(safetyAlert).toContainText(
+    "LONG opportunities are temporarily paused",
+  );
+});
+
 test("backend-generated plan displays exact evidence, downloads intact and passes accessibility checks", async ({
   page,
 }) => {

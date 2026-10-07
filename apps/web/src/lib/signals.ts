@@ -93,6 +93,14 @@ export type EngineSignal = {
       structure_level: string | null;
     };
     btc_regime?: { state: string; passed: boolean };
+    btc_timing?: {
+      state: string;
+      passed: boolean;
+      symbol?: string;
+      timeframe?: string;
+      current?: SnapshotEvidence;
+      previous?: SnapshotEvidence;
+    };
     checks: { id: string; passed: boolean; value?: string; minimum?: string; maximum?: string }[];
     guards: Record<string, boolean>;
     quote: { bid: string; ask: string; time: number; received_at: number };
@@ -114,9 +122,35 @@ export type EngineSignal = {
   };
   telegram: string;
 };
+export type MarketSafety = {
+  status: "normal" | "guarded" | "degraded";
+  publication_enabled: boolean;
+  analytics: {
+    ready: boolean;
+    max_age_ms: number;
+    age_ms: number | null;
+  };
+  paused_directions: ("long" | "short")[];
+  direction_details: Record<string, {
+    paused: boolean;
+    triggered_signals: string[];
+    triggered_at?: number;
+    pause_until: number | null;
+    threshold_r?: string;
+  }>;
+  max_same_direction_signals_per_source_close: number;
+  max_active_same_direction_reference_plans: number;
+  active_directional_reference_plans: {
+    long: number;
+    short: number;
+  };
+  btc_15m_timing_veto: boolean;
+  message: string;
+};
 export type SignalFeed = {
   server_time: number;
   engine: EngineHealth;
+  safety?: MarketSafety;
   signals: EngineSignal[];
   decisions: {
     id: string;
@@ -215,6 +249,16 @@ export const reasonLabel = (reason: string) =>
       "4H_TREND_NOT_ALIGNED": "Completed 4H trend is not aligned",
       BTC_REGIME_CONTRADICTION: "BTC regime strongly contradicts this alt setup",
       BTC_REGIME_UNAVAILABLE: "Waiting for BTC regime evidence",
+      BTC_15M_TIMING_UNAVAILABLE: "Waiting for completed BTC 15-minute timing evidence",
+      BTC_15M_TIMING_CONFLICT: "BTC 15-minute timing conflicts with this direction",
+      MARKET_DIRECTION_CONCENTRATION_LIMIT:
+        "Directional concentration cap reached for this 1H close",
+      ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT:
+        "Maximum unresolved same-direction reference exposure reached",
+      DIRECTIONAL_CIRCUIT_BREAKER:
+        "Market Safety Mode paused this direction after correlated deterioration",
+      SAFETY_ANALYTICS_UNAVAILABLE:
+        "Market Safety Mode is fail-closed while safety analytics is unavailable",
       SPREAD_TOO_WIDE: "Live spread is too wide for publication",
       ENTRY_OVEREXTENDED: "Entry moved too far from EMA20",
       RECENT_RUN_OVEREXTENDED: "Entry arrived after an excessive recent directional run",

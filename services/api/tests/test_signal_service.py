@@ -15,13 +15,14 @@ from sqlalchemy.pool import StaticPool
 
 from mv_strategy import Bar, INTERVAL_MS, confirmation_open_time
 from mv_strategy.signals import STRATEGY_ID as V1_STRATEGY_ID, Quote, canonical_hash
-from mv_strategy.strategy_v3 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
+from mv_strategy.strategy_v4 import LIVE_STRATEGY_ID as STRATEGY_ID, live_decision_id as decision_id
+from app.analytics.service import seed_signal_outcomes
 from app.database import Base, get_session
 from app.main import app
 from app.market import views
 from app.market.binance import RateLimited
 from app.market.store import apply_bars
-from app.models import Candle, CollectorStatus, EngineCursor, EngineStatus, SignalDecision, SignalPlan, SignalSlot, SignalEvent, MarketContract, WatchlistItem
+from app.models import Candle, CollectorStatus, EngineCursor, EngineStatus, IndicatorSnapshot, SignalDecision, SignalPlan, SignalSlot, SignalEvent, SignalOutcome, ServiceLease, MarketContract, WatchlistItem
 from app.signals import service, worker
 from app.signals.service import discover, evaluate_decision, expire_slots, signal_view, slot_action, check_source_revisions
 from app.signals.worker import SignalWorker
@@ -64,6 +65,9 @@ def source_bars(count, timeframe, last_open, direction, pullback=False):
 def seed(state, direction="long", confirmation_count=500, initial_count=501):
     source = source_bars(501, "1h", BOUNDARY - STEP, direction, True)
     confirmation = source_bars(500, "4h", confirmation_open_time(BOUNDARY), direction)
+    timing_step = INTERVAL_MS["15m"]
+    timing_last_open = state.clock[0] // timing_step * timing_step - timing_step
+    timing = source_bars(500, "15m", timing_last_open, direction)
     metadata = contract()
     metadata["filters"][0].update({"minPrice": "0.0", "maxPrice": "10000"})
     with state.sessions.begin() as session:
@@ -71,6 +75,8 @@ def seed(state, direction="long", confirmation_count=500, initial_count=501):
         session.add(MarketContract(symbol="BTCUSDT", valid=True, reason="verified fixture", checked_at=state.clock[0], metadata_json=metadata))
         session.add(CollectorStatus(id="collector", state="streaming", updated_at=state.clock[0], last_event_at=state.clock[0], clock_offset_ms=0, reconnects=0))
         session.add(EngineStatus(id="engine", state="running", updated_at=state.clock[0]))
+        session.add(ServiceLease(name="outcome-analytics", owner="fixture", heartbeat=state.clock[0]))
+        apply_bars(session, "BTCUSDT", "15m", timing, state.clock[0])
         apply_bars(session, "BTCUSDT", "1h", source[:initial_count], state.clock[0])
         apply_bars(session, "BTCUSDT", "4h", confirmation[:confirmation_count], state.clock[0])
     return source, confirmation
@@ -283,7 +289,7 @@ def test_alt_signal_btc_regime_veto_is_directional_and_uses_completed_context(st
         assert evidence["passed"] is True
 
 
-def test_existing_v1_held_slot_blocks_v3_candidate_for_same_symbol(state):
+def test_existing_v1_held_slot_blocks_v4_candidate_for_same_symbol(state):
     seed(state)
     identity = pending(state)
     old = "d" * 64
@@ -324,7 +330,7 @@ def test_existing_v1_held_slot_blocks_v3_candidate_for_same_symbol(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan).where(SignalPlan.strategy == STRATEGY_ID)) == 0
 
 
-def test_existing_v1_cursor_cannot_replay_history_when_v3_first_starts(state):
+def test_existing_v1_cursor_cannot_replay_history_when_v4_first_starts(state):
     seed(state)
     with state.sessions.begin() as session:
         checkpoint = session.get(service.IndicatorCheckpoint, ("BTCUSDT", "1h"))
@@ -360,7 +366,17 @@ def test_startup_baseline_and_restart_cursor_never_reseed_or_republish(state):
         health.updated_at = health.last_event_at = state.clock[0]
         session.get(MarketContract, "BTCUSDT").checked_at = state.clock[0]
         session.get(EngineStatus, "engine").updated_at = state.clock[0]
+        session.get(ServiceLease, "outcome-analytics").heartbeat = state.clock[0]
         apply_bars(session, "BTCUSDT", "1h", [source[-1]], state.clock[0])
+        # Extend the original 15m synthetic history without resetting its
+        # price path; the last four bars bridge the one-hour clock advance.
+        timing = source_bars(
+            504,
+            "15m",
+            BOUNDARY - INTERVAL_MS["15m"],
+            "long",
+        )
+        apply_bars(session, "BTCUSDT", "15m", timing[-4:], state.clock[0])
     with state.sessions.begin() as session:
         discover(session, state.clock[0])
     identity = decision_id("BTCUSDT", source[-1].open_time)
@@ -390,6 +406,7 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
     with state.sessions.begin() as session:
         health = session.get(CollectorStatus, "collector")
         health.updated_at = health.last_event_at = state.clock[0]
+        session.get(ServiceLease, "outcome-analytics").heartbeat = state.clock[0]
     class SlowQuote:
         async def quote(self, *args):
             state.clock[0] += 2000
@@ -400,7 +417,7 @@ def test_quote_response_that_arrives_after_expiry_is_never_published(state):
         assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
 
 
-def test_v3_worker_ignores_leftover_v1_pending_decisions(state):
+def test_v4_worker_ignores_leftover_v1_pending_decisions(state):
     seed(state)
     legacy_id = "f" * 64
     with state.sessions.begin() as session:
@@ -417,18 +434,18 @@ def test_v3_worker_ignores_leftover_v1_pending_decisions(state):
         ))
     class NoQuote:
         async def quote(self, *args):
-            pytest.fail("V3 worker must not request a quote for a V1 decision")
+            pytest.fail("V4 worker must not request a quote for a V1 decision")
     asyncio.run(SignalWorker(NoQuote()).process(legacy_id))
     with state.sessions() as session:
         row = session.get(SignalDecision, legacy_id)
         assert (row.outcome, row.reason, row.attempts) == ("PENDING", "legacy-pending", 0)
 
 
-def test_changed_v3_financial_contract_is_refused_before_worker_start(state, monkeypatch):
+def test_changed_v4_financial_contract_is_refused_before_worker_start(state, monkeypatch):
     changed = json.loads(json.dumps(service.LIVE_CONTRACT))
     changed["setups"]["momentum_breakout"]["min_body_atr"] = "0.10"
     monkeypatch.setattr(service, "LIVE_CONTRACT", changed)
-    with pytest.raises(ValueError, match="Production V3 financial contract changed"):
+    with pytest.raises(ValueError, match="Production V4 financial contract changed"):
         service.check_live_contract()
 
 
@@ -643,6 +660,23 @@ def test_changed_version_one_risk_contract_is_refused(state, monkeypatch):
         service.check_contract()
 
 
+def test_v4_stale_safety_analytics_disables_existing_entry_action(state):
+    seed(state, "long")
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        lease = session.get(ServiceLease, "outcome-analytics")
+        lease.heartbeat = state.clock[0] - 45_001
+    with state.sessions() as session:
+        view = signal_view(
+            session,
+            session.get(SignalPlan, identity),
+            state.clock[0],
+        )
+        assert view["status"] == "active"
+        assert view["entry_actionable"] is False
+
+
 def test_plan_checksum_failure_disables_entry_without_hiding_operator_held_state(state):
     seed(state)
     identity = pending(state)
@@ -655,3 +689,456 @@ def test_plan_checksum_failure_disables_entry_without_hiding_operator_held_state
         view = signal_view(session, session.get(SignalPlan, identity), state.clock[0])
         assert view["integrity_valid"] is False and view["status"] == "integrity-failed"
         assert view["entry_actionable"] is False
+
+
+def test_v4_btc_15m_timing_conflict_blocks_publication(state):
+    seed(state, "long")
+    timing_open = BOUNDARY - INTERVAL_MS["15m"]
+    with state.sessions.begin() as session:
+        snapshot = session.get(IndicatorSnapshot, ("BTCUSDT", "15m", timing_open))
+        candle = session.get(Candle, ("BTCUSDT", "15m", timing_open))
+        assert snapshot is not None and candle is not None
+        # A LONG is vetoed only by a fully bearish BTC 15m stack with
+        # a declining EMA20; mixed/neutral structure is not a veto.
+        snapshot.ema20 = "190"
+        snapshot.ema50 = "195"
+        candle.close = "189"
+        candle.low = "188"
+        bar = Bar(
+            candle.open_time,
+            candle.close_time,
+            D(candle.open),
+            D(candle.high),
+            D(candle.low),
+            D(candle.close),
+            D(candle.volume),
+        )
+        candle.source_hash = bar.digest()
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert (row.outcome, row.reason) == ("REJECTED", "BTC_15M_TIMING_CONFLICT")
+        assert row.evidence_json["btc_timing"]["passed"] is False
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v4_caps_same_direction_publications_per_source_close_at_two(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(("ETHUSDT", "SOLUSDT"), start=1):
+            session.add(
+                SignalDecision(
+                    id=f"{index}" * 64,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-cluster",
+                    updated_at=state.clock[0] - 1000,
+                    expires_at=BOUNDARY + 300_000,
+                    evidence_json={},
+                )
+            )
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert (row.outcome, row.reason) == (
+            "REJECTED",
+            "MARKET_DIRECTION_CONCENTRATION_LIMIT",
+        )
+        assert row.evidence_json["market_concentration"]["passed"] is False
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v4_caps_unresolved_same_direction_reference_plans_at_six(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(
+            ("ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "LINKUSDT", "AAVEUSDT"),
+            start=1,
+        ):
+            session.add(
+                SignalDecision(
+                    id=(str(index) * 64)[:64],
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 1) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-active-reference",
+                    updated_at=state.clock[0] - index * 1000,
+                    expires_at=state.clock[0] + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert (row.outcome, row.reason) == (
+            "REJECTED",
+            "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT",
+        )
+        assert row.evidence_json["active_directional_exposure"] == {
+            "passed": False,
+            "active_reference_plans": 6,
+            "max_active_same_direction_reference_plans": 6,
+        }
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v4_allows_sixth_active_same_direction_reference(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(
+            ("ETHUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "LINKUSDT"),
+            start=1,
+        ):
+            session.add(
+                SignalDecision(
+                    id=(str(index) * 64)[:64],
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 1) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-active-reference",
+                    updated_at=state.clock[0] - index * 1000,
+                    expires_at=state.clock[0] + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+    publish(state, identity)
+    with state.sessions() as session:
+        assert session.get(SignalDecision, identity).outcome == "PUBLISHED"
+
+
+def test_v4_directional_circuit_breaker_pauses_only_deteriorating_direction(state):
+    seed(state, "long")
+    identity = pending(state)
+    publish(state, identity)
+    with state.sessions.begin() as session:
+        source_plan = session.get(SignalPlan, identity)
+        assert source_plan is not None
+        for index, symbol in enumerate(("ETHUSDT", "SOLUSDT"), start=1):
+            signal_id = chr(96 + index) * 64
+            created_at = state.clock[0] - index * 30 * 60_000
+            session.add(
+                SignalDecision(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 1) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-deterioration",
+                    updated_at=created_at,
+                    expires_at=created_at + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+            payload = {
+                **source_plan.plan_json,
+                "id": signal_id,
+                "symbol": symbol,
+                "published_at": created_at,
+            }
+            session.add(
+                SignalPlan(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    created_at=created_at,
+                    expires_at=created_at + 300_000,
+                    plan_json=payload,
+                    evidence_json={},
+                    evidence_hash=f"{index}" * 64,
+                )
+            )
+    with state.sessions.begin() as session:
+        seed_signal_outcomes(session, state.clock[0])
+        for index, signal_id in enumerate(("a" * 64, "b" * 64), start=1):
+            outcome = session.get(SignalOutcome, signal_id)
+            assert outcome is not None
+            outcome.adverse_050_at = state.clock[0] - index * 60_000
+            outcome.favorable_050_at = None
+            outcome.updated_at = state.clock[0]
+
+    with state.sessions() as session:
+        paused, evidence = service.directional_circuit_breaker(
+            session, "long", state.clock[0]
+        )
+        assert paused is True
+        assert evidence["pause_until"] > state.clock[0]
+        short_paused, _ = service.directional_circuit_breaker(
+            session, "short", state.clock[0]
+        )
+        assert short_paused is False
+        safety = service.market_safety_view(session, state.clock[0])
+        assert safety["status"] == "guarded"
+        assert safety["paused_directions"] == ["long"]
+        assert safety["max_same_direction_signals_per_source_close"] == 2
+
+
+def test_v4_fails_closed_when_safety_analytics_lease_is_stale(state):
+    seed(state, "long")
+    identity = pending(state)
+    with state.sessions.begin() as session:
+        lease = session.get(ServiceLease, "outcome-analytics")
+        lease.heartbeat = state.clock[0] - 45_001
+    with state.sessions.begin() as session:
+        row = session.get(SignalDecision, identity)
+        assert evaluate_decision(session, row, state.clock[0]) is None
+        assert row.outcome == "PENDING"
+        assert row.reason == "SAFETY_ANALYTICS_UNAVAILABLE"
+        assert row.evidence_json["safety_analytics"]["ready"] is False
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+
+
+def test_v4_circuit_pause_survives_publication_window_until_full_pause_expires(state):
+    seed(state, "long")
+    now = state.clock[0]
+    with state.sessions.begin() as session:
+        for index, (symbol, published_offset, adverse_offset) in enumerate(
+            (
+                ("ETHUSDT", 150 * 60_000, 60 * 60_000),
+                ("SOLUSDT", 100 * 60_000, 59 * 60_000),
+            ),
+            start=1,
+        ):
+            signal_id = chr(102 + index) * 64
+            published_at = now - published_offset
+            adverse_at = now - adverse_offset
+            session.add(
+                SignalDecision(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 4) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-old-cluster",
+                    updated_at=published_at,
+                    expires_at=published_at + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+            session.add(
+                SignalPlan(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    created_at=published_at,
+                    expires_at=published_at + 300_000,
+                    plan_json={
+                        "direction": "long",
+                        "setup_type": "pullback_continuation",
+                        "trend_regime": "established",
+                        "entry": "100",
+                        "stop": "98",
+                        "target": "104",
+                        "tp1": "102",
+                        "tp2": "103",
+                        "tp3": "104",
+                        "risk_distance": "2",
+                        "reward_risk": "2",
+                        "tp1_r": "1",
+                        "tp2_r": "1.5",
+                        "tp3_r": "2",
+                        "frozen_atr": "1",
+                    },
+                    evidence_json={},
+                    evidence_hash=str(index) * 64,
+                )
+            )
+            session.flush()
+            session.add(
+                SignalOutcome(
+                    signal_id=signal_id,
+                    strategy=STRATEGY_ID,
+                    symbol=symbol,
+                    direction="long",
+                    setup_type="pullback_continuation",
+                    trend_regime="established",
+                    published_at=published_at,
+                    first_observed_minute=published_at,
+                    last_minute_open_time=None,
+                    entry="100",
+                    stop="98",
+                    target="104",
+                    risk_distance="2",
+                    target_r="2",
+                    frozen_atr="1",
+                    status="open",
+                    terminal_at=None,
+                    conservative_r=None,
+                    mfe_r="0",
+                    mae_r="0.5",
+                    favorable_050_at=None,
+                    favorable_100_at=None,
+                    favorable_150_at=None,
+                    favorable_200_at=None,
+                    adverse_050_at=adverse_at,
+                    adverse_100_at=None,
+                    intrabar_ambiguous=False,
+                    source_revised=False,
+                    observed_bars=1,
+                    updated_at=adverse_at,
+                    error_code=None,
+                    tp1="102",
+                    tp2="103",
+                    tp3="104",
+                    tp1_r="1",
+                    tp2_r="1.5",
+                    tp3_r="2",
+                )
+            )
+    with state.sessions() as session:
+        paused, evidence = service.directional_circuit_breaker(session, "long", now)
+        assert paused is True
+        assert evidence["pause_until"] == now + 61 * 60_000
+
+
+def test_v4_candidate_priority_is_recent_run_then_extension_then_regime_then_symbol(state, monkeypatch):
+    profiles = {
+        "AUSDT": ("1.20", "0.30", "emerging"),
+        "BUSDT": ("0.80", "0.80", "emerging"),
+        "CUSDT": ("0.80", "0.50", "emerging"),
+        "DUSDT": ("0.80", "0.50", "established"),
+        "EUSDT": ("0.80", "0.50", "established"),
+    }
+
+    def fake_context(session, symbol, source_open_time):
+        return object(), None, None, [], None, {}
+
+    def fake_setup(current, previous, confirmation, structure):
+        symbol = current.symbol
+        recent, extension, regime = profiles[symbol]
+        return SimpleNamespace(
+            outcome="LONG_SETUP",
+            checks=[
+                {"id": "long.recent_run_atr", "value": recent},
+                {"id": "long.source_extension_atr", "value": extension},
+            ],
+            regime=regime,
+        )
+
+    monkeypatch.setattr(
+        service,
+        "context_at",
+        lambda session, symbol, source_open_time: (
+            SimpleNamespace(symbol=symbol),
+            None,
+            None,
+            [],
+            None,
+            {},
+        ),
+    )
+    monkeypatch.setattr(service, "evaluate_setup_v4", fake_setup)
+
+    rows = [
+        SimpleNamespace(symbol=symbol, source_open_time=BOUNDARY - STEP)
+        for symbol in profiles
+    ]
+    ordered = sorted(rows, key=lambda row: service.decision_priority(None, row))
+    assert [row.symbol for row in ordered] == [
+        "DUSDT",
+        "EUSDT",
+        "CUSDT",
+        "BUSDT",
+        "AUSDT",
+    ]
+
+
+def test_v4_same_minute_half_r_is_conservatively_adverse_first(state):
+    seed(state, "long")
+    now = state.clock[0]
+    with state.sessions.begin() as session:
+        for index, symbol in enumerate(("ETHUSDT", "SOLUSDT"), start=1):
+            signal_id = chr(107 + index) * 64
+            published_at = now - index * 30 * 60_000
+            milestone = now - index * 60_000
+            session.add(
+                SignalDecision(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    source_open_time=BOUNDARY - (index + 6) * STEP,
+                    direction="long",
+                    outcome="PUBLISHED",
+                    reason="fixture-same-minute",
+                    updated_at=published_at,
+                    expires_at=published_at + 300_000,
+                    attempts=1,
+                    evidence_json={},
+                )
+            )
+            session.add(
+                SignalPlan(
+                    id=signal_id,
+                    symbol=symbol,
+                    strategy=STRATEGY_ID,
+                    created_at=published_at,
+                    expires_at=published_at + 300_000,
+                    plan_json={},
+                    evidence_json={},
+                    evidence_hash=str(index + 4) * 64,
+                )
+            )
+            session.flush()
+            session.add(
+                SignalOutcome(
+                    signal_id=signal_id,
+                    strategy=STRATEGY_ID,
+                    symbol=symbol,
+                    direction="long",
+                    setup_type="momentum_breakout",
+                    trend_regime="established",
+                    published_at=published_at,
+                    first_observed_minute=published_at,
+                    last_minute_open_time=None,
+                    entry="100",
+                    stop="98",
+                    target="104",
+                    risk_distance="2",
+                    target_r="2",
+                    frozen_atr="1",
+                    status="open",
+                    terminal_at=None,
+                    conservative_r=None,
+                    mfe_r="0.5",
+                    mae_r="0.5",
+                    favorable_050_at=milestone,
+                    favorable_100_at=None,
+                    favorable_150_at=None,
+                    favorable_200_at=None,
+                    adverse_050_at=milestone,
+                    adverse_100_at=None,
+                    intrabar_ambiguous=True,
+                    source_revised=False,
+                    observed_bars=1,
+                    updated_at=milestone,
+                    error_code=None,
+                    tp1="102",
+                    tp2="103",
+                    tp3="104",
+                    tp1_r="1",
+                    tp2_r="1.5",
+                    tp3_r="2",
+                )
+            )
+    with state.sessions() as session:
+        paused, evidence = service.directional_circuit_breaker(
+            session, "long", now
+        )
+        assert paused is True
+        assert len(evidence["triggered_signals"]) == 2

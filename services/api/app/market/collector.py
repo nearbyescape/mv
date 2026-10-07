@@ -22,6 +22,11 @@ from .store import apply_bars, repair_start
 log = logging.getLogger("mv.collector")
 
 
+def frames_for_symbol(symbol):
+    """Keep 1H/4H for every chosen market; collect 15m timing data only for BTC."""
+    return ("15m", "1h", "4h") if symbol == "BTCUSDT" else ("1h", "4h")
+
+
 def selected_symbols():
     with Session() as session:
         return list(session.scalars(select(WatchlistItem.symbol).order_by(WatchlistItem.sort_order)))
@@ -89,13 +94,13 @@ class Collector:
             if not approved:
                 log.warning("Blocked %s: %s", symbol, reason)
                 continue
-            for frame in INTERVAL_MS:
+            for frame in frames_for_symbol(symbol):
                 await self.sync_stream(symbol, frame, server_now)
             valid.append(symbol)
         return valid
 
     async def stream(self, symbols):
-        streams = "/".join(f"{s.lower()}@kline_{tf}" for s in symbols for tf in INTERVAL_MS)
+        streams = "/".join(f"{s.lower()}@kline_{tf}" for s in symbols for tf in frames_for_symbol(s))
         address = "wss://fstream.binance.com/market/stream?streams=" + streams
         async with connect(address, open_timeout=15, close_timeout=5, ping_interval=60, ping_timeout=30, max_size=1_048_576) as ws:
             log.info("WebSocket connected: %s", ", ".join(symbols))

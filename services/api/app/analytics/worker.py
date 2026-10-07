@@ -1,7 +1,8 @@
-"""Independent V2 outcome analytics worker.
+"""Independent V2/V3/V4 outcome analytics worker.
 
 This worker never imports the signal worker and never writes signal decision,
-plan, slot or event tables.
+plan, slot or event tables. V4 may read its persisted +/-0.5R milestones for
+the fail-safe directional circuit breaker.
 """
 import argparse
 import asyncio

@@ -43,6 +43,33 @@ def test_only_final_selected_symbol_stream_candles_are_accepted():
         parse_stream_bar(bad, ["BTCUSDT"])
 
 
+def test_completed_btc_15m_stream_candle_is_supported():
+    b = bars(1, "15m")[0]
+    payload = {
+        "stream": "btcusdt@kline_15m",
+        "data": {
+            "e": "kline",
+            "E": b.close_time + 1,
+            "s": "BTCUSDT",
+            "k": {
+                "s": "BTCUSDT",
+                "i": "15m",
+                "t": b.open_time,
+                "T": b.close_time,
+                "o": str(b.open),
+                "h": str(b.high),
+                "l": str(b.low),
+                "c": str(b.close),
+                "v": str(b.volume),
+                "x": True,
+            },
+        },
+    }
+    symbol, timeframe, parsed = parse_stream_bar(payload, ["BTCUSDT"])
+    assert (symbol, timeframe) == ("BTCUSDT", "15m")
+    assert parsed == b
+
+
 def test_rest_parser_retains_exact_decimal_source_values():
     row = [0, "100.000000001", "101", "99", "100.000000002", "10", 3_599_999]
     parsed = parse_rest_bar(row, "1h")

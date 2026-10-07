@@ -4,7 +4,7 @@ from decimal import Decimal
 import time
 
 import httpx
-from mv_strategy import Bar
+from mv_strategy import Bar, INTERVAL_MS
 from mv_strategy.signals import Quote
 
 
@@ -81,7 +81,7 @@ def parse_stream_bar(payload, symbols):
     k = data.get("k", {})
     if not isinstance(k, dict):
         raise ValueError("Malformed stream candle")
-    if k.get("s") not in symbols or k.get("i") not in ("1h", "4h") or data.get("s") != k.get("s"):
+    if k.get("s") not in symbols or k.get("i") not in INTERVAL_MS or data.get("s") != k.get("s"):
         raise ValueError("Unexpected stream symbol or timeframe")
     if any(not isinstance(k.get(key), str) for key in ("o", "h", "l", "c", "v")):
         raise ValueError("Stream prices and volumes must be decimal strings")
