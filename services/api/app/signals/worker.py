@@ -88,6 +88,7 @@ class SignalWorker:
                     "btc_timing",
                     "safety_analytics",
                     "directional_circuit_breaker",
+                    "active_directional_exposure",
                     "market_concentration",
                 ):
                     if key in row.evidence_json:
