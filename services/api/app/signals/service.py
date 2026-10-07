@@ -109,6 +109,7 @@ def check_live_contract():
         and LIVE_CONTRACT.get("portfolio_safety") == {
             "max_same_direction_signals_per_source_close": 2,
             "max_active_same_direction_reference_plans": 6,
+            "active_reference_definition": "Published V4 reference plans whose scaled outcome is still open; a published plan without an analytics row counts as active.",
             "ranking": "Least stretched candidate first: lower recent-run ATR, then lower source EMA20 extension, then established before emerging, then symbol.",
             "directional_circuit_breaker": {
                 "deterioration_threshold_r": "0.50",
