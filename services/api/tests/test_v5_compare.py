@@ -92,9 +92,7 @@ def test_v5_four_hour_maturity_requires_complete_observation_window():
         source_extension_atr=D("0.5"),
         favorable_050_at=None,
         adverse_050_at=None,
-        historical_last_minute_open_time=published + four_hours - minute,
+        historical_last_minute_open_time=None,
     )
-    assert _is_mature_4h(row) is True
-
-    row.historical_last_minute_open_time -= minute
-    assert _is_mature_4h(row) is False
+    assert _is_mature_4h(row, published + four_hours) is True
+    assert _is_mature_4h(row, published + four_hours - minute) is False
