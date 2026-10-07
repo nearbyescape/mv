@@ -92,6 +92,8 @@ test("Market Safety Mode is visible when a direction is circuit-broken", async (
       },
     },
     max_same_direction_signals_per_source_close: 2,
+    max_active_same_direction_reference_plans: 6,
+    active_directional_reference_plans: { long: 2, short: 0 },
     btc_15m_timing_veto: true,
     message:
       "Market Safety Mode: LONG opportunities are temporarily paused after correlated deterioration.",
