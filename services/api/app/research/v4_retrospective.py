@@ -351,16 +351,16 @@ def btc_timing_reason(
         return "BTC_15M_TIMING_UNAVAILABLE"
     bar = current["bar"]
     if direction == "long":
-        passed = (
-            bar.close > current["ema20"] > current["ema50"]
-            and current["ema20"] >= previous["ema20"]
+        contradicted = (
+            bar.close < current["ema20"] < current["ema50"]
+            and current["ema20"] < previous["ema20"]
         )
     else:
-        passed = (
-            bar.close < current["ema20"] < current["ema50"]
-            and current["ema20"] <= previous["ema20"]
+        contradicted = (
+            bar.close > current["ema20"] > current["ema50"]
+            and current["ema20"] > previous["ema20"]
         )
-    return None if passed else "BTC_15M_TIMING_CONFLICT"
+    return "BTC_15M_TIMING_CONFLICT" if contradicted else None
 
 
 def load_candidates(day: str) -> list[Candidate]:
