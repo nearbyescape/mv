@@ -908,7 +908,6 @@ async def run_day(day: str):
                         "trigger_15m_close": published_at,
                         "entry_reference": str(entry) if entry is not None else None,
                     }
-                    break
 
                 if not found_trigger:
                     v5_trigger_reasons["NO_TRIGGER_IN_ARM_WINDOW"] += 1
@@ -952,7 +951,8 @@ async def run_day(day: str):
         "v5_candidate": {
             "architecture": (
                 "4H confirmation -> completed 1H armed context -> "
-                "first completed 15m pullback/breakout trigger -> "
+                "completed 15m pullback/breakout triggers while armed -> "
+                "first safety-qualified publication -> "
                 "rolling-60m concentration safety"
             ),
             "context_reasons": dict(sorted(v5_context_reasons.items())),
