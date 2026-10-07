@@ -258,7 +258,7 @@ SAFETY_ANALYTICS_MAX_AGE_MS = 45_000
 
 
 def btc_timing_guard(session, direction, source_open_time):
-    """Fail closed unless the latest completed BTC 15m trend agrees with publication."""
+    """Fail closed on missing BTC 15m data; veto only a clear opposite short-term regime."""
     boundary = source_open_time + INTERVAL_MS["1h"]
     open_time = boundary - BTC_TIMING_STEP
     current = snapshot_at(session, "BTCUSDT", BTC_TIMING_TIMEFRAME, open_time)
@@ -514,7 +514,7 @@ SESSION_OPEN_MS = 9 * 3_600_000
 
 
 def _same_direction_signal_this_session(session, symbol, direction, source_close):
-    """Suppress repeated same-direction V3 signals for a symbol in one IST session."""
+    """Suppress repeated same-direction V4 signals for a symbol in one IST session."""
     if direction not in ("long", "short"):
         return False
     ist_day_start = ((source_close + IST_OFFSET_MS) // DAY_MS) * DAY_MS - IST_OFFSET_MS
