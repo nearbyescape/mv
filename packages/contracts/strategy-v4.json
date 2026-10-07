@@ -44,7 +44,8 @@
   "market_regime": {
     "alt_btc_contradiction_veto": true,
     "btc_15m_timing_veto": true,
-    "definition": "V3 1H/4H BTC contradiction veto remains. Before any V4 publication, the latest completed BTC 15m candle must agree with the signal direction: close and EMA20 on the same side of EMA50, with EMA20 non-declining for LONG or non-rising for SHORT."
+    "definition": "V3 1H/4H BTC contradiction veto remains. Before any V4 publication, the latest completed BTC 15m candle is used only as a hard contradiction veto: block LONG only when BTC is fully bearish (close < EMA20 < EMA50) with EMA20 declining; block SHORT only when BTC is fully bullish (close > EMA20 > EMA50) with EMA20 rising. Neutral/mixed 15m structure does not veto. Missing 15m evidence fails closed.",
+    "btc_15m_hard_contradiction_only": true
   },
   "portfolio_safety": {
     "max_same_direction_signals_per_source_close": 2,
