@@ -358,13 +358,10 @@ def _replay_candidates(candidates: list[Candidate], minute_cache: dict[str, list
         row.v4_scaled_outcome = replay_scaled(row, bars)
 
 
-def _summary(candidates: list[Candidate]):
-    published = [
-        row for row in candidates if row.capped_reason == "WOULD_PUBLISH_V4"
-    ]
+def _outcome_metrics(rows: list[Candidate]):
     outcomes = [
         row.v4_scaled_outcome
-        for row in published
+        for row in rows
         if row.v4_scaled_outcome is not None
     ]
     resolved = [
@@ -389,12 +386,68 @@ def _summary(candidates: list[Candidate]):
         else:
             ordering["NEITHER"] += 1
 
-    mfe = [D(out["mfe_r"]) for out in outcomes if out.get("mfe_r") is not None]
-    mae = [D(out["mae_r"]) for out in outcomes if out.get("mae_r") is not None]
+    mfe = [
+        D(out["mfe_r"])
+        for out in outcomes
+        if out.get("mfe_r") is not None
+    ]
+    mae = [
+        D(out["mae_r"])
+        for out in outcomes
+        if out.get("mae_r") is not None
+    ]
     total_r = sum(
         (D(out["conservative_r"]) for out in resolved),
         D(0),
     )
+    return {
+        "candidates": len(rows),
+        "observed": len(outcomes),
+        "resolved": len(resolved),
+        "status": dict(
+            sorted(
+                Counter(
+                    out.get("status", "missing")
+                    for out in outcomes
+                ).items()
+            )
+        ),
+        "half_r_ordering": dict(sorted(ordering.items())),
+        "tp1_reached": sum(
+            bool(out.get("tp1_reached")) for out in outcomes
+        ),
+        "tp2_reached": sum(
+            bool(out.get("tp2_reached")) for out in outcomes
+        ),
+        "tp3_reached": sum(
+            bool(out.get("tp3_reached")) for out in outcomes
+        ),
+        "conservative_r_sum_resolved": str(total_r),
+        "conservative_r_mean_resolved": (
+            str(total_r / len(resolved)) if resolved else None
+        ),
+        "median_mfe_r": str(median(mfe)) if mfe else None,
+        "median_mae_r": str(median(mae)) if mae else None,
+    }
+
+
+def _is_mature_4h(row: Candidate) -> bool:
+    if row.historical_last_minute_open_time is None:
+        return False
+    return (
+        row.historical_last_minute_open_time
+        >= row.published_at + OBSERVATION_MS - MINUTE
+    )
+
+
+def _summary(candidates: list[Candidate]):
+    published = [
+        row for row in candidates if row.capped_reason == "WOULD_PUBLISH_V4"
+    ]
+    mature = [row for row in published if _is_mature_4h(row)]
+    metrics = _outcome_metrics(published)
+    mature_metrics = _outcome_metrics(mature)
+
     return {
         "raw_candidates": len(candidates),
         "preliminary_reasons": dict(
@@ -415,23 +468,9 @@ def _summary(candidates: list[Candidate]):
         "setup_types": dict(
             sorted(Counter(row.setup_type for row in published).items())
         ),
-        "observed": len(outcomes),
-        "resolved": len(resolved),
-        "status": dict(
-            sorted(Counter(out.get("status", "missing") for out in outcomes).items())
-        ),
-        "half_r_ordering": dict(sorted(ordering.items())),
-        "tp1_reached": sum(bool(out.get("tp1_reached")) for out in outcomes),
-        "tp2_reached": sum(bool(out.get("tp2_reached")) for out in outcomes),
-        "tp3_reached": sum(bool(out.get("tp3_reached")) for out in outcomes),
-        "conservative_r_sum_resolved": str(total_r),
-        "conservative_r_mean_resolved": (
-            str(total_r / len(resolved)) if resolved else None
-        ),
-        "median_mfe_r": str(median(mfe)) if mfe else None,
-        "median_mae_r": str(median(mae)) if mae else None,
+        **metrics,
+        "mature_4h": mature_metrics,
     }
-
 
 def _signal_rows(candidates: list[Candidate], meta: dict[str, dict]):
     result = []
@@ -787,34 +826,35 @@ async def run_day(day: str):
     }
 
 
-def _aggregate(reports: list[dict], key: str):
-    summaries = [report[key]["summary"] for report in reports]
-    published = sum(row["published"] for row in summaries)
-    observed = sum(row["observed"] for row in summaries)
-    resolved = sum(row["resolved"] for row in summaries)
-    tp1 = sum(row["tp1_reached"] for row in summaries)
-    tp2 = sum(row["tp2_reached"] for row in summaries)
-    tp3 = sum(row["tp3_reached"] for row in summaries)
+def _aggregate_metric(rows: list[dict]):
+    candidates = sum(row["candidates"] for row in rows)
+    observed = sum(row["observed"] for row in rows)
+    resolved = sum(row["resolved"] for row in rows)
+    tp1 = sum(row["tp1_reached"] for row in rows)
+    tp2 = sum(row["tp2_reached"] for row in rows)
+    tp3 = sum(row["tp3_reached"] for row in rows)
     conservative = sum(
-        (D(row["conservative_r_sum_resolved"]) for row in summaries),
+        (D(row["conservative_r_sum_resolved"]) for row in rows),
         D(0),
     )
     favorable = sum(
         row["half_r_ordering"].get("FAVORABLE_FIRST", 0)
-        for row in summaries
+        for row in rows
     )
     adverse = sum(
         row["half_r_ordering"].get("ADVERSE_FIRST", 0)
-        for row in summaries
+        for row in rows
     )
     return {
-        "published": published,
+        "candidates": candidates,
         "observed": observed,
         "resolved": resolved,
         "tp1_reached": tp1,
         "tp2_reached": tp2,
         "tp3_reached": tp3,
-        "tp1_rate_observed": str(D(tp1) / observed) if observed else None,
+        "tp1_rate_observed": (
+            str(D(tp1) / observed) if observed else None
+        ),
         "favorable_half_r_first": favorable,
         "adverse_half_r_first": adverse,
         "favorable_half_r_first_rate_observed": (
@@ -825,6 +865,18 @@ def _aggregate(reports: list[dict], key: str):
             str(conservative / resolved) if resolved else None
         ),
     }
+
+
+def _aggregate(reports: list[dict], key: str):
+    summaries = [report[key]["summary"] for report in reports]
+    all_observed = _aggregate_metric(summaries)
+    all_observed["published"] = sum(
+        row["published"] for row in summaries
+    )
+    all_observed["mature_4h"] = _aggregate_metric(
+        [row["mature_4h"] for row in summaries]
+    )
+    return all_observed
 
 
 async def main_async(days: list[str]):
