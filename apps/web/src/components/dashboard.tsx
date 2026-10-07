@@ -887,7 +887,6 @@ export function Dashboard({
                     setupPanel
                   ) : (
                     <LiveSignalPanel
-                      symbol={symbol}
                       feed={signalFeed}
                       canOperate={canOperate}
                     />
