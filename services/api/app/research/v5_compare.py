@@ -362,6 +362,10 @@ def _replay_candidates_for_portfolio(
         row.v4_scaled_outcome = replay_scaled(row, bars)
 
 
+def _is_mature_4h(row: Candidate, available_boundary: int) -> bool:
+    return available_boundary >= row.published_at + OBSERVATION_MS
+
+
 def _analysis_4h_outcomes(
     candidates: list[Candidate],
     minute_cache: dict[str, list],
@@ -378,7 +382,7 @@ def _analysis_4h_outcomes(
         )
         if analysis_boundary <= row.published_at:
             continue
-        if available_boundary >= row.published_at + OBSERVATION_MS:
+        if _is_mature_4h(row, available_boundary):
             mature_ids.add(row.signal_id)
         bars = [
             bar
