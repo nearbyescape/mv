@@ -94,6 +94,7 @@ def test_strategy_is_versioned_and_ai_cannot_originate_signal(client):
     assert contract["execution_quality"]["max_spread_bps"] == "10"
     assert contract["anti_chase"]["max_recent_run_atr"] == "2.50"
     assert contract["market_regime"]["btc_15m_timing_veto"] is True
+    assert contract["market_regime"]["btc_15m_hard_contradiction_only"] is True
     assert contract["portfolio_safety"]["max_same_direction_signals_per_source_close"] == 2
     assert contract["portfolio_safety"]["directional_circuit_breaker"]["deterioration_threshold_r"] == "0.50"
     assert [row["id"] for row in contract["risk"]["targets"]] == ["TP1", "TP2", "TP3"]
