@@ -171,21 +171,11 @@ async def fetch_minutes(public, symbol: str, start: int, end_open: int):
     return bars
 
 
-async def scaled_outcome(public, row: Candidate):
+def replay_scaled(row: Candidate, bars: list[MinuteBar]):
     if row.v4_plan is None:
         return None
-    end_open = row.historical_last_minute_open_time
-    if end_open is None:
-        return {
-            "status": "unobserved",
-            "observed_bars": 0,
-            "conservative_r": None,
-            "mfe_r": "0",
-            "mae_r": "0",
-        }
-    start = first_full_minute(row.published_at)
-    bars = await fetch_minutes(public, row.symbol, start, end_open)
     p = row.v4_plan
+    start = first_full_minute(row.published_at)
     outcome = SimpleNamespace(
         strategy="MV-TREND-DUAL-v4",
         direction=row.direction,
@@ -216,10 +206,23 @@ async def scaled_outcome(public, row: Candidate):
         updated_at=row.published_at,
         error_code=None,
     )
+    last_bar = None
     for bar in bars:
+        if bar.open_time < start:
+            continue
         apply_minute(outcome, bar)
+        last_bar = bar
         if outcome.status != "open":
             break
+    mark_r = None
+    if last_bar is not None and outcome.status == "open":
+        entry = D(p["entry"])
+        risk = D(p["risk_distance"])
+        mark_r = (
+            (last_bar.close - entry) / risk
+            if row.direction == "long"
+            else (entry - last_bar.close) / risk
+        )
     return {
         "status": outcome.status,
         "terminal_at": outcome.terminal_at,
@@ -232,7 +235,96 @@ async def scaled_outcome(public, row: Candidate):
         "favorable_050_at": outcome.favorable_050_at,
         "adverse_050_at": outcome.adverse_050_at,
         "observed_bars": outcome.observed_bars,
+        "mark_r": str(mark_r) if mark_r is not None else None,
+        "last_observed_open_time": (
+            last_bar.open_time if last_bar is not None else None
+        ),
     }
+
+
+async def survivor_minute_cache(public, survivors: list[Candidate], max_boundary: int):
+    cache = {}
+    for row in survivors:
+        if row.v4_plan is None:
+            continue
+        start = first_full_minute(row.published_at)
+        end_open = max_boundary - MINUTE_MS
+        if row.historical_last_minute_open_time is not None:
+            end_open = min(end_open, row.historical_last_minute_open_time)
+        cache[row.signal_id] = await fetch_minutes(
+            public, row.symbol, start, end_open
+        )
+    return cache
+
+
+def portfolio_health_at(
+    survivors: list[Candidate],
+    minute_cache: dict[str, list[MinuteBar]],
+    boundary: int,
+):
+    result = {}
+    for direction in ("long", "short"):
+        rows = []
+        for row in survivors:
+            if row.direction != direction or row.published_at >= boundary:
+                continue
+            bars = [
+                bar
+                for bar in minute_cache.get(row.signal_id, [])
+                if bar.open_time <= boundary - MINUTE_MS
+            ]
+            replay = replay_scaled(row, bars)
+            if replay is None or replay["status"] != "open":
+                continue
+            mark_r = D(replay["mark_r"])
+            rows.append(
+                {
+                    "signal_id": row.signal_id,
+                    "symbol": row.symbol,
+                    "published_at": row.published_at,
+                    "mark_r": str(mark_r),
+                    "mfe_r": replay["mfe_r"],
+                    "mae_r": replay["mae_r"],
+                    "tp1_reached": replay["tp1_reached"],
+                    "adverse_050_at": replay["adverse_050_at"],
+                }
+            )
+        marks = [D(row["mark_r"]) for row in rows]
+        result[direction] = {
+            "active_count": len(rows),
+            "below_entry_count": sum(mark < 0 for mark in marks),
+            "at_or_below_minus_025_count": sum(
+                mark <= D("-0.25") for mark in marks
+            ),
+            "at_or_below_minus_050_count": sum(
+                mark <= D("-0.50") for mark in marks
+            ),
+            "average_mark_r": (
+                str(sum(marks, D(0)) / len(marks)) if marks else None
+            ),
+            "minimum_mark_r": str(min(marks)) if marks else None,
+            "signals": rows,
+        }
+    return result
+
+
+async def scaled_outcome(public, row: Candidate):
+    if row.v4_plan is None:
+        return None
+    end_open = row.historical_last_minute_open_time
+    if end_open is None:
+        return {
+            "status": "unobserved",
+            "observed_bars": 0,
+            "conservative_r": None,
+            "mfe_r": "0",
+            "mae_r": "0",
+            "mark_r": None,
+            "last_observed_open_time": None,
+        }
+    start = first_full_minute(row.published_at)
+    bars = await fetch_minutes(public, row.symbol, start, end_open)
+    return replay_scaled(row, bars)
 
 
 def _circuit_paused(published: list[Candidate], direction: str, now: int) -> bool:
@@ -517,11 +609,22 @@ async def run(day: str) -> dict:
     survivors = [
         row for row in candidates if row.final_reason == "WOULD_PUBLISH_V4"
     ]
+    portfolio_health = {}
     if survivors:
         async with httpx.AsyncClient(timeout=20) as client:
             public = BinancePublic(client)
             for row in survivors:
                 row.v4_scaled_outcome = await scaled_outcome(public, row)
+            boundaries = sorted({row.source_close for row in candidates})
+            minute_cache = await survivor_minute_cache(
+                public, survivors, max(boundaries)
+            )
+            portfolio_health = {
+                str(boundary): portfolio_health_at(
+                    survivors, minute_cache, boundary
+                )
+                for boundary in boundaries
+            }
     suppressed = [
         row for row in candidates if row.final_reason != "WOULD_PUBLISH_V4"
     ]
@@ -584,6 +687,7 @@ async def run(day: str) -> dict:
             sorted(Counter(row.historical_status or "missing" for row in suppressed).items())
         ),
         "by_source_close": by_close,
+        "portfolio_health_by_source_close": portfolio_health,
         "signals": [
             {
                 "v2_signal_id": row.signal_id,
