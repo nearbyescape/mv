@@ -784,6 +784,49 @@ async def run_day(day: str):
                         "entry_reference": str(entry) if entry is not None else None,
                     }
 
+                    # Hybrid V5 keeps every original V4 setup path intact.
+                    # The 15m layer is an additive rescue lane only for
+                    # otherwise trend-aligned 1H no-trigger decisions.
+                    v5_base_identity = (
+                        "v5-base-" + str(source_open) + "-" + symbol
+                    )
+                    v5_base = _candidate(
+                        signal_id=v5_base_identity,
+                        symbol=symbol,
+                        direction=direction,
+                        group_open=source_open,
+                        published_at=source_close,
+                        setup_type=v4_setup.setup_type,
+                        regime=v4_setup.regime,
+                        recent_run_atr=recent_run,
+                        source_extension_atr=source_extension,
+                        plan=plan,
+                        preliminary_reason=preliminary,
+                        observation_end_open=end_open,
+                    )
+                    v5_candidates.append(v5_base)
+                    v5_meta[v5_base_identity] = {
+                        "lane": "v4_base",
+                        "source_1h_open": source_open,
+                        "source_1h_close": source_close,
+                        "entry_reference": (
+                            str(entry) if entry is not None else None
+                        ),
+                    }
+                    v5_context_reasons["V4_BASE_SETUP"] += 1
+                    continue
+
+                if (
+                    v4_setup.reason
+                    != "NO_PULLBACK_OR_BREAKOUT_TRIGGER"
+                    or v4_setup.direction not in ("long", "short")
+                    or v4_setup.regime is None
+                ):
+                    v5_context_reasons[
+                        "RESCUE_NOT_ELIGIBLE_" + v4_setup.reason
+                    ] += 1
+                    continue
+
                 armed = evaluate_context_v5(
                     current, previous, confirmation, structure
                 )
@@ -902,6 +945,7 @@ async def run_day(day: str):
                     )
                     v5_candidates.append(row)
                     v5_meta[identity] = {
+                        "lane": "15m_rescue",
                         "context_1h_open": source_open,
                         "context_1h_close": source_close,
                         "trigger_15m_open": trigger_open,
@@ -950,9 +994,9 @@ async def run_day(day: str):
         },
         "v5_candidate": {
             "architecture": (
-                "4H confirmation -> completed 1H armed context -> "
-                "completed 15m pullback/breakout triggers while armed -> "
-                "first safety-qualified publication -> "
+                "preserve V4 base setups + rescue only V4 "
+                "NO_PULLBACK_OR_BREAKOUT_TRIGGER decisions with completed "
+                "15m microtrend-aligned pullback/breakout triggers -> "
                 "rolling-60m concentration safety"
             ),
             "context_reasons": dict(sorted(v5_context_reasons.items())),
@@ -1026,13 +1070,14 @@ async def main_async(days: list[str]):
         reports.append(await run_day(day))
 
     result = {
-        "study": "MV V4 vs V5 15m-entry candidate",
+        "study": "MV V4 vs V5 hybrid 15m-rescue candidate",
         "read_only": True,
         "days": days,
         "interpretation": (
-            "Full-watchlist counterfactual using completed 1H/4H database "
-            "context, public Binance 15m triggers, first-1m-open reference "
-            "entries, V4 scaled exits, and V4 portfolio safety simulation. "
+            "Full-watchlist counterfactual preserving V4 base setups and "
+            "adding 15m rescue only after trend-aligned V4 no-trigger rows; "
+            "public Binance 15m triggers, first-1m-open reference entries, "
+            "V4 scaled exits, and V5 rolling concentration safety. "
             "It is a two-day engineering/trading diagnostic, not proof of "
             "future profitability."
         ),
