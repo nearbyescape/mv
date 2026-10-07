@@ -265,6 +265,58 @@ def _circuit_paused(published: list[Candidate], direction: str, now: int) -> boo
     return False
 
 
+def circuit_events(published: list[Candidate]) -> list[dict]:
+    """Return every distinct directional pause trigger implied by published rows."""
+    events = []
+    seen = set()
+    for direction in ("long", "short"):
+        rows = [
+            row
+            for row in published
+            if row.direction == direction
+            and row.adverse_050_at is not None
+            and (
+                row.favorable_050_at is None
+                or row.adverse_050_at <= row.favorable_050_at
+            )
+        ]
+        rows.sort(key=lambda row: (row.adverse_050_at, row.signal_id))
+        for index, row in enumerate(rows):
+            trigger = row.adverse_050_at
+            clustered = [
+                other
+                for other in rows[: index + 1]
+                if other.adverse_050_at is not None
+                and other.adverse_050_at <= trigger
+                and trigger - CIRCUIT_WINDOW <= other.published_at <= trigger
+            ]
+            if len(clustered) < 2:
+                continue
+            pair = clustered[-2:]
+            key = (direction, trigger, tuple(item.signal_id for item in pair))
+            if key in seen:
+                continue
+            seen.add(key)
+            events.append(
+                {
+                    "direction": direction,
+                    "triggered_at": trigger,
+                    "pause_until": trigger + CIRCUIT_PAUSE,
+                    "signals": [
+                        {
+                            "signal_id": item.signal_id,
+                            "symbol": item.symbol,
+                            "published_at": item.published_at,
+                            "adverse_050_at": item.adverse_050_at,
+                            "favorable_050_at": item.favorable_050_at,
+                        }
+                        for item in pair
+                    ],
+                }
+            )
+    return sorted(events, key=lambda row: (row["triggered_at"], row["direction"]))
+
+
 def simulate(candidates: list[Candidate]) -> list[Candidate]:
     published: list[Candidate] = []
     seen: set[tuple[str, str]] = set()
@@ -473,6 +525,7 @@ async def run(day: str) -> dict:
     suppressed = [
         row for row in candidates if row.final_reason != "WOULD_PUBLISH_V4"
     ]
+    circuit = circuit_events(survivors)
     by_close = {}
     for row in candidates:
         key = str(row.source_close)
@@ -503,6 +556,8 @@ async def run(day: str) -> dict:
         "v4_would_publish": reasons.get("WOULD_PUBLISH_V4", 0),
         "suppressed": len(candidates) - reasons.get("WOULD_PUBLISH_V4", 0),
         "reasons": dict(sorted(reasons.items())),
+        "directional_circuit_breaker_events": circuit,
+        "directional_circuit_breaker_triggered": bool(circuit),
         "survivor_historical_statuses": dict(
             sorted(Counter(row.historical_status or "missing" for row in survivors).items())
         ),
