@@ -173,13 +173,13 @@ def test_v5_rejects_weak_15m_candle_instead_of_turning_every_15m_bar_into_signal
 
 def test_v5_trigger_requires_contiguous_15m_history():
     current, previous, structure = short_trigger_context("pullback")
-    broken_previous = replace(
-        previous,
-        bar=replace(
-            previous.bar,
-            open_time=previous.bar.open_time - MIN15,
-            close_time=previous.bar.close_time - MIN15,
-        ),
+    broken_previous = snap_15m(
+        TRIGGER_OPEN - 2 * MIN15,
+        open_="99.8",
+        high="100.5",
+        low="99.5",
+        close="100.2",
+        ema20="100",
     )
     trigger = evaluate_trigger_v5(
         "short",
