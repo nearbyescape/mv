@@ -14,11 +14,18 @@ from dataclasses import dataclass
 from datetime import datetime, time as wall_time
 from decimal import Decimal as D
 import json
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
 import httpx
 from sqlalchemy import select, text
 
+from app.analytics.service import (
+    MINUTE_MS,
+    MinuteBar,
+    apply_minute,
+    first_full_minute,
+)
 from app.database import Session
 from app.market.binance import BinancePublic
 from app.models import SignalDecision, SignalOutcome, SignalPlan
@@ -53,6 +60,9 @@ class Candidate:
     historical_mfe_r: str | None = None
     historical_mae_r: str | None = None
     historical_conservative_r: str | None = None
+    historical_last_minute_open_time: int | None = None
+    v4_plan: dict | None = None
+    v4_scaled_outcome: dict | None = None
     preliminary_reason: str | None = None
     final_reason: str | None = None
 
@@ -101,6 +111,128 @@ def _price_filter(evidence: dict) -> PriceFilter:
         if item.get("filterType") == "PRICE_FILTER"
     )
     return PriceFilter(D(row["tickSize"]), D(row["minPrice"]), D(row["maxPrice"]))
+
+
+def parse_minute(row):
+    if not isinstance(row, list) or len(row) < 7:
+        raise ValueError("Malformed Binance 1m candle")
+    if any(not isinstance(value, str) for value in row[1:6]):
+        raise ValueError("Binance 1m OHLCV values must be decimal strings")
+    bar = MinuteBar(
+        open_time=int(row[0]),
+        close_time=int(row[6]),
+        open=D(row[1]),
+        high=D(row[2]),
+        low=D(row[3]),
+        close=D(row[4]),
+        volume=D(row[5]),
+    )
+    bar.validate()
+    return bar
+
+
+async def fetch_minutes(public, symbol: str, start: int, end_open: int):
+    if end_open < start:
+        return []
+    bars = []
+    cursor = start
+    while cursor <= end_open:
+        rows = await public.get(
+            "/fapi/v1/klines",
+            symbol=symbol,
+            interval="1m",
+            startTime=cursor,
+            endTime=end_open + MINUTE_MS - 1,
+            limit=1000,
+        )
+        parsed = [
+            parse_minute(row)
+            for row in rows
+            if cursor <= int(row[0]) <= end_open
+        ]
+        if not parsed:
+            break
+        if parsed[0].open_time != cursor:
+            raise ValueError(
+                f"{symbol} 1m retrospective history has a gap at {cursor}"
+            )
+        for previous, current in zip(parsed, parsed[1:]):
+            if current.open_time != previous.open_time + MINUTE_MS:
+                raise ValueError(
+                    f"{symbol} 1m retrospective history is non-contiguous"
+                )
+        bars.extend(parsed)
+        next_cursor = parsed[-1].open_time + MINUTE_MS
+        if next_cursor <= cursor:
+            raise ValueError("1m retrospective pagination did not advance")
+        cursor = next_cursor
+        if len(parsed) < 1000:
+            break
+    return bars
+
+
+async def scaled_outcome(public, row: Candidate):
+    if row.v4_plan is None:
+        return None
+    end_open = row.historical_last_minute_open_time
+    if end_open is None:
+        return {
+            "status": "unobserved",
+            "observed_bars": 0,
+            "conservative_r": None,
+            "mfe_r": "0",
+            "mae_r": "0",
+        }
+    start = first_full_minute(row.published_at)
+    bars = await fetch_minutes(public, row.symbol, start, end_open)
+    p = row.v4_plan
+    outcome = SimpleNamespace(
+        strategy="MV-TREND-DUAL-v4",
+        direction=row.direction,
+        entry=p["entry"],
+        stop=p["stop"],
+        risk_distance=p["risk_distance"],
+        tp1=p["tp1"],
+        tp2=p["tp2"],
+        tp3=p["tp3"],
+        tp1_r=p["tp1_r"],
+        tp2_r=p["tp2_r"],
+        tp3_r=p["tp3_r"],
+        first_observed_minute=start,
+        last_minute_open_time=None,
+        status="open",
+        terminal_at=None,
+        conservative_r=None,
+        mfe_r="0",
+        mae_r="0",
+        favorable_050_at=None,
+        favorable_100_at=None,
+        favorable_150_at=None,
+        favorable_200_at=None,
+        adverse_050_at=None,
+        adverse_100_at=None,
+        intrabar_ambiguous=False,
+        observed_bars=0,
+        updated_at=row.published_at,
+        error_code=None,
+    )
+    for bar in bars:
+        apply_minute(outcome, bar)
+        if outcome.status != "open":
+            break
+    return {
+        "status": outcome.status,
+        "terminal_at": outcome.terminal_at,
+        "conservative_r": outcome.conservative_r,
+        "mfe_r": outcome.mfe_r,
+        "mae_r": outcome.mae_r,
+        "tp1_reached": outcome.favorable_100_at is not None,
+        "tp2_reached": outcome.favorable_150_at is not None,
+        "tp3_reached": outcome.favorable_200_at is not None,
+        "favorable_050_at": outcome.favorable_050_at,
+        "adverse_050_at": outcome.adverse_050_at,
+        "observed_bars": outcome.observed_bars,
+    }
 
 
 def _circuit_paused(published: list[Candidate], direction: str, now: int) -> bool:
@@ -257,6 +389,7 @@ def load_candidates(day: str) -> list[Candidate]:
                 session, plan.symbol, decision.source_open_time
             )
             reason = None
+            v4_plan = None
             setup = evaluate_setup_v4(current, previous, confirmation, structure) if current else None
             if setup is None or setup.outcome not in ("LONG_SETUP", "SHORT_SETUP"):
                 reason = setup.reason if setup else "MISSING_SOURCE_SNAPSHOT"
@@ -278,7 +411,7 @@ def load_candidates(day: str) -> list[Candidate]:
                     reason = btc_reason
                 if reason is None:
                     try:
-                        build_plan_v4(
+                        v4_plan = build_plan_v4(
                             plan.symbol,
                             setup,
                             current,
@@ -309,6 +442,10 @@ def load_candidates(day: str) -> list[Candidate]:
                     historical_conservative_r=(
                         outcome.conservative_r if outcome else None
                     ),
+                    historical_last_minute_open_time=(
+                        outcome.last_minute_open_time if outcome else None
+                    ),
+                    v4_plan=v4_plan,
                     preliminary_reason=reason,
                 )
             )
@@ -328,6 +465,11 @@ async def run(day: str) -> dict:
     survivors = [
         row for row in candidates if row.final_reason == "WOULD_PUBLISH_V4"
     ]
+    if survivors:
+        async with httpx.AsyncClient(timeout=20) as client:
+            public = BinancePublic(client)
+            for row in survivors:
+                row.v4_scaled_outcome = await scaled_outcome(public, row)
     suppressed = [
         row for row in candidates if row.final_reason != "WOULD_PUBLISH_V4"
     ]
@@ -364,6 +506,25 @@ async def run(day: str) -> dict:
         "survivor_historical_statuses": dict(
             sorted(Counter(row.historical_status or "missing" for row in survivors).items())
         ),
+        "survivor_v4_scaled_statuses": dict(
+            sorted(
+                Counter(
+                    (row.v4_scaled_outcome or {}).get("status", "missing")
+                    for row in survivors
+                ).items()
+            )
+        ),
+        "survivor_v4_scaled_conservative_r_sum": str(
+            sum(
+                (
+                    D(row.v4_scaled_outcome["conservative_r"])
+                    for row in survivors
+                    if row.v4_scaled_outcome
+                    and row.v4_scaled_outcome.get("conservative_r") is not None
+                ),
+                D(0),
+            )
+        ),
         "suppressed_historical_statuses": dict(
             sorted(Counter(row.historical_status or "missing" for row in suppressed).items())
         ),
@@ -385,7 +546,10 @@ async def run(day: str) -> dict:
                     "mfe_r": row.historical_mfe_r,
                     "mae_r": row.historical_mae_r,
                     "conservative_r": row.historical_conservative_r,
+                    "favorable_050_at": row.favorable_050_at,
+                    "adverse_050_at": row.adverse_050_at,
                 },
+                "counterfactual_v4_scaled_outcome": row.v4_scaled_outcome,
             }
             for row in candidates
         ],
