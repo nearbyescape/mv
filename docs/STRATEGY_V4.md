@@ -24,24 +24,28 @@ A candidate must pass, in order:
 No signal is a valid output. A safety rejection never creates a replacement
 trade in the opposite direction.
 
-## BTC 15-minute timing veto
+## BTC 15-minute hard-contradiction veto
 
 BTC 15-minute candles are collected only for BTCUSDT and only completed candles
 are persisted. The latest completed 15-minute candle immediately preceding the
 1H source-close boundary and its previous 15-minute snapshot are used.
 
-For LONG publication:
+The 15-minute layer is deliberately a **veto**, not a second confirmation
+engine. It blocks only a clear opposite short-term regime:
 
-- BTC close > EMA20 > EMA50.
-- EMA20 is non-declining versus the previous completed 15-minute snapshot.
+- block a LONG only when BTC close < EMA20 < EMA50 **and** EMA20 is declining;
+- block a SHORT only when BTC close > EMA20 > EMA50 **and** EMA20 is rising.
 
-For SHORT publication the comparisons are reversed. Missing, stale or
-insufficient BTC 15-minute evidence fails closed and the decision remains
-pending within its normal five-minute entry window. A valid but conflicting
-snapshot rejects the candidate as `BTC_15M_TIMING_CONFLICT`.
+Mixed, neutral or merely weak BTC 15-minute structure does not veto an otherwise
+valid 1H/4H setup. Missing, stale or insufficient BTC 15-minute evidence still
+fails closed and the decision remains pending within its normal five-minute
+entry window. A hard opposite-regime snapshot rejects the candidate as
+`BTC_15M_TIMING_CONFLICT`.
 
-The 15-minute layer is a veto only. It cannot originate a signal or change the
-1H/4H signal direction.
+This revision follows the first October 6 retrospective, where requiring full
+15-minute agreement rejected both losing signals and historically strong
+signals. The guard therefore remains safety-only: it cannot originate a signal,
+change the 1H/4H direction or require short-term momentum confirmation.
 
 ## Safety analytics freshness
 
