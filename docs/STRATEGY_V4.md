@@ -99,7 +99,10 @@ The command opens the production database transaction read-only, re-evaluates
 historical V2 publications through the V4 setup and entry constraints, fetches
 only public historical BTCUSDT 15-minute candles for the timing veto, and
 simulates same-session dedupe, deterministic concentration ranking and the
-directional circuit breaker. It writes no MV tables and cannot publish signals.
+directional circuit breaker. For V4 survivors it also replays completed Binance
+1-minute candles through the exact V4 TP1/TP2/TP3 protective-stop state machine,
+using the same observation horizon already recorded for the historical signal.
+It writes no MV tables and cannot publish signals.
 
 For 6 October 2026 the intended gate is to compare the actual 20 V2
 publications with the exact set V4 would have allowed. The result is diagnostic
