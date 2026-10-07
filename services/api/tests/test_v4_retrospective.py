@@ -5,6 +5,7 @@ from app.research.v4_retrospective import (
     Candidate,
     btc_timing_reason,
     ist_session_bounds,
+    scaled_outcome,
     simulate,
 )
 
@@ -215,3 +216,51 @@ def test_preliminary_veto_never_consumes_cluster_capacity():
         "WOULD_PUBLISH_V4",
         "WOULD_PUBLISH_V4",
     ]
+
+
+def test_scaled_retrospective_replays_v4_tp1_then_break_even_protection():
+    import asyncio
+
+    class Public:
+        async def get(self, path, **params):
+            assert path == "/fapi/v1/klines"
+            return [
+                [
+                    60_000,
+                    "100",
+                    "102.10",
+                    "99.80",
+                    "101.50",
+                    "10",
+                    119_999,
+                ],
+                [
+                    120_000,
+                    "101.50",
+                    "101.70",
+                    "99.90",
+                    "100.10",
+                    "10",
+                    179_999,
+                ],
+            ]
+
+    row = candidate("x", "BTCUSDT", "long", 0, 1_000)
+    row.historical_last_minute_open_time = 120_000
+    row.v4_plan = {
+        "entry": "100",
+        "stop": "98",
+        "risk_distance": "2",
+        "tp1": "102",
+        "tp2": "103",
+        "tp3": "104",
+        "tp1_r": "1",
+        "tp2_r": "1.5",
+        "tp3_r": "2",
+    }
+    result = asyncio.run(scaled_outcome(Public(), row))
+    assert result["status"] == "protected_be"
+    assert result["conservative_r"] == "0.30"
+    assert result["tp1_reached"] is True
+    assert result["tp2_reached"] is False
+    assert result["observed_bars"] == 2
