@@ -105,6 +105,7 @@ def check_live_contract():
         and LIVE_CONTRACT.get("risk") == expected_risk
         and LIVE_CONTRACT.get("market_regime", {}).get("alt_btc_contradiction_veto") is True
         and LIVE_CONTRACT.get("market_regime", {}).get("btc_15m_timing_veto") is True
+        and LIVE_CONTRACT.get("market_regime", {}).get("btc_15m_hard_contradiction_only") is True
         and LIVE_CONTRACT.get("portfolio_safety") == {
             "max_same_direction_signals_per_source_close": 2,
             "ranking": "Least stretched candidate first: lower recent-run ATR, then lower source EMA20 extension, then established before emerging, then symbol.",
@@ -281,13 +282,20 @@ def btc_timing_guard(session, direction, source_open_time):
             "required_open_time": open_time,
         }
     if direction == "long":
-        passed = current.bar.close > current.ema20 > current.ema50 and current.ema20 >= previous.ema20
-        state = "bullish" if passed else "conflict"
+        contradicted = (
+            current.bar.close < current.ema20 < current.ema50
+            and current.ema20 < previous.ema20
+        )
+        state = "bearish-conflict" if contradicted else "not-contradicted"
     elif direction == "short":
-        passed = current.bar.close < current.ema20 < current.ema50 and current.ema20 <= previous.ema20
-        state = "bearish" if passed else "conflict"
+        contradicted = (
+            current.bar.close > current.ema20 > current.ema50
+            and current.ema20 > previous.ema20
+        )
+        state = "bullish-conflict" if contradicted else "not-contradicted"
     else:
         return "BTC_15M_TIMING_UNAVAILABLE", {"state": "invalid-direction", "passed": False}
+    passed = not contradicted
     evidence = {
         "state": state,
         "passed": passed,
