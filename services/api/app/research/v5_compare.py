@@ -346,7 +346,11 @@ def _observation_end_open(published_at: int, available_boundary: int):
     return end_boundary - MINUTE
 
 
-def _replay_candidates(candidates: list[Candidate], minute_cache: dict[str, list]):
+def _replay_candidates_for_portfolio(
+    candidates: list[Candidate],
+    minute_cache: dict[str, list],
+):
+    """Replay through all available data so safety-cap state is chronological."""
     for row in candidates:
         if row.v4_plan is None or row.historical_last_minute_open_time is None:
             continue
@@ -358,11 +362,39 @@ def _replay_candidates(candidates: list[Candidate], minute_cache: dict[str, list
         row.v4_scaled_outcome = replay_scaled(row, bars)
 
 
-def _outcome_metrics(rows: list[Candidate]):
+def _analysis_4h_outcomes(
+    candidates: list[Candidate],
+    minute_cache: dict[str, list],
+    available_boundary: int,
+):
+    outcomes = {}
+    mature_ids = set()
+    for row in candidates:
+        if row.v4_plan is None:
+            continue
+        analysis_boundary = min(
+            row.published_at + OBSERVATION_MS,
+            available_boundary,
+        )
+        if analysis_boundary <= row.published_at:
+            continue
+        if available_boundary >= row.published_at + OBSERVATION_MS:
+            mature_ids.add(row.signal_id)
+        bars = [
+            bar
+            for bar in minute_cache.get(row.symbol, [])
+            if row.published_at <= bar.open_time < analysis_boundary
+        ]
+        outcomes[row.signal_id] = replay_scaled(row, bars)
+    return outcomes, mature_ids
+
+
+def _outcome_metrics(rows: list[Candidate], outcomes_by_id: dict[str, dict]):
     outcomes = [
-        row.v4_scaled_outcome
+        outcomes_by_id[row.signal_id]
         for row in rows
-        if row.v4_scaled_outcome is not None
+        if row.signal_id in outcomes_by_id
+        and outcomes_by_id[row.signal_id] is not None
     ]
     resolved = [
         out for out in outcomes if out.get("conservative_r") is not None
@@ -431,22 +463,17 @@ def _outcome_metrics(rows: list[Candidate]):
     }
 
 
-def _is_mature_4h(row: Candidate) -> bool:
-    if row.historical_last_minute_open_time is None:
-        return False
-    return (
-        row.historical_last_minute_open_time
-        >= row.published_at + OBSERVATION_MS - MINUTE
-    )
-
-
-def _summary(candidates: list[Candidate]):
+def _summary(
+    candidates: list[Candidate],
+    analysis_outcomes: dict[str, dict],
+    mature_ids: set[str],
+):
     published = [
         row for row in candidates if row.capped_reason == "WOULD_PUBLISH_V4"
     ]
-    mature = [row for row in published if _is_mature_4h(row)]
-    metrics = _outcome_metrics(published)
-    mature_metrics = _outcome_metrics(mature)
+    mature = [row for row in published if row.signal_id in mature_ids]
+    metrics = _outcome_metrics(published, analysis_outcomes)
+    mature_metrics = _outcome_metrics(mature, analysis_outcomes)
 
     return {
         "raw_candidates": len(candidates),
@@ -472,7 +499,12 @@ def _summary(candidates: list[Candidate]):
         "mature_4h": mature_metrics,
     }
 
-def _signal_rows(candidates: list[Candidate], meta: dict[str, dict]):
+
+def _signal_rows(
+    candidates: list[Candidate],
+    meta: dict[str, dict],
+    analysis_outcomes: dict[str, dict],
+):
     result = []
     for row in candidates:
         if row.capped_reason != "WOULD_PUBLISH_V4":
@@ -487,7 +519,8 @@ def _signal_rows(candidates: list[Candidate], meta: dict[str, dict]):
                 "regime": row.regime,
                 "recent_run_atr": str(row.recent_run_atr),
                 "source_extension_atr": str(row.source_extension_atr),
-                "outcome": row.v4_scaled_outcome,
+                "outcome_4h": analysis_outcomes.get(row.signal_id),
+                "portfolio_outcome_full_available": row.v4_scaled_outcome,
                 **meta.get(row.signal_id, {}),
             }
         )
@@ -644,8 +677,10 @@ async def run_day(day: str):
                     identity = "v4-full-" + str(
                         source_open
                     ) + "-" + symbol
-                    end_open = _observation_end_open(
-                        source_close, available_outcome_boundary
+                    end_open = (
+                        available_outcome_boundary - MINUTE
+                        if available_outcome_boundary > source_close
+                        else None
                     )
                     row = _candidate(
                         signal_id=identity,
@@ -765,8 +800,10 @@ async def run_day(day: str):
                         source_open,
                         trigger_open,
                     )
-                    end_open = _observation_end_open(
-                        published_at, available_outcome_boundary
+                    end_open = (
+                        available_outcome_boundary - MINUTE
+                        if available_outcome_boundary > published_at
+                        else None
                     )
                     row = _candidate(
                         signal_id=identity,
@@ -795,11 +832,25 @@ async def run_day(day: str):
                 if not found_trigger:
                     v5_trigger_reasons["NO_TRIGGER_IN_ARM_WINDOW"] += 1
 
-    _replay_candidates(v4_candidates, minute_cache)
-    _replay_candidates(v5_candidates, minute_cache)
+    # Portfolio safety must see the full available path, not only the
+    # four-hour comparison window. Otherwise an actually-resolved early signal
+    # could be incorrectly counted as active for the rest of the session.
+    _replay_candidates_for_portfolio(v4_candidates, minute_cache)
+    _replay_candidates_for_portfolio(v5_candidates, minute_cache)
 
     simulate_with_active_cap(v4_candidates)
     simulate_with_active_cap(v5_candidates)
+
+    v4_analysis, v4_mature_ids = _analysis_4h_outcomes(
+        v4_candidates,
+        minute_cache,
+        available_outcome_boundary,
+    )
+    v5_analysis, v5_mature_ids = _analysis_4h_outcomes(
+        v5_candidates,
+        minute_cache,
+        available_outcome_boundary,
+    )
 
     return {
         "ist_date": day,
@@ -810,8 +861,12 @@ async def run_day(day: str):
         "v4": {
             "architecture": "4H confirmation -> completed 1H setup/entry",
             "setup_reasons": dict(sorted(v4_setup_reasons.items())),
-            "summary": _summary(v4_candidates),
-            "signals": _signal_rows(v4_candidates, v4_meta),
+            "summary": _summary(
+                v4_candidates, v4_analysis, v4_mature_ids
+            ),
+            "signals": _signal_rows(
+                v4_candidates, v4_meta, v4_analysis
+            ),
         },
         "v5_candidate": {
             "architecture": (
@@ -820,8 +875,12 @@ async def run_day(day: str):
             ),
             "context_reasons": dict(sorted(v5_context_reasons.items())),
             "trigger_reasons": dict(sorted(v5_trigger_reasons.items())),
-            "summary": _summary(v5_candidates),
-            "signals": _signal_rows(v5_candidates, v5_meta),
+            "summary": _summary(
+                v5_candidates, v5_analysis, v5_mature_ids
+            ),
+            "signals": _signal_rows(
+                v5_candidates, v5_meta, v5_analysis
+            ),
         },
     }
 
