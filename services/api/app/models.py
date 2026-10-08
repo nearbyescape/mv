@@ -262,6 +262,22 @@ class SignalOutcome(Base):
     error_code: Mapped[str | None] = mapped_column(String(80))
 
 
+
+class TelegramDailyReport(Base):
+    __tablename__ = "telegram_daily_reports"
+    report_date: Mapped[str] = mapped_column(String(10), primary_key=True)
+    strategy: Mapped[str] = mapped_column(String(80), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    claimed_at: Mapped[int | None] = mapped_column(BigInteger)
+    sent_at: Mapped[int | None] = mapped_column(BigInteger)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    error_code: Mapped[str | None] = mapped_column(String(60))
+    payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
 class DecisionOpportunity(Base):
     __tablename__ = "decision_opportunities"
     decision_id: Mapped[str] = mapped_column(ForeignKey("signal_decisions.id"), primary_key=True)
