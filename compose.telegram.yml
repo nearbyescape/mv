@@ -32,5 +32,34 @@ services:
       options: { max-size: "10m", max-file: "3" }
     depends_on:
       api: { condition: service_healthy }
+  telegram-report:
+    image: mv-signal-api:0.14.0-daily-report
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    command: [python, -m, app.telegram.daily_report]
+    environment:
+      MV_ENVIRONMENT: production
+      MV_AUTH_REQUIRED: "true"
+      MV_PUBLIC_ORIGIN: ${MV_PUBLIC_ORIGIN:-https://mv.jaleshwarima.com}
+      MV_DATABASE_URL_FILE: /run/secrets/database_url
+      MV_SERVICE_KEY_FILE: /run/secrets/service_key
+      MV_PAPER_ENABLED: "false"
+      MV_SIGNAL_SESSION_ENABLED: "true"
+      MV_MAINTENANCE: ${MV_MAINTENANCE:-false}
+      MV_TELEGRAM_ENABLED: "true"
+      MV_TELEGRAM_CHAT_ID: ${MV_TELEGRAM_CHAT_ID:?Set the destination chat ID}
+      MV_TELEGRAM_START_AT: ${MV_TELEGRAM_START_AT:?Set activation epoch in milliseconds}
+      MV_DAILY_REPORT_START_AT: ${MV_DAILY_REPORT_START_AT:-0}
+      MV_TELEGRAM_TOKEN_FILE: /run/secrets/telegram_token
+    secrets: [database_url, service_key, telegram_token]
+    init: true
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+    depends_on:
+      api: { condition: service_healthy }
 secrets:
   telegram_token: { file: ./deploy/secrets/telegram_token }
