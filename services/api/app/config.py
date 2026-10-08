@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     telegram_token: str = ""
     telegram_chat_id: str = ""
     telegram_start_at: int = 0
+    daily_report_start_at: int = 0
 
     def model_post_init(self, __context):
         import os
