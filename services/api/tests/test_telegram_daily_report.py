@@ -7,9 +7,9 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base
-from app.models import SignalOutcome, TelegramDailyReport
+from app.models import SignalOutcome
 from app.telegram.daily_report import (
-    IST, STRATEGY, boundaries, build_payload, due_session, finish, prepare,
+    IST, STRATEGY, LedgerBase, TelegramDailyReport, boundaries, build_payload, due_session, finish, prepare,
     recover_interrupted, render_report,
 )
 from app.telegram.provider import DeliveryError
@@ -22,6 +22,7 @@ def ms(day, hour, minute=0):
 def synthetic_db():
     engine = create_engine("sqlite://", poolclass=StaticPool)
     Base.metadata.create_all(engine)
+    LedgerBase.metadata.create_all(engine)
     return engine, sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -102,11 +103,11 @@ def test_report_is_not_automatically_sent_before_activation_or_before_2310():
             daily_report_start_at=ms(day, 23, 10),
         )
         with sessions.begin() as session:
-            assert prepare(session, ms(day, 23, 9), settings) is None
+            assert prepare(session, session, ms(day, 23, 9), settings) is None
         with sessions() as session:
             assert list(session.scalars(select(TelegramDailyReport))) == []
         with sessions.begin() as session:
-            assert prepare(session, ms(day, 23, 10), settings) is not None
+            assert prepare(session, session, ms(day, 23, 10), settings) is not None
     finally:
         engine.dispose()
 
@@ -117,15 +118,15 @@ def test_one_report_per_day_fenced_claim_and_received_message_id():
     now = ms(day, 23, 10)
     try:
         with sessions.begin() as session:
-            job = prepare(session, now, SETTINGS)
+            job = prepare(session, session, now, SETTINGS)
             assert job is not None
-            assert prepare(session, now, SETTINGS) is None
+            assert prepare(session, session, now, SETTINGS) is None
             assert len(job[1]["text"]) <= 4000
             row = session.get(TelegramDailyReport, job[0])
             assert row.status == "inflight" and row.attempts == 1
         with sessions.begin() as session:
             finish(session, job[0], now + 1000, message_id=2345)
-            assert prepare(session, now + 2000, SETTINGS) is None
+            assert prepare(session, session, now + 2000, SETTINGS) is None
         with sessions() as session:
             row = session.get(TelegramDailyReport, job[0])
             assert row.status == "delivered" and row.message_id == 2345
@@ -139,10 +140,10 @@ def test_interrupted_or_ambiguous_send_is_never_retried_automatically():
     now = ms(date(2026, 10, 8), 23, 10)
     try:
         with sessions.begin() as session:
-            job = prepare(session, now, SETTINGS)
+            job = prepare(session, session, now, SETTINGS)
         with sessions.begin() as session:
             assert recover_interrupted(session) == 1
-            assert prepare(session, now + 100_000, SETTINGS) is None
+            assert prepare(session, session, now + 100_000, SETTINGS) is None
             assert session.get(TelegramDailyReport, job[0]).status == "unknown"
     finally:
         engine.dispose()
@@ -153,16 +154,16 @@ def test_bounded_rate_limit_retry_and_unknown_provider_result():
     now = ms(date(2026, 10, 8), 23, 10)
     try:
         with sessions.begin() as session:
-            job = prepare(session, now, SETTINGS)
+            job = prepare(session, session, now, SETTINGS)
             finish(session, job[0], now, error=DeliveryError("RATE_LIMITED", "retry", 30))
             assert session.get(TelegramDailyReport, job[0]).status == "retry"
         with sessions.begin() as session:
-            assert prepare(session, now + 10_000, SETTINGS) is None
-            second = prepare(session, now + 30_000, SETTINGS)
+            assert prepare(session, session, now + 10_000, SETTINGS) is None
+            second = prepare(session, session, now + 30_000, SETTINGS)
             assert second is not None
             finish(session, second[0], now + 30_000, error=DeliveryError("DELIVERY_UNCERTAIN", "unknown"))
         with sessions.begin() as session:
-            assert prepare(session, now + 200_000, SETTINGS) is None
+            assert prepare(session, session, now + 200_000, SETTINGS) is None
             assert session.get(TelegramDailyReport, job[0]).status == "unknown"
     finally:
         engine.dispose()
