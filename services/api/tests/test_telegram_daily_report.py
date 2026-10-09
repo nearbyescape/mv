@@ -9,7 +9,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base
 from app.models import SignalOutcome
 from app.telegram.daily_report import (
-    IST, STRATEGY, LedgerBase, TelegramDailyReport, boundaries, build_payload, due_session, finish, prepare,
+    IST, STRATEGY, LedgerBase, TelegramDailyReport, open_ledger, boundaries, build_payload, due_session, finish, prepare,
     recover_interrupted, render_report,
 )
 from app.telegram.provider import DeliveryError
@@ -185,3 +185,31 @@ def test_report_length_limit_does_not_send_invalid_truncated_html():
             assert report.endswith("Historical results do not establish future profitability.")
     finally:
         engine.dispose()
+
+
+def test_isolated_sqlite_outbox_is_persistent_and_not_in_production_models(tmp_path):
+    from sqlalchemy import inspect
+    assert "telegram_daily_reports" not in Base.metadata.tables
+    sessions = open_ledger(tmp_path)
+    day = date(2026, 10, 8)
+    now = ms(day, 23, 10)
+    with sessions.begin() as ledger:
+        # Production reference session is only used for payload building.
+        # An empty in-memory analytics database suffices.
+        engine, analytics_sessions = synthetic_db()
+        try:
+            with analytics_sessions() as analytics:
+                job = prepare(ledger, analytics, now, SETTINGS)
+                assert job is not None
+        finally:
+            engine.dispose()
+    # New factory and connection must see the persisted inflight claim.
+    reopened = open_ledger(tmp_path)
+    with reopened.begin() as ledger:
+        assert prepare(ledger, None, now, SETTINGS) is None
+        assert recover_interrupted(ledger) == 1
+    with reopened() as ledger:
+        row = ledger.get(TelegramDailyReport, job[0])
+        assert row.status == "unknown"
+        assert inspect(ledger.get_bind()).has_table("telegram_daily_reports")
+    assert (tmp_path / "daily-reports.sqlite3").is_file()
