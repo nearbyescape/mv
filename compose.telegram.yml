@@ -33,8 +33,8 @@ services:
     depends_on:
       api: { condition: service_healthy }
   telegram-report:
-    image: mv-signal-api:0.14.0-daily-report
-    build: { context: ., dockerfile: services/api/Dockerfile }
+    image: mv-signal-api:0.14.0-daily-report-isolated
+    build: { context: ., dockerfile: services/api/Dockerfile.daily-report }
     command: [python, -m, app.telegram.daily_report]
     environment:
       MV_ENVIRONMENT: production
@@ -51,6 +51,7 @@ services:
       MV_DAILY_REPORT_START_AT: ${MV_DAILY_REPORT_START_AT:-0}
       MV_TELEGRAM_TOKEN_FILE: /run/secrets/telegram_token
     secrets: [database_url, service_key, telegram_token]
+    volumes: ["daily-report-state:/var/lib/mv-daily-report"]
     init: true
     restart: unless-stopped
     security_opt: [no-new-privileges:true]
@@ -63,3 +64,6 @@ services:
       api: { condition: service_healthy }
 secrets:
   telegram_token: { file: ./deploy/secrets/telegram_token }
+
+volumes:
+  daily-report-state:

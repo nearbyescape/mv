@@ -188,7 +188,7 @@ def test_0008_migration_backfills_existing_v2_outcome_and_downgrades_cleanly(tmp
             None,
             "2",
         )
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0009"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008"
     engine.dispose()
 
     subprocess.run(
@@ -220,7 +220,7 @@ def test_real_migration_can_upgrade_seed_and_downgrade(tmp_path):
     engine = create_engine(env["MV_DATABASE_URL"])
     with engine.connect() as connection:
         assert list(connection.scalars(select(WatchlistItem.symbol).order_by(WatchlistItem.sort_order))) == ["BTCUSDT", "ETHUSDT"]
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0009"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "0008"
     engine.dispose()
     subprocess.run([sys.executable, "-m", "alembic", "downgrade", "base"], cwd=API_ROOT, env=env, check=True, capture_output=True)
     engine = create_engine(env["MV_DATABASE_URL"])

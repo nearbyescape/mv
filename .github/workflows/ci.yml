@@ -50,4 +50,8 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -f services/api/Dockerfile -t mv-api-check .
       - run: docker run --rm mv-api-check python -m pytest -q
+      - run: docker build -f services/api/Dockerfile.daily-report -t mv-report-check .
+      - run: |
+          docker run --rm mv-report-check python -c \
+            "from pathlib import Path; from app.telegram.daily_report import STATE_DIR, open_ledger; open_ledger(); assert Path(STATE_DIR / 'daily-reports.sqlite3').is_file(); print('Isolated ledger smoke: PASS')"
       - run: docker build -f apps/web/Dockerfile -t mv-web-check .
