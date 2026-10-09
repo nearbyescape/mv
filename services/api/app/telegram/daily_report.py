@@ -11,13 +11,13 @@ from zoneinfo import ZoneInfo
 
 import httpx
 from filelock import FileLock, Timeout
-from sqlalchemy import select
+from sqlalchemy import BigInteger, Integer, JSON, String, create_engine, select
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
 from app.config import get_settings
 from app.database import Session
 from app.market.binance import now_ms
-from app.models import SignalOutcome, TelegramDailyReport
-from app.operations.lease import singleton, worker_transaction
+from app.models import SignalOutcome
 from app.telegram.provider import DeliveryError, send
 
 log = logging.getLogger("mv.telegram.daily_report")
@@ -26,7 +26,44 @@ STRATEGY = "MV-TREND-DUAL-v4"
 REPORT_AT = time(23, 10)
 MAX_ATTEMPTS = 5
 MAX_MESSAGE = 4000
+
 TERMINAL = frozenset(("tp3", "target", "stop", "protected_be", "protected_tp1", "ambiguous"))
+STATE_DIR = Path("/var/lib/mv-daily-report")
+
+
+class LedgerBase(DeclarativeBase):
+    pass
+
+
+class TelegramDailyReport(LedgerBase):
+    """Isolated SQLite-only outbox. NEVER include in production Base/Alembic."""
+    __tablename__ = "telegram_daily_reports"
+    report_date: Mapped[str] = mapped_column(String(10), primary_key=True)
+    strategy: Mapped[str] = mapped_column(String(80), primary_key=True)
+    chat_id: Mapped[str] = mapped_column(String(20), primary_key=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False)
+    next_attempt_at: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    claimed_at: Mapped[int | None] = mapped_column(BigInteger)
+    sent_at: Mapped[int | None] = mapped_column(BigInteger)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    error_code: Mapped[str | None] = mapped_column(String(60))
+    payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+def open_ledger(directory=STATE_DIR):
+    """Create only the ledger tables in this worker's persistent, private volume."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        raise RuntimeError("Daily report state volume is not mounted")
+    engine = create_engine(
+        "sqlite:///" + str(directory / "daily-reports.sqlite3"),
+        connect_args={"timeout": 10},
+    )
+    LedgerBase.metadata.create_all(engine)
+    return sessionmaker(bind=engine, expire_on_commit=False)
+
+
 
 
 def milliseconds(value):
@@ -177,7 +214,7 @@ def build_payload(session, day, chat_id):
     }
 
 
-def prepare(session, now, settings):
+def prepare(session, analytics_session, now, settings):
     day, due = due_session(now)
     if due < settings.daily_report_start_at:
         return None
@@ -189,7 +226,7 @@ def prepare(session, now, settings):
             chat_id=settings.telegram_chat_id, status="pending",
             attempts=0, next_attempt_at=now, claimed_at=None,
             sent_at=None, message_id=None, error_code=None,
-            payload_json=build_payload(session, day, settings.telegram_chat_id),
+            payload_json=build_payload(analytics_session, day, settings.telegram_chat_id),
         )
         session.add(row)
         session.flush()
@@ -242,14 +279,14 @@ def finish(session, identity, now, message_id=None, error=None):
     row.next_attempt_at = now + max(error.retry_after, 15) * 1000
 
 
-async def deliver(client, settings, job):
+async def deliver(client, settings, job, ledger_sessions):
     try:
         message_id = await send(client, settings, job[1])
         error = None
     except DeliveryError as exc:
         message_id, error = None, exc
-    with worker_transaction("telegram-daily-report", Session) as session:
-        finish(session, job[0], now_ms(), message_id=message_id, error=error)
+    with ledger_sessions.begin() as ledger:
+        finish(ledger, job[0], now_ms(), message_id=message_id, error=error)
     if error:
         log.warning("Daily report send status=%s reason=%s", error.state, error.code)
     else:
@@ -260,23 +297,27 @@ async def run(once=False):
     settings = get_settings()
     if not settings.telegram_enabled or not settings.telegram_token or settings.daily_report_start_at <= 0:
         raise RuntimeError("Daily report requires Telegram and MV_DAILY_REPORT_START_AT")
-    with FileLock(str(Path(__file__).resolve().parents[2] / ".telegram-daily-report.lock"), timeout=0):
-        with singleton("telegram-daily-report"):
-            with worker_transaction("telegram-daily-report", Session) as session:
-                count = recover_interrupted(session)
-                if count:
-                    log.warning("%s uncertain daily report sends require manual verification", count)
-            async with httpx.AsyncClient(follow_redirects=False) as client:
-                while True:
-                    job = None
-                    if not settings.maintenance:
-                        with worker_transaction("telegram-daily-report", Session) as session:
-                            job = prepare(session, now_ms(), settings)
-                    if job:
-                        await deliver(client, settings, job)
-                    if once:
-                        return
-                    await asyncio.sleep(15)
+    ledger_sessions = open_ledger()
+    # Lock file shares the persistent SQLite volume. Concurrent report workers
+    # cannot claim/send the same report, even across container replacements.
+    with FileLock(str(STATE_DIR / ".daily-report.lock"), timeout=0):
+        with ledger_sessions.begin() as ledger:
+            count = recover_interrupted(ledger)
+            if count:
+                log.warning("%s uncertain daily report sends require manual verification", count)
+        async with httpx.AsyncClient(follow_redirects=False) as client:
+            while True:
+                job = None
+                if not settings.maintenance:
+                    # Never mutate the MV production schema; read SignalOutcome only.
+                    with Session() as analytics_session:
+                        with ledger_sessions.begin() as ledger:
+                            job = prepare(ledger, analytics_session, now_ms(), settings)
+                if job:
+                    await deliver(client, settings, job, ledger_sessions)
+                if once:
+                    return
+                await asyncio.sleep(15)
 
 
 def main():
