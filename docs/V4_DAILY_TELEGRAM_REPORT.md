@@ -1,76 +1,53 @@
-# MV V4 daily Telegram report (session-close)
+# MV V4 nightly Telegram report — production-schema-compatible release
 
-## Contract
+## Requirements and boundaries
 
-- Existing V4 financial strategy, analytics, web and real-time Telegram worker are unchanged.
-- A separate `telegram-report` container publishes one *reference-only* daily report to the already-configured numeric Telegram destination.
-- Schedule is **23:10 Asia/Kolkata**, ten minutes after new-signal publication ends at 23:00.
-- A live report includes V4 outcomes **published 09:00–23:00 IST** on that date. Its resolved R total excludes open/source-revised rows.
-- Previously published signals resolved during the report date appear under carryover, outside the primary signal count and primary R total.
-- Existing analytic terminal statuses are authoritative. Later price touches cannot turn a protected exit into TP3.
-- Emoji ✅ ❌ 🛡️ ⏳, Telegram `parse_mode=HTML` for real bold styling; no website URL or inline button in daily reports. Real-time signal alerts are unchanged.
-- A sufficiently long report explicitly says how many result lines were omitted to remain within Telegram's size limit. Never send malformed partial HTML.
-- Reports are simulated reference-plan analytics, **not actual trades** or net account P&L.
+- Uses the existing V4 `SignalOutcome` journal, existing BotFather token and existing numeric Telegram destination.
+- Posts one message per IST calendar session at **23:10 Asia/Kolkata** (after the 23:00 entry session closes).
+- Published 09:00–23:00 IST signals form the primary cohort. Its resolved reference R excludes open and source-revised rows.
+- Earlier signals resolved during the calendar day are separated as carryover, not added to the primary R.
+- Reporting is reference-plan only, **not actual exchange fills/account P&L**.
+- Uses Telegram `parse_mode=HTML` for bold headings, ✅/❌/🛡️ indicators; **no website URL or button**.
+- Does not change trading strategy, market collection, API routes, normal Telegram alert payloads, or execution.
 
-## Delivery guarantees
+## Critical production compatibility (incident 2026-10-09)
 
-Table `telegram_daily_reports` is keyed by (IST report date, strategy, destination) with immutable report text frozen at first claim. The new worker uses its own DB singleton/fence, takes an atomic `pending → inflight` claim before its network request and stores the Telegram receipt on success. A recovered inflight claim becomes **unknown**, never blindly resent. Explicit rate-limit or pre-send connection failures permit up to five bounded retries. An unknown response or an interrupted send requires manual confirmation in Telegram before any exceptional operator intervention.
+The `0.14.0` production API `/health` endpoint explicitly requires `alembic_version = 0008`. Initial PR #7 introduced additive Alembic `0009`, which made the unchanged API unhealthy (HTTP 503). The user safely downgraded the empty report table; API health returned HTTP 200 and migration is back to `0008`.
 
-The start cutoff `MV_DAILY_REPORT_START_AT` is the **epoch milliseconds** of report activation. Sessions due before that cutoff are not backfilled automatically. For the first rollout, set it *before the intended 23:10 due time* if the day's report should be sent. Do not leave it at 0; the worker will refuse to start.
+**Do not run or reintroduce `0009` on this production application.** This corrective release removes the `0009` migration and reports table from the production SQLAlchemy metadata. The report worker only SELECTs production `signal_outcomes` and uses a **separate SQLite outbox** in the Docker named volume `daily-report-state`. No changes to the production PostgreSQL schema, V4 API image, or API health guard are required. The source repository's Alembic head is again `0008`.
 
-## Isolated VPS staging — no production mutation
+## Delivery state and resilience
 
-From `/opt/mv-signal/app`, after reviewing and merging the PR, fetch the exact release SHA but **do not** restart all Compose services. Use the complete Compose overlay set throughout (host Nginx owns port 80/443):
+- Report ledger is `/var/lib/mv-daily-report/daily-reports.sqlite3` (inside the dedicated named Docker volume).
+- Unique primary key: (IST report date, V4 strategy, destination chat ID).
+- Payload text and delivery record are frozen at initial claim; subsequent outcomes cannot overwrite an already sent report.
+- `pending → inflight → delivered` with Telegram message ID.
+- An interrupted in-flight send or provider's ambiguous read/write result becomes `unknown`; **never auto resend**.
+- Explicit pre-send connection failures and Telegram 429 can retry at most five attempts.
+- Persistent file lock on the same named volume serializes dedicated report processes on the VPS. Do not deploy multiple independent volumes/hosts to the same Telegram destination.
+- Keep the volume and any `unknown` state through upgrades. Never use `docker compose down -v` for this stack.
+- Do not use `--once` as a preview; it can send if the report is due. Only `--preview-date` is guaranteed read-only.
 
-```bash
-COMPOSE=(docker compose --env-file deploy/production.env \
-  -f compose.production.yml -f compose.host-proxy.yml \
-  -f compose.research.yml -f compose.ai.yml -f compose.telegram.yml)
+## Exact release staging and build
 
-# Verify the target is the exact reviewed commit/release.
-git rev-parse HEAD
-# Set MV_DAILY_REPORT_START_AT=<deployment-time epoch milliseconds>
-# inside deploy/production.env with owner-only permissions.
+This repository is distributed to the VPS as read-only versioned releases. `/opt/mv-signal/app` is a symbolic link to `/opt/mv-signal/releases/mv-signal-0.14.0`, NOT a Git working tree. Never perform `git pull` inside `/opt/mv-signal/app`.
 
-# Rebuild ONLY the dedicated report image; do not recreate existing services.
-"${COMPOSE[@]}" build telegram-report
+Stage an **exact reviewed commit SHA**, verify it, then build **only the dedicated report image** using `services/api/Dockerfile.daily-report` from that staged checkout. Retain the original `compose.production.yml`, `compose.host-proxy.yml`, `compose.research.yml`, `compose.ai.yml` and the updated **staged** `compose.telegram.yml` in the same Compose invocation. Existing `telegram` and API containers continue to use the `0.14.0` image; the `telegram-report` service exclusively uses `mv-signal-api:0.14.0-daily-report-isolated`.
 
-# Read-only preview. No Telegram message is sent.
-"${COMPOSE[@]}" run --rm --no-deps \
-  telegram-report python -m app.telegram.daily_report --preview-date 2026-10-08
-```
+Before activation:
+1. Check production schema **still 0008** and API `/health` is HTTP 200. Confirm engine/telegram/analytics current container IDs.
+2. Verify existing `pg_dump` backup, SHA-256 checksum and isolated restore evidence. This report upgrade requires **no new PostgreSQL migration**.
+3. Build only `mv-signal-api:0.14.0-daily-report-isolated` using the dedicated Dockerfile; inspect the new image digest.
+4. Preview with `python -m app.telegram.daily_report --preview-date YYYY-MM-DD` via a `--rm --no-deps` run and the complete staged Compose overlay; preview must not send to Telegram.
+5. Set `MV_DAILY_REPORT_START_AT` to the desired first-session 23:10 IST Unix timestamp in milliseconds, in the existing private `deploy/production.env`. If the due time has already passed, use the *following day's* 23:10 IST timestamp to avoid accidental backfill. Preserve file permissions.
+6. Start **only** `telegram-report` with `docker compose up -d --no-deps --no-build telegram-report`. Verify state volume, container/image digest and worker logs.
+7. Confirm production DB schema remains `0008`, API `/health` is 200, and existing API/engine/analytics/telegram IDs and startup times are unchanged.
+8. After 23:10 IST inspect Telegram delivery and the report's isolated SQLite record/message ID. If state is `unknown`, inspect the destination manually—do not retry blindly.
 
-Take and validate a consistent PostgreSQL backup before the schema migration. Review the generated Alembic delta and verify current DB revision is `0008`. The **only** migration is an additive `telegram_daily_reports` table. Apply the reviewed migration with the report image (rather than rebuilding or recreating the production API/engine):
+## Rollback
 
-```bash
-"${COMPOSE[@]}" run --rm --no-deps telegram-report \
-  python -m alembic upgrade head
+Stop only `telegram-report`. Keep the **state volume** for deduplication. The production DB schema is never migrated, so no Alembic downgrade and no production service restart is needed.
 
-# Verify revision and inspect any unexpected worker activity before enabling.
-"${COMPOSE[@]}" run --rm --no-deps telegram-report \
-  python -m alembic current
+## Tests
 
-# Enable the isolated report service only.
-"${COMPOSE[@]}" up -d --no-deps --no-build telegram-report
-"${COMPOSE[@]}" ps telegram-report
-"${COMPOSE[@]}" logs --tail=100 telegram-report
-```
-
-**No live sends during preview.** Test report formatting/aggregation on the reviewed branch (Python pytest), run an isolated report image, and check existing production container image IDs before and after activation. At 23:10 IST verify a single Telegram report message and a single delivered row with valid message ID. Do not run `--once` for dry-run: `--once` may send the report.
-
-## Pause, investigation and rollback
-
-```bash
-"${COMPOSE[@]}" stop telegram-report
-```
-
-This leaves real-time `telegram`, `engine`, `analytics` and all other services running. The additive state table can remain in PostgreSQL; **do not downgrade live schema without reviewing downstream dependencies**. Preserve the report state and any `unknown` deliveries for diagnosis to avoid duplicate sends. A failure to receive a report does **not** justify blind manual replay if Telegram might already have accepted it.
-
-## Read-only report verification
-
-```bash
-"${COMPOSE[@]}" run --rm --no-deps telegram-report \
-  python -m app.telegram.daily_report --preview-date 2026-10-08
-```
-
-Preview uses the same formatting and database queries but does not claim report state or send to Telegram. It can reflect later database updates and is therefore not always byte-for-byte identical to the frozen nightly message.
+CI runs application tests and builds the isolated report Dockerfile with a no-send preview. Dedicated tests cover IST boundaries, cohort accounting, carryover, safe retry, persistence, duplicate prevention, formatting and omitted-line behavior.
