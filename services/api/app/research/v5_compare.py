@@ -619,6 +619,17 @@ def _summary(
     mature = [row for row in published if row.signal_id in mature_ids]
     metrics = _outcome_metrics(published, analysis_outcomes)
     mature_metrics = _outcome_metrics(mature, analysis_outcomes)
+    # This deliberately differs from the fixed 4H comparison window:
+    # replay continues only until the finite historical minute-data cutoff.
+    # 'open' in this cohort is still unresolved, not a winning trade.
+    full_available = _outcome_metrics(
+        published,
+        {
+            row.signal_id: row.v4_scaled_outcome
+            for row in published
+            if row.v4_scaled_outcome is not None
+        },
+    )
 
     return {
         "raw_candidates": len(candidates),
@@ -642,6 +653,7 @@ def _summary(
         ),
         **metrics,
         "mature_4h": mature_metrics,
+        "full_available": full_available,
     }
 
 
@@ -1060,6 +1072,7 @@ async def run_day(day: str):
         "ist_date": day,
         "read_only": True,
         "observation_window_hours": 4,
+        "full_available_outcome_cutoff_exclusive_ms": available_outcome_boundary,
         "watchlist_size": len(symbols),
         "source_1h_rows": sum(len(rows) for rows in source_opens.values()),
         "v4": {
@@ -1156,6 +1169,9 @@ def _aggregate(reports: list[dict], key: str):
     all_observed["mature_4h"] = _aggregate_metric(
         [row["mature_4h"] for row in summaries]
     )
+    all_observed["full_available"] = _aggregate_metric(
+        [row["full_available"] for row in summaries]
+    )
     return all_observed
 
 
@@ -1175,8 +1191,12 @@ async def main_async(days: list[str]):
             "entries while preserving established entries. "
             "Public Binance 15m triggers, first-1m-open reference entries, "
             "V4 scaled exits, and V5 rolling concentration safety. "
-            "This is an incomplete-cost, fixed-four-hour retrospective; "
-            "not a production signal, a full backtest, or proof of profitability."
+            "Headline reference R is the fixed four-hour outcome; an "
+            "independent full_available block includes later paths only "
+            "through each day's session-end-plus-four-hour cutoff. "
+            "Unresolved rows and mark_R are not booked P&L. "
+            "This is an incomplete-cost retrospective, not a production "
+            "signal, a full backtest, or proof of profitability."
         ),
         "reports": reports,
         "combined": {
