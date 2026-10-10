@@ -26,7 +26,7 @@ def candle(t, o="100", h="102", l="99", c="101"):
 def hour(t, close="100", atr="2"):
     return SimpleNamespace(
         bar=SimpleNamespace(close_time=t+HOUR-1, close=D(close)),
-        atr=D(atr),
+        atr=D(atr), ema20=D("99"), ema50=D("98"),
     )
 
 
