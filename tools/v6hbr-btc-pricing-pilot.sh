@@ -47,6 +47,7 @@ docker run --rm --pull never \
       tests/test_v6hbr_directional_accuracy.py \
       tests/test_v6hbr_directional_development.py \
       tests/test_v6hbr_directional_preflight.py \
+      tests/test_v6hbr_archive_queue.py \
       tests/test_v6hbr_btc_pricing_operator.py \
       tests/test_v6hbr_candidate_operator_script.py \
       tests/test_v6hbr_operator_pilots.py
