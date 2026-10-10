@@ -136,3 +136,53 @@ distinct later gates. Even **1,080 present ZIPs are not proof of
 
 Production V4 continues unchanged. This planner commits neither
 execution logic nor a deployable V5 trading release.
+
+
+## 10 October 2026 — ETHUSDT foundation operator pilot
+
+The source-only, non-production entry point
+`tools/v5-eth-foundation-pilot.sh` uses one fixed symbol (**ETHUSDT**),
+the independent `1h` and `4h` frames, and only January–June 2026.
+Run **plan** first (default):
+
+```bash
+cd /tmp/mv-v5-history-pilot
+test -z "$(git status --porcelain)" || exit 2
+test "$(git branch --show-current)" = "codex/mv-v5-historical-archive-pilot" || exit 2
+git fetch origin codex/mv-v5-historical-archive-pilot
+git merge --ff-only FETCH_HEAD
+bash tools/v5-eth-foundation-pilot.sh plan
+```
+
+`plan` and `verify` use `--network none`, and mount code and
+research archives read-only. The source fetch only runs if the operator
+explicitly invokes the distinct mode:
+
+```bash
+bash tools/v5-eth-foundation-pilot.sh fetch --confirm-fetch
+```
+
+That action **does access the internet and write the research archive
+volume**, but only in a disposable Docker container: existing API
+image pinned by digest, no Compose or DB credentials, read-only code,
+no elevated capabilities, 0.5 CPU / 768 MiB RAM, strictly bounded
+64 MiB new ZIPs per frame invocation, publisher SHA-256 checks,
+2 GiB free-space reserve, immutable manifests and append-only audit
+ledgers. It runs 1h then 4h batches separately and attempts immediate
+offline verification plus native 1h→4h cross-source reconciliation.
+Publisher 404, checksum correction, data gap, or free-space failure
+**stops**; the tool does not invent inception history or retry
+indefinitely. Fetch is not a dry run. The initial source-only
+`plan` is the default for safe inspection.
+
+If the source fetch was previously completed, repeat the fully
+offline check without downloading:
+
+```bash
+bash tools/v5-eth-foundation-pilot.sh verify
+```
+
+No ETH candidate counts, V4/V5 replay, intraday signals, fills or
+profitability are claimed at this stage. This shell pilot and its
+focused safety tests are authored in PR #12 but must be run on the
+operator VPS before reporting a PASS.
