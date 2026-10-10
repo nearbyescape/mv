@@ -39,7 +39,7 @@ python -m app.research.v5_compare \
 
 **Do not run this historical-download workload inside the production API/engine container.** Do not provide production database write credentials or Telegram bot credentials to the experiment. Configure the research database on a distinct host or isolated PostgreSQL snapshot if possible, and cap resource usage.
 
-The script prints three JSON cohorts under `combined.v4`, `combined.v5_candidate`, `combined.v5_balanced`. Within each day's report, look at `summary.published`, `summary.mature_4h`, `summary.preliminary_reasons`, `summary.half_r_ordering`, and the balanced `filter_reasons`.
+The script prints three JSON cohorts under `combined.v4`, `combined.v5_candidate`, `combined.v5_balanced`. Within each day's report, look at `summary.published`, `summary.mature_4h`, `summary.full_available`, `summary.preliminary_reasons`, `summary.half_r_ordering`, and the balanced `filter_reasons`. The top-level summary's resolved returns are the **fixed four-hour** reference outcome. The separate `full_available` block follows the same simulated entry to the **session end plus four hours**, not indefinitely; any still-open signal remains unresolved. `full_available_outcome_cutoff_exclusive_ms` records that boundary. Do not include an open signal's favorable excursion or mark-to-market R in realized outcome totals.
 
 **Limitations:**
 
