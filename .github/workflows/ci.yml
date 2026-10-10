@@ -49,5 +49,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f services/api/Dockerfile -t mv-api-check .
-      - run: docker run --rm mv-api-check python -m pytest -q
+      # The operator-only research tools intentionally stay out of the API image.
+      # Mount them read-only in CI so shell safety tests run in the container
+      # without changing the production image contents.
+      - run: docker run --rm --mount "type=bind,source=$PWD/tools,target=/app/tools,readonly" mv-api-check python -m pytest -q
       - run: docker build -f apps/web/Dockerfile -t mv-web-check .
