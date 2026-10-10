@@ -72,3 +72,28 @@ def test_fails_closed_on_cohort_net_r_inconsistency():
     cohorts["V4"]["resolved_net_r_sum"] = "999"
     with pytest.raises(ValueError, match="does not reconcile"):
         diagnose(rows, cohorts)
+
+
+
+def test_installed_agent_catches_lane_order_rounding_without_relaxing_reconciliation():
+    """Already-pinned VPS runner tests this file on each research commit."""
+    from app.research.v6hbr_decimal_reconciliation import exact_reference_sum
+
+    rows = [
+        event(101, T, "v4_base", outcome=outcome(
+            T, net="1.999999999999999999999999999")),
+        event(102, T + HOUR, "15m_rescue", outcome=outcome(
+            T + HOUR, net="0.0000000000000000000000000001")),
+        event(103, T + 2 * HOUR, "v4_base", outcome=outcome(
+            T + 2 * HOUR, net="-1.999999999999999999999999999")),
+    ]
+    cohorts = {name: report(rows, name) for name in ("V4", "H", "B", "R")}
+    attribution = diagnose(rows, cohorts)
+    assert cohorts["H"]["accepted_ids"] == ["101", "102", "103"]
+    assert D(cohorts["H"]["resolved_net_r_sum"]) == D("1e-28")
+    assert exact_reference_sum(
+        attribution["cohorts"]["H"]["resolved_net_r_by_lane"].values()
+    ) == D(cohorts["H"]["resolved_net_r_sum"])
+    cohorts["H"]["resolved_net_r_sum"] = "0.001"
+    with pytest.raises(ValueError, match="does not reconcile.*discrepancy"):
+        diagnose(rows, cohorts)
