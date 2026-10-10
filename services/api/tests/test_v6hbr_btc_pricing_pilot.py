@@ -181,3 +181,37 @@ def test_pinned_vps_agent_rejects_premature_live_v6hbr_promotion():
     assert btc_proxy_only["decision"] == "NO_GO_FOR_LIVE_V6HBR"
     assert "INSUFFICIENT_DATA_SCOPE" in btc_proxy_only["reasons"]
     assert not btc_proxy_only["can_claim_high_accuracy"]
+
+
+def test_installed_hourly_agent_smokes_math_shadow_abstention():
+    """Existing fixed VPS runner includes this module in its test list."""
+    from app.research.v6hbr_math_abstention import evaluate_abstention
+    from app.research.v6hbr_abstention_audit import audit_mathematical_abstention
+
+    from datetime import datetime, timezone
+    now = int(datetime(2026, 5, 3, tzinfo=timezone.utc).timestamp() * 1000)
+    decision = evaluate_abstention(
+        signal_at_ms=now, direction="long",
+        setup_type="momentum_breakout", regime="established",
+        prior_outcomes=[],
+    )
+    assert decision["decision"] == "ABSTAIN"
+    assert decision["reason"] == "INSUFFICIENT_INDEPENDENT_EVIDENCE"
+    assert decision["not_live_certified"] is True
+
+    rows = [
+        {"id": "v4", "symbol": "BTCUSDT", "at_ms": now,
+         "direction": "long", "setup_type": "momentum_breakout",
+         "regime": "established", "lane": "v4_base",
+         "outcome": {
+             "status": "TP3", "terminal_at_ms": now + 60_000,
+             "net_realized_r": "1.0",
+         }}
+    ]
+    cohorts = {
+        name: {"accepted_ids": ["v4"]}
+        for name in ("V4", "H", "B", "R")
+    }
+    report = audit_mathematical_abstention(rows, cohorts)
+    assert report["cohorts"]["H"]["mathematically_research_eligible"] == 0
+    assert cohorts["H"]["accepted_ids"] == ["v4"]
