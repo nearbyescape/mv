@@ -1,0 +1,76 @@
+{
+  "schema": 1,
+  "id": "MV-V5-HISTORY-RESEARCH-v1",
+  "status": "frozen-proposal-pending-data-integrity-validation",
+  "venue": "Binance USD-M perpetual (reference market, not Lighter fills)",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT",
+    "SOLUSDT",
+    "XRPUSDT",
+    "DOGEUSDT",
+    "BNBUSDT",
+    "UNIUSDT",
+    "NEARUSDT",
+    "SUIUSDT",
+    "ADAUSDT",
+    "LINKUSDT",
+    "WLDUSDT",
+    "TAOUSDT",
+    "ARBUSDT",
+    "AAVEUSDT",
+    "AVAXUSDT",
+    "FILUSDT",
+    "DOTUSDT",
+    "BCHUSDT",
+    "LTCUSDT",
+    "INJUSDT",
+    "APTUSDT",
+    "XLMUSDT",
+    "TRXUSDT",
+    "TIAUSDT",
+    "HYPEUSDT",
+    "ETCUSDT",
+    "OPUSDT",
+    "SEIUSDT",
+    "ASTERUSDT"
+  ],
+  "timeframes": [
+    "1m",
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "history_start": "2026-01-01",
+  "cutoff_exclusive": "2026-10-01",
+  "partitions": [
+    {
+      "name": "indicator_warmup",
+      "start": "2026-01-01",
+      "end": "2026-03-01"
+    },
+    {
+      "name": "development",
+      "start": "2026-03-01",
+      "end": "2026-06-01"
+    },
+    {
+      "name": "validation",
+      "start": "2026-06-01",
+      "end": "2026-08-01"
+    },
+    {
+      "name": "untouched_holdout",
+      "start": "2026-08-01",
+      "end": "2026-10-01"
+    }
+  ],
+  "restrictions": [
+    "Only request completed historical monthly archives; never fetch current incomplete calendar month.",
+    "Missing listing or contract inception must be documented explicitly per symbol-month, never silently filled.",
+    "Do not replace archived data if publisher checksum changes; create a separately versioned correction record after review.",
+    "Research downloads operate on isolated writable archive volume, never production database or collector.",
+    "Holdout may undergo mechanical checksum/continuity verification; no performance-based strategy selection on holdout.",
+    "Reference Binance USD-M marks and simulated fills do not represent actual Lighter fills, fee tiers, or liquidation mechanics."
+  ]
+}
