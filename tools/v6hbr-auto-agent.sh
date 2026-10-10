@@ -55,7 +55,35 @@ SOURCE="$SRCDIR/$HEAD"
 if test ! -d "$SOURCE"; then
   WORK="$(mktemp -d "$SRCDIR/.extract.XXXXXXXX")"
   # A Git archive is data-only on the host. All strategy tests run in Docker.
-  git -C "$REPO" archive --format=tar "$HEAD" | tar -x -C "$WORK" --no-same-owner
+  git -C "$REPO" archive --format=tar "$HEAD" | python3 -c '
+import pathlib
+import shutil
+import sys
+import tarfile
+
+root = pathlib.Path(sys.argv[1]).resolve(strict=True)
+total = 0
+with tarfile.open(fileobj=sys.stdin.buffer, mode="r|") as archive:
+    for member in archive:
+        p = pathlib.PurePosixPath(member.name)
+        if p.is_absolute() or not p.parts or ".." in p.parts:
+            raise SystemExit("STOP: invalid repository archive path")
+        dest = root.joinpath(*p.parts)
+        if member.isdir():
+            dest.mkdir(parents=True, exist_ok=True)
+            continue
+        if not member.isfile():
+            raise SystemExit("STOP: archive symlinks and special files prohibited")
+        total += member.size
+        if total > 250_000_000:
+            raise SystemExit("STOP: research checkout archive exceeds size limit")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        stream = archive.extractfile(member)
+        if stream is None:
+            raise SystemExit("STOP: unreadable archive file")
+        with dest.open("xb") as output:
+            shutil.copyfileobj(stream, output)
+' "$WORK"
   test "$(sha256sum "$WORK/packages/contracts/v5-history-v1.json" | cut -d' ' -f1)" = "$SPEC"
   chmod -R a+rX "$WORK"
   mv "$WORK" "$SOURCE"
