@@ -59,7 +59,7 @@ def snapshots_from_pinned(root: Path, plans: list[dict], spec_sha: str):
         rows[bar.open_time] = snapshot
     if history["rows"] != state.count:
         raise ValueError("Indicator series/source row count disagreement")
-    if not rows or rows[max(rows)] .bar.close_time + 1 != history["end_exclusive_ms"]:
+    if not rows or rows[max(rows)].bar.close_time + 1 != history["end_exclusive_ms"]:
         raise ValueError("Latest snapshot does not match verified history end")
     return rows, history
 
@@ -81,12 +81,12 @@ def first_possible_boundary(maps: dict[str, dict[int, Snapshot]]) -> int:
     """Minimum completed 1H boundary after 500 bars on all three frames."""
     required = []
     for frame in FRAMES:
-        ready = (
+        ready = [
             snapshot.bar.close_time + 1
             for snapshot in maps[frame].values()
             if snapshot.count >= WARMUP
-        )
-        boundary = next(ready, None)
+        ]
+        boundary = min(ready) if ready else None
         if boundary is None:
             raise ValueError(f"No {frame} candle satisfies 500-bar warmup")
         required.append(boundary)
@@ -117,7 +117,6 @@ def replay_decisions(
     candidate_digest = sha256()
     samples = []
     last_boundary = None
-    last_candidate_at = None
     for open_time, current in sorted(maps["1h"].items()):
         boundary = current.bar.close_time + 1
         if not effective_start <= boundary < end_ms or not _session(boundary):
@@ -233,7 +232,18 @@ def replay_decisions(
         "requested_start_ms": start_ms,
         "eligible_start_ms": effective_start,
         "end_exclusive_ms": end_ms,
-        "counts": dict(sorted(stats.items())),
+        "counts": {
+            key: stats.get(key, 0)
+            for key in (
+                "hourly_contexts",
+                "v4_base_qualifiers",
+                "v5_base_preserved_pre_safety",
+                "v4_trend_aligned_no_trigger",
+                "armed_rescue_hours",
+                "completed_15m_trigger_checks",
+                "v5_rescue_trigger_references",
+            )
+        },
         "v4_reason_counts": dict(sorted(reasons_v4.items())),
         "v5_context_reason_counts": dict(sorted(reasons_context.items())),
         "v5_trigger_reason_counts": dict(sorted(reasons_trigger.items())),
