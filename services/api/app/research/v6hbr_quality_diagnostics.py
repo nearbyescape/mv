@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from decimal import Decimal as D
 
 from .v6hbr_portfolio_replay import CLOSED
+from .v6hbr_decimal_reconciliation import exact_reference_sum
 
 LANES = ("v4_base", "15m_rescue")
 COST_MULTIPLIERS = (D(0), D(1), D(2))
@@ -38,10 +39,12 @@ def _stats(rows: list[dict]) -> dict:
     values = [r["net"] for r in rows]
     positive = [r for r in values if r > 0]
     negative = [r for r in values if r < 0]
-    gross = sum((r["gross"] for r in rows), D(0))
-    fee = sum((r["fees"] for r in rows), D(0))
-    funding = sum((r["funding"] for r in rows), D(0))
-    net = sum(values, D(0))
+    # All cohorts, lanes, regimes and time slices sum exact *booked*
+    # amounts. Ambient Decimal context rounding is order-dependent.
+    gross = exact_reference_sum(r["gross"] for r in rows)
+    fee = exact_reference_sum(r["fees"] for r in rows)
+    funding = exact_reference_sum(r["funding"] for r in rows)
+    net = exact_reference_sum(values)
     return {
         "resolved_count": len(rows),
         "positive_count": len(positive),
@@ -54,14 +57,14 @@ def _stats(rows: list[dict]) -> dict:
         "resolved_net_r_sum": _fmt(net),
         "resolved_net_r_mean": _fmt(net / len(rows)) if rows else None,
         "profit_factor_net": (
-            _fmt(sum(positive, D(0)) / -sum(negative, D(0)))
+            _fmt(exact_reference_sum(positive) / -exact_reference_sum(negative))
             if negative else None
         ),
         "mean_positive_net_r": (
-            _fmt(sum(positive, D(0)) / len(positive)) if positive else None
+            _fmt(exact_reference_sum(positive) / len(positive)) if positive else None
         ),
         "mean_negative_net_r": (
-            _fmt(sum(negative, D(0)) / len(negative)) if negative else None
+            _fmt(exact_reference_sum(negative) / len(negative)) if negative else None
         ),
         "ambiguous_stop_target_minutes": sum(r["ambiguous"] for r in rows),
         "mean_holding_minutes": (
@@ -77,9 +80,9 @@ def _terminal_drawdown(rows: list[dict]) -> dict:
     worst_at = None
     ordered = sorted(rows, key=lambda r: (r["terminal_at_ms"], r["id"]))
     for row in ordered:
-        equity += row["net"]
+        equity = exact_reference_sum((equity, row["net"]))
         peak = max(peak, equity)
-        dd = peak - equity
+        dd = exact_reference_sum((peak, -equity))
         if dd > max_dd:
             max_dd = dd
             worst_at = row["terminal_at_ms"]
@@ -93,13 +96,19 @@ def _terminal_drawdown(rows: list[dict]) -> dict:
 
 
 def _cost_sensitivity(rows: list[dict]) -> list[dict]:
-    base_fee = sum((r["fees"] for r in rows), D(0))
-    base_funding = sum((r["funding"] for r in rows), D(0))
-    gross = sum((r["gross"] for r in rows), D(0))
+    base_fee = exact_reference_sum(r["fees"] for r in rows)
+    base_funding = exact_reference_sum(r["funding"] for r in rows)
+    base_net = exact_reference_sum(r["net"] for r in rows)
     grid = []
     for fm in COST_MULTIPLIERS:
         for um in COST_MULTIPLIERS:
-            value = gross - fm * base_fee - um * base_funding
+            # Perturb already-booked reference net outcomes; 1x/1x is
+            # definitionally identical to the portfolio ledger. Do not
+            # rederive base P&L from rounded intermediate gross and fees.
+            value = exact_reference_sum((
+                base_net, (D(1) - fm) * base_fee,
+                (D(1) - um) * base_funding,
+            ))
             grid.append({
                 "fee_multiplier": str(fm),
                 "funding_multiplier": str(um),
@@ -181,8 +190,14 @@ def quality_report(priced: list[dict], cohorts: dict[str, dict],
         if unresolved != cohort["unresolved_references"]:
             raise ValueError("Unresolved count inconsistent with cohort replay")
         overall = _stats(resolved)
-        if overall["resolved_net_r_sum"] != cohort["resolved_net_r_sum"]:
-            raise ValueError("Resolved quality net R contradicts portfolio")
+        quality_net = _dec(overall["resolved_net_r_sum"], "quality net R")
+        cohort_net = _dec(cohort["resolved_net_r_sum"], "cohort net R")
+        if quality_net != cohort_net:
+            raise ValueError(
+                "Resolved quality net R contradicts portfolio "
+                f"(cohort={name}, quality={quality_net}, portfolio={cohort_net}, "
+                f"discrepancy={exact_reference_sum((quality_net, -cohort_net))})"
+            )
         split = {}
         for grouping, group_keys in (
             ("lane", LANES),
