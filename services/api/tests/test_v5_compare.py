@@ -419,3 +419,23 @@ def test_v4_base_preservation_flags_missing_corresponding_base_candidate():
     assert result["rows"][0]["v5_base_rejection_reason"] == (
         "MISSING_V5_BASE_CANDIDATE"
     )
+
+
+def test_candidate_audit_is_read_only_for_portfolio_selection():
+    base = 92_000_000
+    rows = [
+        _safety_candidate("early-one", "UNIUSDT", base),
+        _safety_candidate("early-two", "LDOUSDT", base),
+        _safety_candidate("later-base", "AAVEUSDT", base + 15 * 60_000),
+    ]
+    simulate_v5_with_safety(rows)
+    before = [
+        (row.signal_id, row.preliminary_reason, row.capped_reason)
+        for row in rows
+    ]
+    _candidate_audit_rows(rows, {})
+    after = [
+        (row.signal_id, row.preliminary_reason, row.capped_reason)
+        for row in rows
+    ]
+    assert after == before
