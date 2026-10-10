@@ -34,3 +34,50 @@ systemctl stop mv-v6hbr-auto.service
 ```
 
 The installer refuses to overwrite any existing automation installation; it does not create a root login or accept credentials. Removing the service or result files is a separate reviewed maintenance action.
+
+
+## First-run repair: private /var/tmp hides archives
+
+The initial installation from commit `da25ab0f4328100438625d43fd9c032c3b99990f`
+started `mv-v6hbr-auto.service` with `PrivateTmp=true` but omitted
+the read-only bind mount for the historical archive under
+`/var/tmp/mv-v5-history-archives`. The reported first invocation failed
+at `realpath` before research execution. This is a systemd namespace
+visibility issue, **not a passed or failed strategy backtest**.
+
+Subsequent installer source now retains `PrivateTmp=true` and also uses
+`BindReadOnlyPaths=/var/tmp/mv-v5-history-archives`, as supported by
+systemd's `BindReadOnlyPaths=` per-unit mount namespace directive.
+
+**For the already installed service**, the authorized operator can apply a
+minimal root-owned systemd drop-in, leaving the reviewed pinned host agent
+unchanged:
+
+```bash
+set -Eeuo pipefail
+test "$(id -u)" -eq 0
+test -d /var/tmp/mv-v5-history-archives
+test ! -L /var/tmp/mv-v5-history-archives
+test "$(realpath -e /var/tmp/mv-v5-history-archives)" = /var/tmp/mv-v5-history-archives
+test "$(systemctl is-enabled mv-v6hbr-auto.timer)" = enabled
+install -d -m 0755 /etc/systemd/system/mv-v6hbr-auto.service.d
+cat >/etc/systemd/system/mv-v6hbr-auto.service.d/10-archive-bind.conf <<'EOF'
+[Service]
+BindReadOnlyPaths=/var/tmp/mv-v5-history-archives
+EOF
+chmod 0644 /etc/systemd/system/mv-v6hbr-auto.service.d/10-archive-bind.conf
+systemctl daemon-reload
+systemctl reset-failed mv-v6hbr-auto.service
+systemctl start --no-block mv-v6hbr-auto.service
+systemctl show mv-v6hbr-auto.service -p ActiveState -p SubState -p Result -p ExecMainStatus
+journalctl -u mv-v6hbr-auto.service --no-pager -n 80
+```
+
+Systemd service files are configured locally by the operator; GitHub commits
+do **not** retroactively alter installed units or host agent files.
+The read-only bind is unit-private and preserves the private temporary
+directory and existing `ProtectSystem=strict` restrictions.
+
+If the service still fails, inspect the new journal error and per-commit
+report. Do **not** change production units, grant network access, disable
+container isolation or repeatedly reinstall the root automation.
