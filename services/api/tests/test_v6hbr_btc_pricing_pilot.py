@@ -56,7 +56,13 @@ def test_exact_completed_v4_event_prices_without_any_15m_rescue(monkeypatch):
 def test_unknown_or_missing_tick_reference_fails_closed(monkeypatch):
     maps, source, boundary = _maps()
     monkeypatch.setattr(pilot, "btc_timing_reason", lambda *args: None)
-    monkeypatch.setattr(pilot, "evaluate_setup_v4", lambda *args: _v4_base())
+    monkeypatch.setattr(pilot, "evaluate_setup_v4", lambda *args: SimpleNamespace(
+        outcome="LONG_SETUP", direction="long", setup_type="momentum_breakout",
+        regime="established", checks=[
+            {"id": "long.recent_run_atr", "value": "1.2"},
+            {"id": "long.source_extension_atr", "value": "0.3"},
+        ],
+    ))
     monkeypatch.setattr(pilot, "balanced_15m_filter_reason", lambda *args: None)
     candidate = {
         "lane": "v4_base", "symbol": "BTCUSDT",
