@@ -14,6 +14,7 @@ from collections import Counter
 
 from .v6hbr_math_abstention import evaluate_abstention
 from .v6hbr_portfolio_replay import CLOSED
+from .v6hbr_setup_taxonomy import validated_setup_type
 
 
 def audit_mathematical_abstention(priced: list[dict],
@@ -26,6 +27,7 @@ def audit_mathematical_abstention(priced: list[dict],
     ledger = []
     for candidate in cohorts["V4"]["accepted_ids"]:
         row = ids[candidate]
+        validated_setup_type(row["setup_type"], row["lane"])
         out = row.get("outcome")
         if out is None:
             raise ValueError("Baseline accepted an unpriced reference")
@@ -47,6 +49,7 @@ def audit_mathematical_abstention(priced: list[dict],
         count_research_eligible = 0
         for candidate in report["accepted_ids"]:
             row = ids[candidate]
+            validated_setup_type(row["setup_type"], row["lane"])
             gate = evaluate_abstention(
                 signal_at_ms=row["at_ms"],
                 direction=row["direction"],
