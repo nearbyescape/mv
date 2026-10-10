@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 from decimal import Decimal as D
 from zoneinfo import ZoneInfo
 
+from .v6hbr_decimal_reconciliation import exact_reference_sum
+
 HOUR = 3_600_000
 CIRCUIT_WINDOW = 2 * HOUR
 CIRCUIT_PAUSE = 2 * HOUR
@@ -220,7 +222,11 @@ def simulate_cohort(
         if x["outcome"]["status"] in CLOSED
     ]
     unresolved = [x for x in accepted if x["outcome"]["status"] == "OPEN_UNRESOLVED"]
-    net = sum((_decimal(x["outcome"]["net_realized_r"], "net R") for x in closed), D(0))
+    # Chronological and lane-grouped sums must be independent of addition
+    # order. Preserve every reference's already computed net R exactly.
+    net = exact_reference_sum(
+        _decimal(x["outcome"]["net_realized_r"], "net R") for x in closed
+    )
     return {
         "cohort": cohort,
         "status": "PROXY_PORTFOLIO_RESEARCH_NOT_CERTIFIED",
