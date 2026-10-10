@@ -40,6 +40,8 @@ docker run --rm --pull never \
       tests/test_v6hbr_live_v4_forensics.py \
       tests/test_v6hbr_live_export_safety.py \
       tests/test_v6hbr_release_readiness.py \
+      tests/test_v6hbr_math_abstention.py \
+      tests/test_v6hbr_abstention_audit.py \
       tests/test_v6hbr_btc_pricing_operator.py \
       tests/test_v6hbr_candidate_operator_script.py \
       tests/test_v6hbr_operator_pilots.py
