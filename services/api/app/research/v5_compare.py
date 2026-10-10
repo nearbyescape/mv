@@ -721,7 +721,7 @@ def _candidate_audit_rows(
     results: list[dict] = []
     for row in sorted(
         candidates,
-        key=lambda item: (item.published_at, item.ranking, item.signal_id),
+        key=lambda item: (item.published_at, item.ranking),
     ):
         earlier = [
             prior for prior in accepted
