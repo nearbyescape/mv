@@ -140,3 +140,23 @@ Actual VPS hourly-burst throughput/endurance, off-server encrypted backup transp
 The chosen 29-coin watchlist, 1H/4H and fixed 2 ATR/2R levels remain strategy assumptions. A software release does not prove returns. Historical revisions are not rescanned indefinitely: periodic engine scanning covers the latest 100 plans and all active slots; reading any plan additionally checks its saved source lineages. Browser floats only format displays. A running engine or ready market does not imply a trigger; only committed backend plans are signals. Held slots are operator reports.
 
 See [deployment runbook](PRODUCTION_DEPLOYMENT.md), [live architecture](PHASE67_LIVE_OPERATIONS.md), [verification](VERIFICATION.md), [research results](PHASE5_RESULTS.md) and [strategy design](PHASE4_SIGNAL_ENGINE.md).
+
+
+## 10 October 2026 — BTC pre-safety V5 rescue evidence; ETH foundation next
+
+Isolated VPS BTC decision replay and source audits **passed**.
+With January historical origin and March–May development scope,
+948 hourly contexts produced 27 V4 base references and 43
+additional V5 completed-15m rescue references, preserving all 27 V4
+base qualifiers **before** pricing/safety. The 1h, 4h, 15m
+January–June independently published source candles reconcile with
+zero OHLCV mismatches. This is a meaningful candidate-coverage
+result, **not** a production signal count or win rate.
+
+The next research-only stage is a bounded
+`tools/v5-eth-foundation-pilot.sh` ETHUSDT January–June
+1h/4h archive plan, explicit source fetch and offline reconciliation;
+source integrity and shell-runner tests have yet to be executed on VPS.
+The 30-coin strategy evaluation, realistic execution/P&L,
+risk controls and untouched August–September holdout remain open.
+Production V4 is unchanged.
