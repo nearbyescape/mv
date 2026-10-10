@@ -81,7 +81,7 @@ def test_worse_drawdown_contaminated_holdout_and_stress_losses_block():
     })
     report = assess_release_readiness(data)
     assert report["decision"] == "NO_GO_FOR_LIVE_V6HBR"
-    assert "DRAWNDOWN_WORSE_THAN_V4" in report["reasons"]
+    assert "DRAWDOWN_WORSE_THAN_V4" in report["reasons"]
     assert "HOLDOUT_CONTAMINATION_NOT_EXCLUDED" in report["reasons"]
     assert "NET_EXPECTANCY_NOT_DEMONSTRATED:holdout_stressed_net_r_after_costs" in report["reasons"]
 
