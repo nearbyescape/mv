@@ -105,6 +105,13 @@ def label_directional_events(
         if entry <= 0:
             raise ValueError("Invalid reference entry")
         sign = D(1) if ev["direction"] == "long" else D(-1)
+        # Only original closed source-hour indicators. Not the future entry
+        # candle or hindsight outcome. Enables hypotheses about late chasing.
+        source_close = dec(source.bar.close, "original 1h close")
+        ema20 = dec(source.ema20, "original 1h EMA20")
+        ema50 = dec(source.ema50, "original 1h EMA50")
+        source_extension = sign * (source_close - ema20) / atr
+        ema_separation = sign * (ema20 - ema50) / atr
         horizons = {}
         for horizon in HORIZONS:
             count = horizon // 15
@@ -171,7 +178,10 @@ def label_directional_events(
             "utc_day": _date(t),
             "direction": ev["direction"], "lane": ev["lane"],
             "setup_type": ev["setup_type"], "regime": ev["regime"],
-            "source_atr": str(atr), "reference_entry_next_15m_open": str(entry),
+            "source_atr": str(atr),
+            "predecision_source_extension_atr": str(source_extension),
+            "predecision_ema20_ema50_separation_atr": str(ema_separation),
+            "reference_entry_next_15m_open": str(entry),
             "horizons": horizons,
         })
     return results
@@ -264,6 +274,34 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
             [r for r in labeled if r["symbol"] == symbol]
         ) for symbol in sorted({r["symbol"] for r in labeled})
     }
+    # Predeclared decision-time directional screening hypotheses; subset
+    # stats are purely descriptive and cannot estimate portfolio PnL.
+    # The full chronological portfolio replay is a SEPARATE research stage.
+    filters = {
+        "ALL_CANDIDATES": lambda r: True,
+        "ESTABLISHED_ONLY": lambda r: r["regime"] == "established",
+        "NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR": (
+            lambda r: r["setup_type"] != "momentum_breakout"
+            or dec(r["predecision_source_extension_atr"], "source extension") <= D(1)
+        ),
+        "ESTABLISHED_AND_NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR": (
+            lambda r: r["regime"] == "established"
+            and (r["setup_type"] != "momentum_breakout"
+                 or dec(r["predecision_source_extension_atr"], "source extension") <= D(1))
+        ),
+    }
+    report["predeclared_predecision_filter_slices"] = {
+        name: {
+            "retained": sum(predicate(r) for r in labeled),
+            "rejected": sum(not predicate(r) for r in labeled),
+            "directional_accuracy_of_retained_candidate_references": (
+                summarize_directional_accuracy([
+                    r for r in labeled if predicate(r)
+                ])
+            ),
+        }
+        for name, predicate in filters.items()
+    }
     digest = sha256()
     for item in sorted(labeled, key=lambda r: (
         r["at_ms"], r["symbol"], r["lane"], r["setup_type"]
@@ -284,6 +322,7 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
         "Several overlapping signals may share the same price move and UTC-day bootstrap cannot remove all dependence",
         "BTC 15m/4h contradiction and live V4 risk veto require separate parity audit",
         "An after-cost hurdle is not a genuine after-cost execution simulation",
+        "Predeclared filter slices do not model portfolio slot reuse, risk, fees or actual fills",
         "Development statistics must not be used to pick a filter and then quoted as independent accuracy",
     ]
     return report
