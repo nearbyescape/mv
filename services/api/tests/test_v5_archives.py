@@ -196,13 +196,18 @@ def test_download_is_one_archive_idempotent_and_publisher_correction_fails(tmp_p
 
     monkeypatch.setattr(impl.httpx, "Client", FakeClient)
     root = tmp_path / "research"
+    # Byte cap is enforced while streaming and never publishes partial ZIPs.
+    with pytest.raises(ValueError, match="safety limit"):
+        acquire_one(root, plan, spec_hash, max_archive_bytes=16)
+    stored, sidecar = archive_location(root, plan)
+    assert not stored.exists() and not sidecar.exists()
     first = acquire_one(root, plan, spec_hash)
     assert first["verified_rows"] == 720
     assert first["source_sha256"] == published
-    assert [kind for kind, _ in history] == ["get", "stream"]
+    assert [kind for kind, _ in history] == ["get", "stream", "get", "stream"]
     again = acquire_one(root, plan, spec_hash)
     assert again == first
-    assert [kind for kind, _ in history] == ["get", "stream", "get"]
+    assert [kind for kind, _ in history] == ["get", "stream", "get", "stream", "get"]
 
     # Simulate publisher publishing a corrected zip; old pinned bytes retained.
     correction = "0" * 64
