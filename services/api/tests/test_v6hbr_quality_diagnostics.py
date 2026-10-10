@@ -146,3 +146,77 @@ def test_candidate_count_and_accounting_must_reconcile():
     policies["B"]["unresolved_references"] = 1
     with pytest.raises(ValueError, match="Unresolved count"):
         quality_report(rows, policies, end_exclusive_ms=JUNE)
+
+
+
+def test_quality_exact_net_reconciles_chronological_and_lane_grouped_decimals():
+    """Reproduces the VPS production-history rounding class, not real fills."""
+    from app.research.v6hbr_decimal_reconciliation import exact_reference_sum
+
+    net_amounts = [
+        "1.999999999999999999999999999",
+        "0.0000000000000000000000000001",
+        "-1.999999999999999999999999999",
+    ]
+    data_rows = [
+        trade(
+            "base-win", T, net=net_amounts[0], gross=net_amounts[0],
+            fees="0", funding="0",
+        ),
+        trade(
+            "rescue-tiny", T + 20*M, lane="15m_rescue",
+            net=net_amounts[1], gross=net_amounts[1],
+            fees="0", funding="0",
+        ),
+        trade(
+            "base-loss", T + 40*M, net=net_amounts[2], gross=net_amounts[2],
+            fees="0", funding="0",
+        ),
+    ]
+    original_net = exact_reference_sum(net_amounts)
+    assert original_net == D("1E-28")
+    observed_ids = [r["id"] for r in data_rows]
+    policies = {
+        name: {
+            "accepted_ids": observed_ids[:],
+            "resolved_references": 3,
+            "unresolved_references": 0,
+            "resolved_net_r_sum": str(original_net),
+        } for name in ("V4", "H", "B", "R")
+    }
+    result = quality_report(data_rows, policies, end_exclusive_ms=JUNE)
+    for name, cohort in result["cohorts"].items():
+        assert D(cohort["overall"]["resolved_net_r_sum"]) == original_net, name
+        assert D(cohort["terminal_only_drawdown"]["resolved_closed_net_r_sum"]) == original_net
+        assert exact_reference_sum(
+            D(s["resolved_net_r_sum"])
+            for s in cohort["by_group"]["lane"].values()
+        ) == original_net
+        baseline = next(
+            r for r in cohort["fixed_trade_fee_funding_multiplier_grid"]
+            if r["fee_multiplier"] == "1" and r["funding_multiplier"] == "1"
+        )
+        assert D(baseline["hypothetical_resolved_net_r_sum"]) == original_net
+    # Corrupt an independently supplied portfolio result and prove there is
+    # no fuzzy epsilon that could mask a real difference.
+    policies["H"]["resolved_net_r_sum"] = "0"
+    with pytest.raises(ValueError, match=r"cohort=H.*discrepancy=1E-28"):
+        quality_report(data_rows, policies, end_exclusive_ms=JUNE)
+
+
+def test_quality_fixed_cost_one_by_one_uses_recorded_booked_net():
+    """The no-change cost scenario must equal the original booked ledger."""
+    from app.research.v6hbr_quality_diagnostics import _cost_sensitivity
+
+    # Deliberately supply a fee/gross/net triple created under finite 28-digit
+    # execution rounding. Its recorded net is the source of truth.
+    records = [{
+        "gross": D("1.999999999999999999999999999"),
+        "fees": D("0.0000000000000000000000000001"),
+        "funding": D("0"),
+        "net": D("1.999999999999999999999999999"),
+    }]
+    grid = _cost_sensitivity(records)
+    fixed = next(x for x in grid if
+                 x["fee_multiplier"] == "1" and x["funding_multiplier"] == "1")
+    assert D(fixed["hypothetical_resolved_net_r_sum"]) == records[0]["net"]
