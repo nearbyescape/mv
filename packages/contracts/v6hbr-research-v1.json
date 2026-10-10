@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "id": "MV-V6HBR-RESEARCH-v1",
+  "status": "draft_research_only",
+  "production_strategy_unchanged": "MV-TREND-DUAL-v4",
+  "v6hbr_expansion": {
+    "H": "Hybrid",
+    "B": "Balanced",
+    "R": "Reserved"
+  },
+  "description": "Umbrella research comparison; not a merged strategy, not released, no exchange orders.",
+  "origin": {
+    "github_repo": "nearbyescape/mv",
+    "source_branch": "codex/mv-v5-historical-archive-pilot",
+    "source_head_sha": "2619f0cc78a88f0a709267095a13a27185c74a0e",
+    "superseded_prs": [
+      5,
+      9,
+      10,
+      11,
+      12
+    ],
+    "source_code_modules": [
+      "packages/strategy/mv_strategy/strategy_v5.py",
+      "services/api/app/research/v5_compare.py",
+      "services/api/app/research/v5_decision_replay.py",
+      "services/api/app/research/v5_archives.py",
+      "services/api/app/research/v5_archive_batch.py",
+      "services/api/app/research/v5_archive_audit.py",
+      "services/api/app/research/v5_indicator_audit.py",
+      "services/api/app/research/v5_archive_inventory.py",
+      "services/api/app/research/v5_archive_worklist.py"
+    ],
+    "context_document": "docs/V6HBR_PROJECT_CONTEXT.md"
+  },
+  "frozen_data_contract": {
+    "path": "packages/contracts/v5-history-v1.json",
+    "sha256": "48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64",
+    "symbol_count": 30,
+    "timeframes": [
+      "1m",
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "history_start": "2026-01-01",
+    "cutoff_exclusive": "2026-10-01",
+    "windows": {
+      "warmup": "2026-01..02 and first 500 completed 4h bars",
+      "development": "2026-03..05",
+      "validation": "2026-06..07",
+      "untouched_holdout": "2026-08..09"
+    },
+    "archive_storage": "VPS research-only /var/tmp/mv-v5-history-archives; no archived ZIPs in GitHub",
+    "do_not_rename_files_or_change_hash": true
+  },
+  "hypotheses": {
+    "V4": "Production completed 1h setup and completed 4h trend baseline",
+    "H": "Keep each V4-qualified base candidate; selectively add first completed 15m trigger only after trend-aligned V4 hourly no-trigger",
+    "B": "Hybrid cohort cloned; emerging-regime entries require completed symbol-specific 15m direction, EMA20 slope and directional close",
+    "R": "Hybrid cohort cloned; at most 1 same-direction rescue and 2 total same-direction signals per rolling hour, no retroactive displacement"
+  },
+  "evaluation": {
+    "required": "Chronological independent portfolio-state simulation after market risk vetoes, price-filter validation, latency, fees, slippage, funding, partial TP/SL, stop-first ambiguity, cross-margin exposure and drawdown",
+    "not_proof": [
+      "higher candidate count",
+      "27 v4 base and 43 btc rescue trigger references",
+      "reference gross R"
+    ],
+    "holdout_policy": "No August-September trading outcome use until policy and evaluation procedure are frozen"
+  },
+  "safety": {
+    "allow_production_mutation": false,
+    "allow_live_orders": false,
+    "allow_schema_migrations": false,
+    "allow_live_telegram_changes": false,
+    "requires_owner_approval_for_release": true
+  }
+}
