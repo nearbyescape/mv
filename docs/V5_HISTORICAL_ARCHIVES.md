@@ -143,3 +143,32 @@ indicator construction or V5 strategy evaluation.
 **No inference of 15m execution fills is made from this aggregation.** The
 separate 1m history, entry latency and exchange-specific fees/funding still
 need validation before portfolio P&L research.
+
+
+## Stage 1e — raw 1-minute execution-reference source validation
+
+A separate, streaming, **read-only** audit compares each independent native
+15m bar against all 15 closed 1m bars using Decimal OHLCV, with strict
+month-boundary continuity, source SHA-256 manifests and a bounded mismatch
+sample. The 1m archive parser uses its existing dedicated 60-second bar
+validator. It does **not** infer intraminute tick order, order-book execution,
+actual Lighter fills, funding or spread from OHLCV.
+
+To control resources, first run a **single April 2026 BTCUSDT/1m acquisition**
+and verify its SHA-256, complete 43,200 one-minute rows and exact independent
+2,880-bar 15m aggregation. The two-month continuation is a later operator
+decision. A full April–June dataset would contain 131,040 one-minute bars and
+8,736 independent 15m bars.
+
+After verified acquisition, this offline inspection compares source histories:
+
+```sh
+python -m app.research.v5_archive_audit reconcile-1m-15m \
+  --root /research --symbol BTCUSDT \
+  --start-month 2026-04 --end-month 2026-04
+```
+
+Any OHLCV disagreement emits `disposition=REVIEW_REQUIRED` and exits
+with code 3, without editing source archives. The audit runs only in the
+disposable research container, with all repository files and archived ZIPs
+mounted **read-only**, and with `--network none`.
