@@ -265,9 +265,105 @@ def audit_quarter_pair(
     }
 
 
+
+def audit_minutes_vs_fifteen(
+    root: Path,
+    minute: list[dict],
+    fifteen_minute: list[dict],
+    spec_sha: str,
+) -> dict:
+    """Compare 15 independently published 1m bars with each native 15m bar.
+
+    Uses constant-sized groups and exact decimal OHLCV. It neither infers the
+    intraminute order of stop/target touches nor models trade fills.
+    """
+    if (
+        not minute or not fifteen_minute
+        or [p["month"] for p in minute] != [p["month"] for p in fifteen_minute]
+        or minute[0]["symbol"] != fifteen_minute[0]["symbol"]
+        or any(p["timeframe"] != "1m" for p in minute)
+        or any(p["timeframe"] != "15m" for p in fifteen_minute)
+    ):
+        raise ValueError("1m/15m reconciliation requires matching scope")
+    smaller = audited_bars(root, minute, spec_sha)
+    larger = audited_bars(root, fifteen_minute, spec_sha)
+    discrepancies = Counter()
+    samples = []
+    comparisons = 0
+    mismatched_rows = 0
+    with localcontext() as decimal_context:
+        decimal_context.prec = 34
+        for native in larger:
+            group = []
+            for offset in range(15):
+                source = next(smaller, None)
+                if source is None or source.open_time != native.open_time + offset * FRAME_MS["1m"]:
+                    raise ValueError("1m/15m candle timeline mismatch")
+                group.append(source)
+            aggregate = {
+                "open": group[0].open,
+                "high": max(b.high for b in group),
+                "low": min(b.low for b in group),
+                "close": group[-1].close,
+                "volume": sum((b.volume for b in group), Decimal(0)),
+            }
+            mismatched = [key for key in FIELDS if aggregate[key] != getattr(native, key)]
+            comparisons += 1
+            if mismatched:
+                mismatched_rows += 1
+            for key in mismatched:
+                discrepancies[key] += 1
+            if mismatched and len(samples) < MAX_SAMPLES:
+                samples.append({
+                    "open_ms": native.open_time,
+                    "fields": {
+                        key: {"from_1m": str(aggregate[key]), "native_15m": str(getattr(native, key))}
+                        for key in mismatched
+                    },
+                })
+        if next(smaller, None) is not None:
+            raise ValueError("Unconsumed 1m source bars after all native 15m candles")
+    return {
+        "status": (
+            "SOURCE_DISAGREEMENT_REVIEW_REQUIRED"
+            if discrepancies else "SOURCE_AGGREGATION_EXACT_MATCH"
+        ),
+        "symbol": minute[0]["symbol"],
+        "months": [p["month"] for p in minute],
+        "native_15m_rows": comparisons,
+        "mismatched_native_15m_rows": mismatched_rows,
+        "field_mismatch_counts": dict(discrepancies),
+        "sample_limit": MAX_SAMPLES,
+        "samples": samples,
+    }
+
+
+def audit_minute_pair(
+    root: Path,
+    minute: list[dict],
+    fifteen_minute: list[dict],
+    spec_sha: str,
+) -> dict:
+    """Fail closed on missing, modified, or inconsistent minute execution data."""
+    source_minute = audit_continuity(root, minute, spec_sha)
+    source_fifteen = audit_continuity(root, fifteen_minute, spec_sha)
+    comparison = audit_minutes_vs_fifteen(root, minute, fifteen_minute, spec_sha)
+    return {
+        "schema": 1,
+        "source_spec_sha256": spec_sha,
+        "minute": source_minute,
+        "fifteen_minute": source_fifteen,
+        "comparison": comparison,
+        "disposition": (
+            "PASS" if comparison["status"] == "SOURCE_AGGREGATION_EXACT_MATCH"
+            else "REVIEW_REQUIRED"
+        ),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Offline V5 source continuity and reconciliation audit")
-    parser.add_argument("action", choices=("continuity", "reconcile-1h-4h", "reconcile-15m-1h"))
+    parser.add_argument("action", choices=("continuity", "reconcile-1h-4h", "reconcile-15m-1h", "reconcile-1m-15m"))
     parser.add_argument("--root", required=True)
     parser.add_argument("--symbol", required=True)
     parser.add_argument("--timeframe", choices=FRAME_MS.keys(), default="1h")
@@ -283,10 +379,14 @@ def main() -> None:
         one_hour = batch_plan(spec, args.symbol, "1h", args.start_month, args.end_month)
         four_hour = batch_plan(spec, args.symbol, "4h", args.start_month, args.end_month)
         result = audit_pair(root, one_hour, four_hour, spec_sha)
-    else:
+    elif args.action == "reconcile-15m-1h":
         fifteen_minute = batch_plan(spec, args.symbol, "15m", args.start_month, args.end_month)
         one_hour = batch_plan(spec, args.symbol, "1h", args.start_month, args.end_month)
         result = audit_quarter_pair(root, fifteen_minute, one_hour, spec_sha)
+    else:
+        minute = batch_plan(spec, args.symbol, "1m", args.start_month, args.end_month)
+        fifteen_minute = batch_plan(spec, args.symbol, "15m", args.start_month, args.end_month)
+        result = audit_minute_pair(root, minute, fifteen_minute, spec_sha)
     print(json.dumps(result, indent=2, sort_keys=True))
     if result.get("disposition") == "REVIEW_REQUIRED":
         raise SystemExit(3)
