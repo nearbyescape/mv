@@ -1,5 +1,12 @@
 # Phased delivery status
 
+## 10 October 2026 — V5 research-only archive inventory
+
+PR #12 (branch `codex/mv-v5-historical-archive-pilot`) adds the offline `app.research.v5_archive_inventory` coverage gate and focused unit tests. The frozen January–September 2026 proposal implies 30 symbols × 4 timeframes × 9 months = **1,080 monthly archive cells**. The CLI never downloads sources or accesses production, distinguishes missing archives, orphan files, pinned-but-unchecked sources, and deliberately bounded full-verification passes. Operator instructions are in [V5 coverage gate](V5_ARCHIVE_COVERAGE_GATE.md).
+
+**Implemented:** research-only inventory code and tests. **Not verified:** the new inventory tests on a real VPS, the complete 30-coin archive data, all-symbol V4/V5 replay, historical execution modeling, untouched performance holdout, profitability, and V5 production readiness. BTC pilot source and indicator evidence remains limited to its separately audited scope; it must not be extrapolated to 30 symbols. Production V4 is not changed by this PR.
+
+
 Milestone: **6 October 2026 — release 0.13.0/schema 0008 is deployed and its V3 engine is running; release 0.14.0 MV-TREND-DUAL-v4 is under validation**. V4 preserves the V3 financial core and adds a completed BTC 15-minute hard-contradiction veto, a two-signal same-direction source-close cap and a deterioration-triggered directional circuit breaker. V2/V3 history remains preserved.
 
 | Phase | Status | Exit evidence |
