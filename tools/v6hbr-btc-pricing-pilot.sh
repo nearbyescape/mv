@@ -34,6 +34,7 @@ docker run --rm --pull never \
       tests/test_v6hbr_execution_model.py \
       tests/test_v6hbr_portfolio_replay.py \
       tests/test_v6hbr_btc_pricing_pilot.py \
+      tests/test_v6hbr_attribution.py \
       tests/test_v6hbr_btc_pricing_operator.py \
       tests/test_v6hbr_candidate_operator_script.py \
       tests/test_v6hbr_operator_pilots.py
@@ -73,6 +74,20 @@ print(json.dumps({
             "rejections": v["rejections"],
         } for k,v in r["cohorts"].items()
     },
+    "attribution": {
+        k: {
+            "accepted_by_lane": v["accepted_by_lane"],
+            "resolved_net_r_by_lane": v["resolved_net_r_by_lane"],
+            "resolved_fee_debit_r_by_lane": v["resolved_fee_debit_r_by_lane"],
+            "resolved_funding_debit_r_by_lane": v["resolved_funding_debit_r_by_lane"],
+            "missing_v4_base_count": v["missing_v4_base_count"],
+            "missing_v4_base_with_demonstrated_rescue_blocker": v["missing_v4_base_with_demonstrated_rescue_blocker"],
+            "missing_v4_base_by_reason": v["missing_v4_base_by_reason"],
+            "missing_v4_base_details": v["missing_v4_base_details"],
+        } for k,v in r["post_hoc_attribution"]["cohorts"].items()
+    },
+    "balanced_rescue_filter_invariant": r["post_hoc_attribution"]["balanced_rescue_filter_invariant"],
+    "hybrid_reserved_identical_accepted_ids": r["post_hoc_attribution"]["hybrid_reserved_identical_accepted_ids"],
     "limitations": r["limitations"],
 }, sort_keys=True, indent=2))
 '"'"'
