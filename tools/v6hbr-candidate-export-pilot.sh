@@ -35,7 +35,9 @@ docker run --rm --pull never \
     echo "=== V6HBR unit regressions (pure research code) ==="
     python -m pytest -q -p no:cacheprovider \
       tests/test_v6hbr_candidate_export.py \
-      tests/test_v6hbr_execution_model.py
+      tests/test_v6hbr_execution_model.py \
+      tests/test_v6hbr_candidate_operator_script.py \
+      tests/test_v6hbr_operator_pilots.py
 
     echo "=== BTC April-May full decision-only candidate export ==="
     python -m app.research.v6hbr_candidate_export \
