@@ -15,6 +15,7 @@ from __future__ import annotations
 from decimal import Decimal as D, InvalidOperation
 
 from .v6hbr_portfolio_replay import simulate_cohort
+from .v6hbr_setup_taxonomy import BREAKOUT_SETUP_TYPES, validated_setup_type
 
 EXPERIMENTS = (
     "ESTABLISHED_REGIME_ONLY",
@@ -46,8 +47,10 @@ def veto_reason(row: dict, experiment: str) -> str | None:
         raise ValueError("Unrecognized predeclared experiment")
     if row["regime"] not in ("emerging", "established"):
         raise ValueError("Invalid trend regime")
-    if row["setup_type"] not in ("momentum_breakout", "pullback_continuation"):
-        raise ValueError("Invalid candidate setup")
+    setup_type = validated_setup_type(row["setup_type"], row["lane"])
+    # 1h strategy ranks 1h source distance, while completed rescue setups
+    # rank distance from their 15m source EMA. Both values are directional
+    # ATR-normalized by their respective source frame, never raw prices.
     extension = _extension(row)
     if experiment in (
         "ESTABLISHED_REGIME_ONLY", "ESTABLISHED_AND_NO_EXTENDED_BREAKOUT"
@@ -56,7 +59,7 @@ def veto_reason(row: dict, experiment: str) -> str | None:
     if experiment in (
         "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR",
         "ESTABLISHED_AND_NO_EXTENDED_BREAKOUT",
-    ) and row["setup_type"] == "momentum_breakout" and extension > MAX_BREAKOUT_EXTENSION_ATR:
+    ) and setup_type in BREAKOUT_SETUP_TYPES and extension > MAX_BREAKOUT_EXTENSION_ATR:
         return VETO_EXTENSION
     return None
 
