@@ -105,3 +105,38 @@ audit-ledger writes, DB writes, or Telegram messages are performed.
 
 **This tool supplies source inventory evidence only; it is not the
 30-coin replay engine or a return/profitability assessment.**
+
+
+## Stage 3 operator pilot — BTC-only historical decision replay
+
+The checked-in shell entry point `tools/v5-btc-replay-pilot.sh`
+runs a *read-only*, *network-disabled*, BTC-specific smoke chain. It
+refuses a dirty checkout or an unexpected branch/location. The command
+executes the two focused test modules, full independently pinned
+15m→1h and 1h→4h January–June source reconciliation, then the
+`v5_decision_replay` evaluator **only on January–May inputs**, with
+March–May classified as development and the initial 500-bar warmup
+honored. Reading June candles for the **source-integrity-only** audits
+is not June strategy evaluation.
+
+After explicitly verifying the isolated worktree is clean, fast-forward
+the research branch and invoke:
+
+```sh
+cd /tmp/mv-v5-history-pilot
+test -z "$(git status --porcelain)" || exit 2
+test "$(git branch --show-current)" = "codex/mv-v5-historical-archive-pilot" || exit 2
+git fetch origin codex/mv-v5-historical-archive-pilot
+git merge --ff-only FETCH_HEAD
+bash tools/v5-btc-replay-pilot.sh
+```
+
+No production Compose mutation, collector/backfill, funding, trade
+simulation or holdout performance examination takes place.
+The command prints the source reconciliation and decision-only JSON;
+it ends in `V5_BTC_DEVELOPMENT_DECISION_PILOT: PASS` only if each
+prior stage exited successfully. Exit failures require inspection
+without skipping checks. Do **not** interpret the result as production
+signal totals or profitability; portfolio safety and executable fills
+have not been modeled. The script and its execution have **not yet been
+independently verified on the operator VPS** as of its addition.
