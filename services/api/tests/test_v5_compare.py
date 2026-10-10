@@ -5,6 +5,8 @@ from types import SimpleNamespace
 from mv_strategy.signals import PriceFilter
 from mv_strategy.strategy_v5 import evaluate_context_v5, evaluate_trigger_v5
 from app.research.v5_compare import (
+    _candidate_audit_rows,
+    _v4_base_preservation,
     _is_mature_4h,
     _observation_end_open,
     _v5_reference_plan,
@@ -294,3 +296,126 @@ def test_summary_unresolved_full_available_position_is_not_booked_pnl():
     assert extended["resolved"] == 0
     assert extended["conservative_r_sum_resolved"] == "0"
     assert extended["status"] == {"open": 1}
+
+
+def test_candidate_audit_identifies_rolling_blockers_and_unselected_outcomes():
+    base = 42_000_000
+    rows = [
+        _safety_candidate("uni-rescue", "UNIUSDT", base),
+        _safety_candidate("ldo-rescue", "LDOUSDT", base),
+        _safety_candidate("aave-base", "AAVEUSDT", base + 15 * 60_000),
+    ]
+    for row in rows:
+        row.v4_plan = {"entry": "100", "stop": "102"}
+        row.v4_scaled_outcome.update({
+            "status": "stop",
+            "conservative_r": "-1",
+            "terminal_at": base + 3 * 3_600_000,
+            "mfe_r": "0.1",
+            "mae_r": "1.05",
+        })
+
+    simulate_v5_with_safety(rows)
+    meta = {
+        "uni-rescue": {"lane": "15m_rescue"},
+        "ldo-rescue": {"lane": "15m_rescue"},
+        "aave-base": {"lane": "v4_base"},
+    }
+    audit = _candidate_audit_rows(rows, meta)
+    rejected = next(item for item in audit if item["id"] == "aave-base")
+    assert rejected["selected"] is False
+    assert rejected["lane"] == "v4_base"
+    assert rejected["portfolio_reason"] == (
+        "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+    )
+    assert rejected["rolling_same_direction_accepted_before_decision"] == 2
+    assert {
+        item["symbol"] for item in rejected["blocked_by_published"]
+    } == {"UNIUSDT", "LDOUSDT"}
+    assert all(
+        item["published_at"] < rejected["published_at"]
+        for item in rejected["blocked_by_published"]
+    )
+    assert rejected["independent_reference_full_available"]["status"] == "stop"
+    # A hypothetical stop for a *rejected* candidate must not count as
+    # a published portfolio loss.
+    summary = _summary(rows, {}, set())
+    assert summary["published"] == 2
+    assert summary["full_available"]["resolved"] == 2
+    assert D(summary["full_available"]["conservative_r_sum_resolved"]) == D("-2")
+
+
+def test_v4_base_preservation_audits_displaced_published_setup():
+    base = 52_000_000
+    original = _safety_candidate("v4-aave", "AAVEUSDT", base + 15 * 60_000)
+    original.capped_reason = "WOULD_PUBLISH_V4"
+    original.v4_plan = {"entry": "100"}
+
+    rows = [
+        _safety_candidate("rescue-uni", "UNIUSDT", base),
+        _safety_candidate("rescue-ldo", "LDOUSDT", base),
+        _safety_candidate("v5-base-aave", "AAVEUSDT", base + 15 * 60_000),
+    ]
+    meta = {
+        "rescue-uni": {"lane": "15m_rescue"},
+        "rescue-ldo": {"lane": "15m_rescue"},
+        "v5-base-aave": {"lane": "v4_base"},
+    }
+    simulate_v5_with_safety(rows)
+    audit = _candidate_audit_rows(rows, meta)
+    comparison = _v4_base_preservation([original], rows, meta, audit)
+
+    assert comparison["v4_published"] == 1
+    assert comparison["v5_base_preserved"] == 0
+    assert comparison["v5_base_displaced"] == 1
+    detail = comparison["rows"][0]
+    assert detail["symbol"] == "AAVEUSDT"
+    assert detail["v5_base_rejection_reason"] == (
+        "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+    )
+    assert {b["symbol"] for b in detail["v5_base_blocked_by"]} == {
+        "UNIUSDT", "LDOUSDT",
+    }
+
+
+def test_candidate_audit_never_uses_future_publications_as_blockers():
+    base = 62_000_000
+    rows = [
+        _safety_candidate("first", "ETHUSDT", base),
+        _safety_candidate("second", "BTCUSDT", base + 15 * 60_000),
+        _safety_candidate("rejected", "AAVEUSDT", base + 30 * 60_000),
+        _safety_candidate("future", "LINKUSDT", base + 90 * 60_000),
+    ]
+    simulate_v5_with_safety(rows)
+    audit = _candidate_audit_rows(rows, {})
+    rejected = next(item for item in audit if item["id"] == "rejected")
+    assert rejected["portfolio_reason"] == (
+        "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+    )
+    assert {b["id"] for b in rejected["blocked_by_published"]} == {
+        "first", "second",
+    }
+    assert "future" not in {
+        b["id"] for b in rejected["blocked_by_published"]
+    }
+
+
+def test_candidate_audit_does_not_invent_independent_path_without_plan():
+    row = _safety_candidate("no-plan", "XRPUSDT", 72_000_000)
+    row.preliminary_reason = "BTC_15M_TIMING_CONFLICT"
+    simulate_v5_with_safety([row])
+    audit = _candidate_audit_rows([row], {})
+    assert audit[0]["portfolio_reason"] == "BTC_15M_TIMING_CONFLICT"
+    assert audit[0]["selected"] is False
+    assert audit[0]["independent_reference_full_available"] is None
+    assert audit[0]["blocked_by_published"] == []
+
+
+def test_v4_base_preservation_flags_missing_corresponding_base_candidate():
+    original = _safety_candidate("original", "AAVEUSDT", 82_000_000)
+    original.capped_reason = "WOULD_PUBLISH_V4"
+    result = _v4_base_preservation([original], [], {}, [])
+    assert result["v5_base_displaced"] == 1
+    assert result["rows"][0]["v5_base_rejection_reason"] == (
+        "MISSING_V5_BASE_CANDIDATE"
+    )
