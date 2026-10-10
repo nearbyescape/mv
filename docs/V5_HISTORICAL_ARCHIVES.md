@@ -172,3 +172,43 @@ Any OHLCV disagreement emits `disposition=REVIEW_REQUIRED` and exits
 with code 3, without editing source archives. The audit runs only in the
 disposable research container, with all repository files and archived ZIPs
 mounted **read-only**, and with `--network none`.
+
+
+## Stage 2 — exact live-indicator reconstruction (read-only)
+
+After three months of independently audited BTCUSDT 15m, 1h and 4h
+archives, the offline `v5_indicator_audit` CLI replays the *same*
+`mv_strategy.indicators.IndicatorState` implementation as the running
+market collector, continuously from the **first archived candle**.
+No SQL, HTTP, exchange keys, or production services are accessed:
+
+```sh
+python -m app.research.v5_indicator_audit \
+  --root /research --symbol BTCUSDT \
+  --start-month 2026-04 --end-month 2026-06
+```
+
+It independently verifies each source manifest and cross-month continuity,
+recomputes every EMA20, EMA50, SMA200, and ATR14 from completed candles,
+and asserts reconstructed `Snapshot.validate()` passes. Only the close
+boundary `bar.close_time + 1` is eligible as evidence as-of time.
+During each monthly transition a serialized `IndicatorState.dump()`
+is restored and replayed alongside the uninterrupted original stream:
+values and complete state/lineage must match exactly on every later candle.
+Both snapshots and boundary checkpoints receive deterministic SHA-256
+fingerprints, without writing report files or touching any live database.
+
+**Crucial warmup:** V5 requires **500 closed bars on each timeframe**,
+not just the 200 bars to compute SMA200. A 4h series starting 2026-04-01
+has only 546 complete candles through June 30, so no hypothetical trade
+should be evaluated in April or May on that source origin; the first
+4h-eligible timestamp only occurs in late June. The January–February
+2026 pinned warmup archives must be acquired before any March–May
+development performance research. That research must also explicitly
+test origin parity with the intended historical evaluation seed; changing
+the start of EMA seeds changes values, and this audit does not claim
+backtest parity with live September 2026 checkpoints.
+
+This stage proves source-to-indicator determinism for one symbol and
+fixed origin, *not* that V5's entry decisions, execution costs, or portfolio
+P&L have passed historical validation.
