@@ -87,6 +87,7 @@ jobs:
             tests/test_v6hbr_portfolio_replay.py \
             tests/test_v6hbr_btc_pricing_pilot.py \
             tests/test_v6hbr_attribution.py \
+            tests/test_v6hbr_decimal_reconciliation.py \
             tests/test_v6hbr_quality_diagnostics.py \
             tests/test_v6hbr_entry_adversity.py \
             tests/test_v6hbr_live_v4_forensics.py \
