@@ -5,6 +5,7 @@
 # read-only, capability-free, resource-limited Docker.
 set -Eeuo pipefail
 umask 077
+ulimit -f 32768  # Cap any single host-side output file at 16 MiB.
 
 ROOT=/var/lib/mv-v6hbr-auto
 REPO="$ROOT/repository"
@@ -105,7 +106,7 @@ STATUS=1
   echo "source_spec=$SPEC"
   echo "execution_model=ILLUSTRATIVE_COST_SCENARIO_NOT_REAL_FILLS"
   if timeout --signal=TERM --kill-after=30s 35m \
-    docker run --rm --pull never --name "v6hbr-auto-$(printf '%.12s' "$HEAD")" \
+    docker run --rm --pull never --log-driver none --name "v6hbr-auto-$(printf '%.12s' "$HEAD")" \
     --network none --read-only \
     --cap-drop ALL --security-opt no-new-privileges \
     --pids-limit 64 --cpus=0.5 --memory=768m --memory-swap=768m \
@@ -123,7 +124,8 @@ STATUS=1
         tests/test_v6hbr_attribution.py \
         tests/test_v6hbr_candidate_operator_script.py \
         tests/test_v6hbr_btc_pricing_operator.py \
-        tests/test_v6hbr_operator_pilots.py
+        tests/test_v6hbr_operator_pilots.py \
+        tests/test_v6hbr_automation_bootstrap.py
 
       python -m app.research.v6hbr_btc_pricing_pilot \
         --root /research \
