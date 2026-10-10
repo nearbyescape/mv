@@ -1,5 +1,6 @@
 from dataclasses import replace
 from decimal import Decimal as D
+from types import SimpleNamespace
 
 from mv_strategy.signals import PriceFilter
 from mv_strategy.strategy_v5 import evaluate_context_v5, evaluate_trigger_v5
@@ -7,6 +8,8 @@ from app.research.v5_compare import (
     _is_mature_4h,
     _observation_end_open,
     _v5_reference_plan,
+    balanced_15m_filter_reason,
+    make_balanced_candidates,
     simulate_v5_with_safety,
 )
 from app.research.v4_retrospective import Candidate
@@ -143,3 +146,88 @@ def test_v5_safety_caps_same_direction_to_two_in_rolling_hour():
     # Exactly one hour after the first publication, that first row has aged
     # out of the rolling window and one slot is available again.
     assert rows[3].capped_reason == "WOULD_PUBLISH_V4"
+
+
+def _micro_snapshot(open_time, ema20, ema50, close, count=600):
+    from app.research.v5_compare import MIN15
+    return SimpleNamespace(
+        timeframe="15m",
+        count=count,
+        history_origin=0,
+        bar=SimpleNamespace(
+            open_time=open_time,
+            close_time=open_time + MIN15 - 1,
+            close=D(close),
+        ),
+        ema20=D(ema20),
+        ema50=D(ema50),
+    )
+
+
+def test_balanced_preserves_established_base_without_microdata():
+    row = _safety_candidate("established", "LTCUSDT", 30_600_000)
+    assert row.regime == "established"
+    assert balanced_15m_filter_reason(row, {}) is None
+    balanced, reasons = make_balanced_candidates([row], {})
+    assert len(balanced) == 1
+    assert balanced[0].preliminary_reason is None
+    assert balanced[0].signal_id != row.signal_id
+    assert reasons["UNCHANGED_OR_CONFIRMED"] == 1
+    simulate_v5_with_safety(balanced)
+    assert balanced[0].capped_reason == "WOULD_PUBLISH_V4"
+    assert row.capped_reason is None
+
+
+def test_balanced_emerging_short_requires_completed_symbol_microtrend():
+    from app.research.v5_compare import MIN15
+    published_at = 30_600_000
+    row = _safety_candidate("emerging", "LTCUSDT", published_at)
+    row.regime = "emerging"
+    previous = _micro_snapshot(published_at - 2 * MIN15, "100", "101", "100")
+    current = _micro_snapshot(published_at - MIN15, "99", "100", "98")
+    snapshots = {"LTCUSDT": {previous.bar.open_time: previous, current.bar.open_time: current}}
+
+    assert balanced_15m_filter_reason(row, snapshots) is None
+    # Cross-coin BTC snapshots are never substituted for missing LTC data.
+    assert balanced_15m_filter_reason(row, {"BTCUSDT": snapshots["LTCUSDT"]}) == "BALANCED_15M_DATA_UNAVAILABLE"
+
+    # Reversing the 15m EMA20 slope must block the emerging SHORT.
+    rising = _micro_snapshot(published_at - MIN15, "100.5", "101", "99")
+    snapshots["LTCUSDT"][rising.bar.open_time] = rising
+    assert balanced_15m_filter_reason(row, snapshots) == "BALANCED_15M_NOT_ALIGNED"
+
+
+def test_balanced_does_not_consume_future_or_incomplete_candles():
+    from app.research.v5_compare import MIN15
+    published_at = 30_600_000
+    row = _safety_candidate("future", "HBARUSDT", published_at)
+    row.regime = "emerging"
+    prev = _micro_snapshot(published_at - 2 * MIN15, "100", "101", "100")
+    future = _micro_snapshot(published_at, "98", "99", "97")
+    available = {"HBARUSDT": {prev.bar.open_time: prev, future.bar.open_time: future}}
+    assert balanced_15m_filter_reason(row, available) == "BALANCED_15M_DATA_UNAVAILABLE"
+    now = _micro_snapshot(published_at - MIN15, "99", "100", "98")
+    now.bar.close_time = published_at + 1  # not a completed candle at publication
+    available["HBARUSDT"][now.bar.open_time] = now
+    assert balanced_15m_filter_reason(row, available) == "BALANCED_15M_DATA_UNAVAILABLE"
+
+
+def test_balanced_preserves_existing_rejection_and_isolated_portfolio_state():
+    from app.research.v5_compare import MIN15
+    at = 30_600_000
+    rejected = _safety_candidate("rejected", "LTCUSDT", at)
+    rejected.regime = "emerging"
+    rejected.preliminary_reason = "BTC_REGIME_CONTRADICTION"
+    assert balanced_15m_filter_reason(rejected, {}) is None
+
+    emerging = _safety_candidate("emerging", "HBARUSDT", at + MIN15)
+    emerging.regime = "emerging"
+    balanced, reasons = make_balanced_candidates([rejected, emerging], {})
+    assert balanced[0].preliminary_reason == "BTC_REGIME_CONTRADICTION"
+    assert balanced[1].preliminary_reason == "BALANCED_15M_DATA_UNAVAILABLE"
+    assert emerging.preliminary_reason is None
+    assert rejected.preliminary_reason == "BTC_REGIME_CONTRADICTION"
+    assert reasons["BALANCED_15M_DATA_UNAVAILABLE"] == 1
+    simulate_v5_with_safety(balanced)
+    assert all(row.capped_reason != "WOULD_PUBLISH_V4" for row in balanced)
+    assert emerging.capped_reason is None
