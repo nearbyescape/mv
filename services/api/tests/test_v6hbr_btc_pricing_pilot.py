@@ -215,3 +215,40 @@ def test_installed_hourly_agent_smokes_math_shadow_abstention():
     report = audit_mathematical_abstention(rows, cohorts)
     assert report["cohorts"]["H"]["mathematically_research_eligible"] == 0
     assert cohorts["H"]["accepted_ids"] == ["v4"]
+
+
+def test_installed_vps_agent_smokes_directional_accuracy_label_and_no_future():
+    """The pinned offline hourly agent tests this module without a restart."""
+    from app.research.v6hbr_directional_accuracy import (
+        label_directional_events, directional_accuracy_study
+    )
+    import types
+    from datetime import datetime, timezone
+    at = int(datetime(2026, 4, 1, 0, 0, tzinfo=timezone.utc).timestamp()*1000)
+    q = 900_000
+    frame = types.SimpleNamespace(bar=types.SimpleNamespace(
+        open_time=at, close_time=at+q-1,
+        open=D(100), high=D(102), low=D(99), close=D(101),
+    ))
+    source = types.SimpleNamespace(
+        bar=types.SimpleNamespace(close_time=at-1, close=D(100)),
+        atr=D(2), ema20=D(99), ema50=D(98),
+    )
+    ev = {
+        "symbol": "BTCUSDT", "at_ms": at,
+        "context_open_ms": at - 3_600_000,
+        "lane": "v4_base", "direction": "long",
+        "setup_type": "momentum_breakout", "regime": "established",
+    }
+    labels = label_directional_events(
+        [ev], {at: frame}, {at-3_600_000: source},
+        end_exclusive_ms=at+q
+    )
+    assert labels[0]["horizons"]["15"]["first_0p5atr_event"] == "ADVERSE_FIRST"
+    assert labels[0]["horizons"]["30"]["status"] == "CENSORED"
+    score = directional_accuracy_study(labels)
+    assert score["overall"]["15"]["direction_supported_over_hurdle"] == 1
+    assert score["predeclared_predecision_filter_slices"][
+        "ESTABLISHED_ONLY"
+    ]["retained"] == 1
+    assert score["candidate_count"] == 1
