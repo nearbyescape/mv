@@ -33,6 +33,7 @@ from .v6hbr_portfolio_replay import simulate_cohort
 from .v6hbr_attribution import diagnose
 from .v6hbr_quality_diagnostics import quality_report
 from .v6hbr_entry_adversity import entry_adversity_report
+from .v6hbr_abstention_audit import audit_mathematical_abstention
 
 SYMBOL = "BTCUSDT"
 DEVELOPMENT_START = "2026-04-01"
@@ -153,6 +154,7 @@ def price_candidates(events, maps, minute_bars, scenario: ExecutionScenario,
             "id": f"{SYMBOL}:{ev['context_open_ms']}:{ev['lane']}:{ev.get('trigger_open_ms', '-')}",
             "symbol": SYMBOL,
             "direction": ev["direction"],
+            "setup_type": ev["setup_type"],
             "lane": ev["lane"],
             "regime": ev["regime"],
             "at_ms": at,
@@ -229,6 +231,8 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
     # in its reports, so new diagnostics can be inspected without updating
     # its privileged host-side executable.
     attribution["post_hoc_entry_adversity"] = adversity
+    math_abstention = audit_mathematical_abstention(priced, cohorts)
+    attribution["prospective_math_abstention_shadow"] = math_abstention
     return {
         "schema": 1,
         "status": "BTC_ONLY_EXPLICIT_COST_SCENARIO_NOT_CERTIFIED",
@@ -243,6 +247,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         "post_hoc_attribution": attribution,
         "post_hoc_quality_diagnostics": quality,
         "post_hoc_entry_adversity": adversity,
+        "prospective_math_abstention_shadow": math_abstention,
         "pricing_preliminary_reasons": dict(sorted(Counter(
             x["preliminary_reason"] or "ELIGIBLE" for x in priced
         ).items())),
@@ -268,6 +273,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
             "Fee/funding multiplier grid keeps original accepted trades and stop/target paths fixed",
             "Entry adversity is measured on 1m Binance reference candles, not recent delivered alerts or observed Lighter fills",
             "Intraminute reversal threshold ties are treated adverse-first; early exits censor longer observation windows",
+            "The mathematical abstention filter is shadow-only, consumes previously terminal V4 proxy outcomes and changes no HBR entries or ledger",
             "Legacy v4_base_ids_displaced means baseline accepted but missing in cohort; post_hoc_attribution distinguishes filter veto from proven rescue blocker",
         ],
     }
