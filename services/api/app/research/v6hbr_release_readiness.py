@@ -137,7 +137,7 @@ def assess_release_readiness(evidence: Mapping | None) -> dict:
         reasons.append("INVALID_BASELINE_DRAWDOWN")
     if (candidate_dd is not None and baseline_dd is not None
             and candidate_dd > baseline_dd):
-        reasons.append("DRAWNDOWN_WORSE_THAN_V4")
+        reasons.append("DRAWDOWN_WORSE_THAN_V4")
 
     if evidence.get("operator_signoff") is not True:
         reasons.append("OPERATOR_SIGNOFF_MISSING")
