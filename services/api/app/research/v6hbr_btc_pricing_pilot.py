@@ -32,6 +32,7 @@ from .v6hbr_execution_model import ExecutionScenario, simulate_reference_trade, 
 from .v6hbr_portfolio_replay import simulate_cohort
 from .v6hbr_attribution import diagnose
 from .v6hbr_quality_diagnostics import quality_report
+from .v6hbr_entry_adversity import entry_adversity_report
 
 SYMBOL = "BTCUSDT"
 DEVELOPMENT_START = "2026-04-01"
@@ -221,6 +222,13 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         priced, cohorts, end_exclusive_ms=timestamp(DEVELOPMENT_END)
     )
     attribution["post_hoc_quality_diagnostics"] = quality
+    adversity = entry_adversity_report(
+        priced, minute_bars, cohorts, end_exclusive_ms=timestamp(DEVELOPMENT_END)
+    )
+    # The original pinned VPS agent already includes this attribution object
+    # in its reports, so new diagnostics can be inspected without updating
+    # its privileged host-side executable.
+    attribution["post_hoc_entry_adversity"] = adversity
     return {
         "schema": 1,
         "status": "BTC_ONLY_EXPLICIT_COST_SCENARIO_NOT_CERTIFIED",
@@ -234,6 +242,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         "candidate_count": len(priced),
         "post_hoc_attribution": attribution,
         "post_hoc_quality_diagnostics": quality,
+        "post_hoc_entry_adversity": adversity,
         "pricing_preliminary_reasons": dict(sorted(Counter(
             x["preliminary_reason"] or "ELIGIBLE" for x in priced
         ).items())),
@@ -257,6 +266,8 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
             "No future selection by net R; outputs cannot justify V6HBR promotion",
             "Resolved-only closed-terminal drawdown is not mark-to-market portfolio drawdown",
             "Fee/funding multiplier grid keeps original accepted trades and stop/target paths fixed",
+            "Entry adversity is measured on 1m Binance reference candles, not recent delivered alerts or observed Lighter fills",
+            "Intraminute reversal threshold ties are treated adverse-first; early exits censor longer observation windows",
             "Legacy v4_base_ids_displaced means baseline accepted but missing in cohort; post_hoc_attribution distinguishes filter veto from proven rescue blocker",
         ],
     }
