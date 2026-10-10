@@ -12,6 +12,7 @@ from app.research.v5_compare import (
     _v5_reference_plan,
     balanced_15m_filter_reason,
     make_balanced_candidates,
+    make_reserved_base_candidates,
     _summary,
     simulate_v5_with_safety,
 )
@@ -439,3 +440,178 @@ def test_candidate_audit_is_read_only_for_portfolio_selection():
         for row in rows
     ]
     assert after == before
+
+
+def test_reserved_base_policy_does_not_change_original_hybrid_rows():
+    start = 101_000_000
+    source = [
+        _safety_candidate("rescue-a", "UNIUSDT", start),
+        _safety_candidate("rescue-b", "LDOUSDT", start),
+        _safety_candidate("base-c", "AAVEUSDT", start + 15 * 60_000),
+    ]
+    meta = {
+        "rescue-a": {"lane": "15m_rescue"},
+        "rescue-b": {"lane": "15m_rescue"},
+        "base-c": {"lane": "v4_base"},
+    }
+    reserved, reserved_meta, rescue_ids = make_reserved_base_candidates(
+        source, meta
+    )
+    assert len(reserved) == len(source)
+    assert all(r.capped_reason is None for r in source)
+    assert len(rescue_ids) == 2
+    assert {
+        v["lane"] for v in reserved_meta.values()
+    } == {"15m_rescue", "v4_base"}
+    simulate_v5_with_safety(
+        reserved, rescue_signal_ids=rescue_ids,
+        max_rescue_per_rolling_hour=1,
+    )
+    assert all(row.capped_reason is None for row in source)
+    assert sum(
+        r.capped_reason == "WOULD_PUBLISH_V4" for r in reserved
+    ) == 2
+    assert next(
+        r for r in reserved if r.symbol == "AAVEUSDT"
+    ).capped_reason == "WOULD_PUBLISH_V4"
+    assert sum(
+        r.capped_reason == "RESCUE_LANE_ROLLING_LIMIT"
+        for r in reserved
+    ) == 1
+    simulate_v5_with_safety(source)
+    assert next(
+        r for r in source if r.symbol == "AAVEUSDT"
+    ).capped_reason == "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+
+
+def test_reserved_base_does_not_relax_total_same_direction_capacity():
+    start = 111_000_000
+    source = [
+        _safety_candidate("rescue-1", "UNIUSDT", start),
+        _safety_candidate("rescue-2", "LDOUSDT", start),
+        _safety_candidate("base-1", "AAVEUSDT", start + 15 * 60_000),
+        _safety_candidate("base-2", "HBARUSDT", start + 15 * 60_000),
+    ]
+    meta = {
+        "rescue-1": {"lane": "15m_rescue"},
+        "rescue-2": {"lane": "15m_rescue"},
+        "base-1": {"lane": "v4_base"},
+        "base-2": {"lane": "v4_base"},
+    }
+    reserved, reserved_meta, rescue_ids = make_reserved_base_candidates(
+        source, meta
+    )
+    simulate_v5_with_safety(
+        reserved, rescue_signal_ids=rescue_ids,
+        max_rescue_per_rolling_hour=1,
+    )
+    assert sum(
+        row.capped_reason == "WOULD_PUBLISH_V4" for row in reserved
+    ) == 2
+    assert sum(
+        row.capped_reason == "RESCUE_LANE_ROLLING_LIMIT" for row in reserved
+    ) == 1
+    assert sum(
+        row.capped_reason == "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
+        for row in reserved
+    ) == 1
+    original_v4 = [
+        _safety_candidate("original-aave", "AAVEUSDT", start + 15 * 60_000),
+        _safety_candidate("original-hbar", "HBARUSDT", start + 15 * 60_000),
+    ]
+    for row in original_v4:
+        row.capped_reason = "WOULD_PUBLISH_V4"
+    audit = _candidate_audit_rows(reserved, reserved_meta)
+    comparison = _v4_base_preservation(
+        original_v4, reserved, reserved_meta, audit
+    )
+    assert comparison["v4_published"] == 2
+    assert comparison["v5_base_preserved"] == 1
+    assert comparison["v5_base_displaced"] == 1
+
+
+def test_reserved_base_audit_identifies_rescue_quota_blocker_without_lookahead():
+    start = 121_000_000
+    source = [
+        _safety_candidate("rescue-one", "UNIUSDT", start),
+        _safety_candidate("rescue-two", "LDOUSDT", start + 15 * 60_000),
+        _safety_candidate("base-later", "AAVEUSDT", start + 45 * 60_000),
+    ]
+    meta = {
+        "rescue-one": {"lane": "15m_rescue"},
+        "rescue-two": {"lane": "15m_rescue"},
+        "base-later": {"lane": "v4_base"},
+    }
+    reserved, reserved_meta, rescue_ids = make_reserved_base_candidates(
+        source, meta
+    )
+    simulate_v5_with_safety(
+        reserved, rescue_signal_ids=rescue_ids,
+        max_rescue_per_rolling_hour=1,
+    )
+    audit = _candidate_audit_rows(reserved, reserved_meta)
+    rejected = next(r for r in audit if r["symbol"] == "LDOUSDT")
+    assert rejected["portfolio_reason"] == "RESCUE_LANE_ROLLING_LIMIT"
+    assert rejected["rolling_rescue_accepted_before_decision"] == 1
+    assert [(b["symbol"], b["lane"]) for b in rejected["blocked_by_published"]] == [
+        ("UNIUSDT", "15m_rescue")
+    ]
+    assert next(
+        r for r in reserved if r.symbol == "AAVEUSDT"
+    ).capped_reason == "WOULD_PUBLISH_V4"
+
+
+def test_reserved_base_allows_next_rescue_after_exact_rolling_hour():
+    start = 131_000_000
+    source = [
+        _safety_candidate("first", "UNIUSDT", start),
+        _safety_candidate("rejected", "LDOUSDT", start + 15 * 60_000),
+        _safety_candidate("after-hour", "XLMUSDT", start + 60 * 60_000),
+    ]
+    meta = {row.signal_id: {"lane": "15m_rescue"} for row in source}
+    reserved, _, ids = make_reserved_base_candidates(source, meta)
+    simulate_v5_with_safety(
+        reserved, rescue_signal_ids=ids,
+        max_rescue_per_rolling_hour=1,
+    )
+    assert [
+        row.capped_reason for row in reserved
+    ] == [
+        "WOULD_PUBLISH_V4",
+        "RESCUE_LANE_ROLLING_LIMIT",
+        "WOULD_PUBLISH_V4",
+    ]
+
+
+def test_reserved_base_quota_is_direction_specific_and_respects_preliminary_veto():
+    start = 141_000_000
+    source = [
+        _safety_candidate("short-1", "UNIUSDT", start, "short"),
+        _safety_candidate("long-1", "BTCUSDT", start, "long"),
+        _safety_candidate("vetoed-short", "AAVEUSDT", start, "short"),
+        _safety_candidate("short-2", "LDOUSDT", start + 15 * 60_000, "short"),
+    ]
+    source[2].preliminary_reason = "BTC_15M_TIMING_CONFLICT"
+    meta = {row.signal_id: {"lane": "15m_rescue"} for row in source}
+    reserved, _, ids = make_reserved_base_candidates(source, meta)
+    simulate_v5_with_safety(
+        reserved, rescue_signal_ids=ids,
+        max_rescue_per_rolling_hour=1,
+    )
+    decisions = {row.symbol: row.capped_reason for row in reserved}
+    assert decisions["BTCUSDT"] == "WOULD_PUBLISH_V4"
+    assert decisions["UNIUSDT"] == "WOULD_PUBLISH_V4"
+    assert decisions["AAVEUSDT"] == "BTC_15M_TIMING_CONFLICT"
+    assert decisions["LDOUSDT"] == "RESCUE_LANE_ROLLING_LIMIT"
+
+
+def test_reserved_base_rejects_unclassified_or_invalid_rescue_quota():
+    row = _safety_candidate("x", "ETHUSDT", 151_000_000)
+    import pytest
+    with pytest.raises(ValueError):
+        simulate_v5_with_safety([row], max_rescue_per_rolling_hour=1)
+    with pytest.raises(ValueError):
+        simulate_v5_with_safety(
+            [row], rescue_signal_ids={"x"},
+            max_rescue_per_rolling_hour=3,
+        )
