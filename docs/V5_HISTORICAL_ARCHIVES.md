@@ -239,3 +239,44 @@ monthly archive manifests pin the original spec SHA-256 and would then
 need explicit provenance-preserving migration/reverification. The
 conservative current approach is to keep the original spec and report
 March 1–25 as ineligible; defer any versioned expansion until justified.
+
+
+## Stage 3 — development-only chronological V4/V5 setup replay
+
+The **new** `app.research.v5_decision_replay` CLI is deliberately a
+decision-only reference implementation. It uses **only Jan–May 2026**
+verified archives for BTCUSDT; March–May is the development partition.
+The 500-closed-4h warmup excludes early March before **March 25
+08:00 UTC**. The validation and holdout periods are *not* inspected for
+strategy outcomes, and the CLI rejects other source ranges.
+
+In a restricted container with the research code and archive volume both
+read-only, no network and no database credentials:
+
+```sh
+python -m app.research.v5_decision_replay \
+  --root /research --symbol BTCUSDT \
+  --start-month 2026-01 --end-month 2026-05
+```
+
+At every **completed 1h UTC candle boundary falling inside 09:00–23:00
+IST**, the replay builds the actual strategy's V4 context from exclusively
+previously completed 1h candles, correct last-complete 4h confirmation,
+and previous 12 hourly structure bars. A V4-qualified context is
+preserved as a **pre-safety, unpriced** V5 base reference. Only a
+trend-aligned V4 `NO_PULLBACK_OR_BREAKOUT_TRIGGER` permits the same pure
+V5 context evaluator to arm up to four future completed 15m checks
+within that context hour. The **first** qualifying completed trigger is
+recorded; no later trigger can retroactively replace it. Session-end
+and future-candle guards fail closed. A repeatable SHA-256 digest pins
+the ordered decision-event stream, with bounded example candidates.
+
+This is *not* a trading backtest and does not report P&L, win rate,
+fillable signals, or production-equivalent acceptance. It does not
+execute (a) trade entry quote/tick/spread/latency gates, (b) BTC
+regime/timing veto, (c) concentration, dedupe, circuit and portfolio
+safety, (d) position/stop/TP/funding/cost accounting, or (e) historical
+contract listing eligibility. Even for BTCUSDT, outputs are only
+**pre-pricing setup and rescue trigger references**. The later
+multi-symbol portfolio engine must apply these gates before comparing
+realistic trading outcomes. Keep V4 production untouched.
