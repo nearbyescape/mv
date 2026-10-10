@@ -72,11 +72,11 @@ def test_circuit_breaker_only_reads_past_complete_milestones():
     rows = [
         event(1, T, "v4_base", outcome=outcome(T, adverse=2, favorable=50)),
         event(2, T + Q, "15m_rescue", outcome=outcome(T+Q, adverse=2, favorable=50)),
-        event(3, T + 2*Q, "15m_rescue", direction="long"),
+        event(3, T + HOUR, "v4_base", direction="long"),
     ]
     assert run(rows, "H")["accepted_ids"] == ["1", "2"]
     assert run(rows, "H")["rejections"]["DIRECTIONAL_CIRCUIT_BREAKER"] == 1
-    rows[1]["outcome"] = outcome(T+Q, adverse=45)
+    rows[1]["outcome"] = outcome(T+Q, adverse=46)
     assert run(rows, "H")["accepted_ids"] == ["1", "2", "3"]
 
 
