@@ -163,3 +163,21 @@ def test_pinned_agent_coverage_entry_adversity_requires_all_minutes():
             [row], [bar(first), bar(first + 2*M)], states,
             end_exclusive_ms=first + 3*M
         )
+
+
+def test_pinned_vps_agent_rejects_premature_live_v6hbr_promotion():
+    """Fixed installed V6HBR runner already executes this test module."""
+    from app.research.v6hbr_release_readiness import assess_release_readiness
+    no_evidence = assess_release_readiness(None)
+    assert no_evidence["decision"] == "NO_GO_FOR_LIVE_V6HBR"
+    assert not no_evidence["can_auto_deploy"]
+    btc_proxy_only = assess_release_readiness({
+        "schema": 1, "candidate": "V6HBR",
+        "reviewed_commit_sha": "f"*40,
+        "data_scope": "BTC_APR_MAY_DEVELOPMENT_ONLY",
+        "validation_resolved": 24,
+        "validation_symbols": 1,
+    })
+    assert btc_proxy_only["decision"] == "NO_GO_FOR_LIVE_V6HBR"
+    assert "INSUFFICIENT_DATA_SCOPE" in btc_proxy_only["reasons"]
+    assert not btc_proxy_only["can_claim_high_accuracy"]
