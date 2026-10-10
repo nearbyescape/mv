@@ -1020,6 +1020,12 @@ async def run_day(day: str):
                 if not found_trigger:
                     v5_trigger_reasons["NO_TRIGGER_IN_ARM_WINDOW"] += 1
 
+    # Portfolio safety must see the full available path, not only the
+    # four-hour comparison window. Otherwise an actually-resolved early signal
+    # could be incorrectly counted as active for the rest of the session.
+    _replay_candidates_for_portfolio(v4_candidates, minute_cache)
+    _replay_candidates_for_portfolio(v5_candidates, minute_cache)
+
     # Compare the experimental Balanced policy on independently cloned rows.
     # The original V4 baseline and hybrid candidates remain unchanged.
     balanced_candidates, balanced_filter_reasons = make_balanced_candidates(
@@ -1029,12 +1035,6 @@ async def run_day(day: str):
         "balanced-" + key: {**value, "entry_policy": "balanced_15m_emerging"}
         for key, value in v5_meta.items()
     }
-
-    # Portfolio safety must see the full available path, not only the
-    # four-hour comparison window. Otherwise an actually-resolved early signal
-    # could be incorrectly counted as active for the rest of the session.
-    _replay_candidates_for_portfolio(v4_candidates, minute_cache)
-    _replay_candidates_for_portfolio(v5_candidates, minute_cache)
 
     simulate_with_active_cap(v4_candidates)
     simulate_v5_with_safety(v5_candidates)
