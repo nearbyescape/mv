@@ -1,5 +1,10 @@
 # Production release 0.9.2 verification
 
+## 10 October 2026 — V5 archive inventory (research PR #12)
+
+Added `services/api/app/research/v5_archive_inventory.py`, `services/api/tests/test_v5_archive_inventory.py`, and `docs/V5_ARCHIVE_COVERAGE_GATE.md`. The inventory is offline/read-only and labels mere manifest presence as `PRESENT_UNVERIFIED`; it cannot claim source continuity, strategy signals, or profitability. Synthetic/mock-backed tests have been authored but **are not recorded as executed or passed** in this checkpoint. The disposable VPS command and the expected 1,080-cell frozen matrix are documented in the coverage guide. Full 30-coin source completion, replay, execution costs, and V5 evaluation remain pending; no production V4 deployment was performed.
+
+
 ## Release 0.10.0 verification checkpoint
 
 Implemented session boundaries, durable Telegram delivery and operator-only backed-up reset. Local API: 274 passed, 13 PostgreSQL checks skipped in this invocation. Windows web build, lint and TypeScript passed. Real PostgreSQL, Linux image, browser and production reset/destination checks remain pending at this checkpoint. The 9 AM–11 PM IST restriction has not been historically replayed for performance; no profitability claim follows from these correctness tests.
