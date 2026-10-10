@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 from collections import Counter
+from dataclasses import replace
 from datetime import datetime, time as wall_time
 from decimal import Decimal as D, localcontext, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_EVEN
 import json
@@ -341,6 +342,69 @@ def _candidate(
         v4_plan=plan,
         preliminary_reason=preliminary_reason,
     )
+
+
+def balanced_15m_filter_reason(
+    row: Candidate,
+    snapshots: dict[str, dict[int, Snapshot]],
+) -> str | None:
+    """Experimental emerging-trend entry filter; completed symbol-specific 15m only.
+
+    No future candle, no BTC proxy, and no change to the V4 strategy rules.
+    V4-qualified established entries remain eligible. Missing 15m data fails
+    closed for emerging entries rather than being treated as confirmation.
+    """
+    if row.preliminary_reason is not None:
+        return None  # Retain the earlier V4/V5 reason without hiding it.
+    if row.regime == "established":
+        return None
+    if row.regime != "emerging" or row.direction not in ("long", "short"):
+        return "BALANCED_UNSUPPORTED_REGIME"
+    bars = snapshots.get(row.symbol, {})
+    current = bars.get(row.published_at - MIN15)
+    previous = bars.get(row.published_at - 2 * MIN15)
+    if (
+        current is None
+        or previous is None
+        or current.timeframe != "15m"
+        or previous.timeframe != "15m"
+        or current.count < 500
+        or previous.count < 499
+        or current.bar.open_time != row.published_at - MIN15
+        or previous.bar.open_time != row.published_at - 2 * MIN15
+        or current.bar.close_time + 1 != row.published_at
+        or previous.bar.close_time + 1 != current.bar.open_time
+        or current.history_origin != previous.history_origin
+    ):
+        return "BALANCED_15M_DATA_UNAVAILABLE"
+    sign = D(1) if row.direction == "long" else D(-1)
+    confirmed = (
+        sign * (current.ema20 - current.ema50) > 0
+        and sign * (current.ema20 - previous.ema20) > 0
+        and sign * (current.bar.close - current.ema20) > 0
+    )
+    return None if confirmed else "BALANCED_15M_NOT_ALIGNED"
+
+
+def make_balanced_candidates(
+    v5_candidates: list[Candidate],
+    snapshots: dict[str, dict[int, Snapshot]],
+) -> tuple[list[Candidate], dict[str, int]]:
+    """Clone the hybrid cohort before independently replaying portfolio guards."""
+    result: list[Candidate] = []
+    reasons: Counter = Counter()
+    for original in v5_candidates:
+        reason = balanced_15m_filter_reason(original, snapshots)
+        reasons[reason or "UNCHANGED_OR_CONFIRMED"] += 1
+        result.append(
+            replace(
+                original,
+                signal_id="balanced-" + original.signal_id,
+                preliminary_reason=original.preliminary_reason or reason,
+                capped_reason=None,
+            )
+        )
+    return result, dict(sorted(reasons.items()))
 
 
 def _observation_end_open(published_at: int, available_boundary: int):
@@ -956,6 +1020,16 @@ async def run_day(day: str):
                 if not found_trigger:
                     v5_trigger_reasons["NO_TRIGGER_IN_ARM_WINDOW"] += 1
 
+    # Compare the experimental Balanced policy on independently cloned rows.
+    # The original V4 baseline and hybrid candidates remain unchanged.
+    balanced_candidates, balanced_filter_reasons = make_balanced_candidates(
+        v5_candidates, snapshot_cache
+    )
+    balanced_meta = {
+        "balanced-" + key: {**value, "entry_policy": "balanced_15m_emerging"}
+        for key, value in v5_meta.items()
+    }
+
     # Portfolio safety must see the full available path, not only the
     # four-hour comparison window. Otherwise an actually-resolved early signal
     # could be incorrectly counted as active for the rest of the session.
@@ -964,6 +1038,7 @@ async def run_day(day: str):
 
     simulate_with_active_cap(v4_candidates)
     simulate_v5_with_safety(v5_candidates)
+    simulate_v5_with_safety(balanced_candidates)
 
     v4_analysis, v4_mature_ids = _analysis_4h_outcomes(
         v4_candidates,
@@ -972,6 +1047,11 @@ async def run_day(day: str):
     )
     v5_analysis, v5_mature_ids = _analysis_4h_outcomes(
         v5_candidates,
+        minute_cache,
+        available_outcome_boundary,
+    )
+    balanced_analysis, balanced_mature_ids = _analysis_4h_outcomes(
+        balanced_candidates,
         minute_cache,
         available_outcome_boundary,
     )
@@ -1006,6 +1086,21 @@ async def run_day(day: str):
             ),
             "signals": _signal_rows(
                 v5_candidates, v5_meta, v5_analysis
+            ),
+        },
+        "v5_balanced": {
+            "architecture": (
+                "hybrid V5 candidates; established entries unchanged; emerging "
+                "entries require symbol-specific completed 15m EMA20/EMA50 "
+                "alignment, EMA20 slope and close on the directional EMA20 side; "
+                "same rolling concentration and risk replay"
+            ),
+            "filter_reasons": balanced_filter_reasons,
+            "summary": _summary(
+                balanced_candidates, balanced_analysis, balanced_mature_ids
+            ),
+            "signals": _signal_rows(
+                balanced_candidates, balanced_meta, balanced_analysis
             ),
         },
     }
@@ -1070,21 +1165,24 @@ async def main_async(days: list[str]):
         reports.append(await run_day(day))
 
     result = {
-        "study": "MV V4 vs V5 hybrid 15m-rescue candidate",
+        "study": "MV V4 baseline vs V5 hybrid vs V5 Balanced (research-only)",
         "read_only": True,
         "days": days,
         "interpretation": (
             "Full-watchlist counterfactual preserving V4 base setups and "
             "adding 15m rescue only after trend-aligned V4 no-trigger rows; "
-            "public Binance 15m triggers, first-1m-open reference entries, "
+            "Balanced adds a completed symbol-specific 15m gate to emerging "
+            "entries while preserving established entries. "
+            "Public Binance 15m triggers, first-1m-open reference entries, "
             "V4 scaled exits, and V5 rolling concentration safety. "
-            "It is a two-day engineering/trading diagnostic, not proof of "
-            "future profitability."
+            "This is an incomplete-cost, fixed-four-hour retrospective; "
+            "not a production signal, a full backtest, or proof of profitability."
         ),
         "reports": reports,
         "combined": {
             "v4": _aggregate(reports, "v4"),
             "v5_candidate": _aggregate(reports, "v5_candidate"),
+            "v5_balanced": _aggregate(reports, "v5_balanced"),
         },
     }
     print(json.dumps(result, indent=2, sort_keys=True))
