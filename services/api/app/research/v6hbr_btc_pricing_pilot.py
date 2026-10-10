@@ -31,6 +31,7 @@ from .v6hbr_candidate_export import export_events
 from .v6hbr_execution_model import ExecutionScenario, simulate_reference_trade, MINUTE
 from .v6hbr_portfolio_replay import simulate_cohort
 from .v6hbr_attribution import diagnose
+from .v6hbr_quality_diagnostics import quality_report
 
 SYMBOL = "BTCUSDT"
 DEVELOPMENT_START = "2026-04-01"
@@ -213,6 +214,13 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         # Backward-compatible legacy key: 'missing' does NOT itself prove rescue crowd-out.
         cohorts[name]["v4_base_ids_displaced"] = sorted(baseline - kept)
     attribution = diagnose(priced, cohorts)
+    # The installed root-owned automation agent is intentionally immutable:
+    # it already prints post_hoc_attribution, so include new diagnostics there
+    # in addition to the semantically clearer top-level key.
+    quality = quality_report(
+        priced, cohorts, end_exclusive_ms=timestamp(DEVELOPMENT_END)
+    )
+    attribution["post_hoc_quality_diagnostics"] = quality
     return {
         "schema": 1,
         "status": "BTC_ONLY_EXPLICIT_COST_SCENARIO_NOT_CERTIFIED",
@@ -225,6 +233,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         "event_stream_sha256": events["export_stream_sha256"],
         "candidate_count": len(priced),
         "post_hoc_attribution": attribution,
+        "post_hoc_quality_diagnostics": quality,
         "pricing_preliminary_reasons": dict(sorted(Counter(
             x["preliminary_reason"] or "ELIGIBLE" for x in priced
         ).items())),
@@ -246,6 +255,8 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
             "No 30-market correlation/margin certification or live-signal parity",
             "May cutoff censors unresolved positions; no June/holdout outcomes consumed",
             "No future selection by net R; outputs cannot justify V6HBR promotion",
+            "Resolved-only closed-terminal drawdown is not mark-to-market portfolio drawdown",
+            "Fee/funding multiplier grid keeps original accepted trades and stop/target paths fixed",
             "Legacy v4_base_ids_displaced means baseline accepted but missing in cohort; post_hoc_attribution distinguishes filter veto from proven rescue blocker",
         ],
     }
