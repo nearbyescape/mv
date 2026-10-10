@@ -407,6 +407,36 @@ def make_balanced_candidates(
     return result, dict(sorted(reasons.items()))
 
 
+def make_reserved_base_candidates(
+    v5_candidates: list[Candidate],
+    v5_meta: dict[str, dict],
+) -> tuple[list[Candidate], dict[str, dict], set[str]]:
+    """Independent Hybrid clone for a precommitted one-rescue-per-hour quota.
+
+    All original V4 base setups remain eligible. The quota limits only
+    15-minute rescue publications; it does not preempt published positions
+    when a later base signal arrives.
+    """
+    result: list[Candidate] = []
+    meta: dict[str, dict] = {}
+    rescue_ids: set[str] = set()
+    for original in v5_candidates:
+        identity = "reserved-" + original.signal_id
+        lane = v5_meta[original.signal_id]["lane"]
+        result.append(replace(
+            original,
+            signal_id=identity,
+            capped_reason=None,
+        ))
+        meta[identity] = {
+            **v5_meta[original.signal_id],
+            "entry_policy": "one_rescue_per_rolling_hour",
+        }
+        if lane == "15m_rescue":
+            rescue_ids.add(identity)
+    return result, meta, rescue_ids
+
+
 def _observation_end_open(published_at: int, available_boundary: int):
     end_boundary = min(published_at + OBSERVATION_MS, available_boundary)
     if end_boundary <= published_at:
@@ -418,6 +448,9 @@ def simulate_v5_with_safety(
     candidates: list[Candidate],
     max_active: int = 6,
     max_same_direction_rolling: int = V5_MAX_SAME_DIRECTION_ROLLING,
+    *,
+    rescue_signal_ids: set[str] | None = None,
+    max_rescue_per_rolling_hour: int | None = None,
 ) -> list[Candidate]:
     """Chronological V5 safety replay with a rolling concentration guard.
 
@@ -428,6 +461,12 @@ def simulate_v5_with_safety(
     in the prior rolling hour while retaining V4 session dedupe, circuit
     breaker, and six-active-directional-reference cap.
     """
+    if max_rescue_per_rolling_hour is not None and (
+        rescue_signal_ids is None
+        or not 0 <= max_rescue_per_rolling_hour <= max_same_direction_rolling
+    ):
+        raise ValueError("rescue quota requires classified ids and a valid limit")
+
     published: list[Candidate] = []
     seen: set[tuple[str, str]] = set()
     grouped: dict[int, list[Candidate]] = {}
@@ -479,6 +518,21 @@ def simulate_v5_with_safety(
                     "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT"
                 )
                 continue
+
+            if (
+                max_rescue_per_rolling_hour is not None
+                and row.signal_id in rescue_signal_ids
+            ):
+                recent_rescues = sum(
+                    prior.signal_id in rescue_signal_ids
+                    and prior.direction == row.direction
+                    and row.published_at - V5_ROLLING_CONCENTRATION_MS
+                    < prior.published_at <= row.published_at
+                    for prior in published
+                )
+                if recent_rescues >= max_rescue_per_rolling_hour:
+                    row.capped_reason = "RESCUE_LANE_ROLLING_LIMIT"
+                    continue
 
             row.capped_reason = "WOULD_PUBLISH_V4"
             seen.add(key)
@@ -737,6 +791,11 @@ def _candidate_audit_rows(
         blockers: list[Candidate] = []
         if reason == "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT":
             blockers = recent_directional
+        elif reason == "RESCUE_LANE_ROLLING_LIMIT":
+            blockers = [
+                prior for prior in recent_directional
+                if meta.get(prior.signal_id, {}).get("lane") == "15m_rescue"
+            ]
         elif reason == "MARKET_DIRECTION_CONCENTRATION_LIMIT":
             blockers = [
                 prior for prior in earlier
@@ -781,6 +840,10 @@ def _candidate_audit_rows(
             "plan_available": row.v4_plan is not None,
             "rolling_same_direction_accepted_before_decision": len(
                 recent_directional
+            ),
+            "rolling_rescue_accepted_before_decision": sum(
+                meta.get(prior.signal_id, {}).get("lane") == "15m_rescue"
+                for prior in recent_directional
             ),
             "blocked_by_published": [
                 {
@@ -1219,14 +1282,23 @@ async def run_day(day: str):
         "balanced-" + key: {**value, "entry_policy": "balanced_15m_emerging"}
         for key, value in v5_meta.items()
     }
+    reserved_candidates, reserved_meta, reserved_rescue_ids = (
+        make_reserved_base_candidates(v5_candidates, v5_meta)
+    )
 
     simulate_with_active_cap(v4_candidates)
     simulate_v5_with_safety(v5_candidates)
     simulate_v5_with_safety(balanced_candidates)
+    simulate_v5_with_safety(
+        reserved_candidates,
+        rescue_signal_ids=reserved_rescue_ids,
+        max_rescue_per_rolling_hour=1,
+    )
 
     v4_audit = _candidate_audit_rows(v4_candidates, v4_meta)
     v5_audit = _candidate_audit_rows(v5_candidates, v5_meta)
     balanced_audit = _candidate_audit_rows(balanced_candidates, balanced_meta)
+    reserved_audit = _candidate_audit_rows(reserved_candidates, reserved_meta)
 
     v4_analysis, v4_mature_ids = _analysis_4h_outcomes(
         v4_candidates,
@@ -1243,6 +1315,11 @@ async def run_day(day: str):
         minute_cache,
         available_outcome_boundary,
     )
+    reserved_analysis, reserved_mature_ids = _analysis_4h_outcomes(
+        reserved_candidates,
+        minute_cache,
+        available_outcome_boundary,
+    )
 
     return {
         "ist_date": day,
@@ -1255,6 +1332,9 @@ async def run_day(day: str):
             ),
             "v5_balanced": _v4_base_preservation(
                 v4_candidates, balanced_candidates, balanced_meta, balanced_audit
+            ),
+            "v5_reserved": _v4_base_preservation(
+                v4_candidates, reserved_candidates, reserved_meta, reserved_audit
             ),
         },
         "watchlist_size": len(symbols),
@@ -1285,6 +1365,21 @@ async def run_day(day: str):
             ),
             "signals": _signal_rows(
                 v5_candidates, v5_meta, v5_analysis
+            ),
+        },
+        "v5_reserved": {
+            "architecture": (
+                "Hybrid V5 with a precommitted quota of at most one "
+                "15m rescue SHORT or LONG per rolling 60m per direction; "
+                "combined cap remains two and base setups are unchanged. "
+                "Does not retroactively cancel earlier entries."
+            ),
+            "candidate_audit": reserved_audit,
+            "summary": _summary(
+                reserved_candidates, reserved_analysis, reserved_mature_ids
+            ),
+            "signals": _signal_rows(
+                reserved_candidates, reserved_meta, reserved_analysis
             ),
         },
         "v5_balanced": {
@@ -1368,7 +1463,7 @@ async def main_async(days: list[str]):
         reports.append(await run_day(day))
 
     result = {
-        "study": "MV V4 baseline vs V5 hybrid vs V5 Balanced (research-only)",
+        "study": "MV V4 vs V5 Hybrid, Balanced and Reserved-Base (research-only)",
         "read_only": True,
         "days": days,
         "interpretation": (
@@ -1376,6 +1471,8 @@ async def main_async(days: list[str]):
             "adding 15m rescue only after trend-aligned V4 no-trigger rows; "
             "Balanced adds a completed symbol-specific 15m gate to emerging "
             "entries while preserving established entries. "
+            "Reserved-base prospectively caps rescue entries to one "
+            "per direction per rolling hour without relaxing the total cap. "
             "Public Binance 15m triggers, first-1m-open reference entries, "
             "V4 scaled exits, and V5 rolling concentration safety. "
             "Headline reference R is the fixed four-hour outcome; an "
@@ -1392,6 +1489,7 @@ async def main_async(days: list[str]):
             "v4": _aggregate(reports, "v4"),
             "v5_candidate": _aggregate(reports, "v5_candidate"),
             "v5_balanced": _aggregate(reports, "v5_balanced"),
+            "v5_reserved": _aggregate(reports, "v5_reserved"),
         },
     }
     print(json.dumps(result, indent=2, sort_keys=True))
