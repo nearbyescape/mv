@@ -22,7 +22,8 @@ The 15m check cannot read a later candle, substitute BTC data for the coin's own
 Run tests in a checkout of the research branch with its normal project dependencies:
 
 ```bash
-python -m pytest services/api/tests/test_v5_compare.py services/api/tests/test_strategy_v5.py -q
+cd services/api
+python -m pytest tests/test_v5_compare.py tests/test_strategy_v5.py -q
 ```
 
 From an *isolated research checkout with an independently configured read-only database connection and sufficient pinned historical data*, run:
