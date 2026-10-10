@@ -165,8 +165,8 @@ def label_directional_events(
             horizons[str(horizon)] = {
                 "status": "OBSERVED",
                 "direction_classification": classification,
-                "signed_mark_bps": str(signed),
-                "signed_mark_after_illustrative_hurdle_bps": str(net_hurdle),
+                "signed_mark_bps": format(signed.normalize(), "f"),
+                "signed_mark_after_illustrative_hurdle_bps": format(net_hurdle.normalize(), "f"),
                 "max_adverse_atr": str(max_adverse),
                 "max_favorable_atr": str(max_favorable),
                 "first_0p5atr_event": first_excursion,
