@@ -252,3 +252,60 @@ def test_installed_vps_agent_smokes_directional_accuracy_label_and_no_future():
         "ESTABLISHED_ONLY"
     ]["retained"] == 1
     assert score["candidate_count"] == 1
+
+
+
+def test_installed_vps_agent_uses_genuine_v5_rescue_setup_contract():
+    """This module is already executed by the fixed root-owned VPS agent.
+
+    Regression case mirrors evaluate_trigger_v5's literal two *_15m setup
+    names, not a synthetic V4-only identifier that hid the actual crash.
+    """
+    from app.research.v6hbr_abstention_audit import audit_mathematical_abstention
+    from app.research.v6hbr_conservative_veto_stress import veto_reason
+    from app.research.v6hbr_setup_taxonomy import validated_setup_type
+
+    t = 1775016000000  # aligned full-minute decision; no market data needed
+    base = {
+        "id": "BTCUSDT:base", "symbol": "BTCUSDT",
+        "at_ms": t, "direction": "long", "lane": "v4_base",
+        "setup_type": "momentum_breakout", "regime": "established",
+        "source_extension_atr": "0.4",
+        "outcome": {
+            "status": "TP3", "terminal_at_ms": t + 60_000,
+            "net_realized_r": "0.6"
+        },
+    }
+    rescue = {
+        **base,
+        "id": "BTCUSDT:rescue", "at_ms": t + 900_000,
+        "lane": "15m_rescue", "setup_type": "momentum_breakout_15m",
+        "regime": "emerging", "source_extension_atr": "1.3",
+        "outcome": {
+            "status": "STOP", "terminal_at_ms": t + 960_000,
+            "net_realized_r": "-1.1",
+        },
+    }
+    assert validated_setup_type("pullback_continuation_15m", "15m_rescue")
+    report = audit_mathematical_abstention(
+        [base, rescue],
+        {
+            "V4": {"accepted_ids": [base["id"]]},
+            "H": {"accepted_ids": [base["id"], rescue["id"]]},
+            "B": {"accepted_ids": [base["id"], rescue["id"]]},
+            "R": {"accepted_ids": [rescue["id"]]},
+        },
+    )
+    assert report["cohorts"]["H"]["reasons"] == {
+        "INSUFFICIENT_INDEPENDENT_EVIDENCE": 2
+    }
+    assert report["cohorts"]["H"]["mathematically_research_eligible"] == 0
+    assert veto_reason(
+        rescue, "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR"
+    ) == "RESEARCH_LATE_BREAKOUT_EMA_EXTENSION"
+    rescued_pullback = {
+        **rescue, "setup_type": "pullback_continuation_15m"
+    }
+    assert veto_reason(
+        rescued_pullback, "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR"
+    ) is None
