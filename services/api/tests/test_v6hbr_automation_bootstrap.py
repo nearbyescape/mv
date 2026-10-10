@@ -33,6 +33,8 @@ def test_install_requires_pinned_reviewed_commit_without_mutation():
     assert "ConditionPathExists=/var/lib/mv-v6hbr-auto/last-reviewed-ancestor" in source
     assert "ReadWritePaths=/var/lib/mv-v6hbr-auto" in source
     assert "ProtectSystem=strict" in source
+    assert "PrivateTmp=true" in source
+    assert "BindReadOnlyPaths=/var/tmp/mv-v5-history-archives" in source
     assert "OnCalendar=hourly" in source
     assert "systemctl enable --now mv-v6hbr-auto.timer" in source
     assert "/opt/mv-signal/app" not in source
