@@ -68,3 +68,41 @@ def test_open_baseline_does_not_fake_terminal_profit():
     report = audit_mathematical_abstention(rows, cohorts)
     assert report["v4_terminally_resolved_reference_history"] == 0
     assert report["cohorts"]["B"]["mathematically_research_eligible"] == 0
+
+
+
+def test_real_v5_rescue_bucket_is_scored_without_pooled_v4_evidence():
+    baseline = _row("baseline", T)
+    rescue = _row("rescue", T + 60*M)
+    rescue["lane"] = "15m_rescue"
+    rescue["setup_type"] = "momentum_breakout_15m"
+    rescue["regime"] = "emerging"
+    cohorts = {
+        "V4": {"accepted_ids": ["baseline"]},
+        "H": {"accepted_ids": ["baseline", "rescue"]},
+        "B": {"accepted_ids": ["baseline", "rescue"]},
+        "R": {"accepted_ids": ["rescue"]},
+    }
+    report = audit_mathematical_abstention([baseline, rescue], cohorts)
+    assert report["cohorts"]["H"]["reasons"] == {
+        "INSUFFICIENT_INDEPENDENT_EVIDENCE": 2
+    }
+    assert report["cohorts"]["H"]["mathematically_research_eligible"] == 0
+
+
+def test_unknown_and_cross_lane_setup_ids_fail_closed():
+    import pytest
+    baseline = _row("baseline", T)
+    rescue = _row("rescue", T + 60*M)
+    rescue["lane"] = "15m_rescue"
+    cohorts = {
+        "V4": {"accepted_ids": ["baseline"]},
+        "H": {"accepted_ids": ["rescue"]},
+        "B": {"accepted_ids": ["rescue"]},
+        "R": {"accepted_ids": ["rescue"]},
+    }
+    with pytest.raises(ValueError, match="V4 hourly setup"):
+        audit_mathematical_abstention([baseline, rescue], cohorts)
+    rescue["setup_type"] = "new_type_from_future_strategy"
+    with pytest.raises(ValueError, match="Unsupported frozen"):
+        audit_mathematical_abstention([baseline, rescue], cohorts)
