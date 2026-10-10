@@ -29,7 +29,7 @@ test -f "$BASELINE" && test ! -L "$BASELINE"
 exec 9>"$LOCK"
 flock -n 9 || exit 0
 
-# No git checkout, scripts, code, or hooks run from remote on the HOST.
+# Host-side Git operations only fetch/archive; branch source runs in isolated Docker.
 GIT_TERMINAL_PROMPT=0 git -C "$REPO" -c core.hooksPath=/dev/null \
   fetch --no-tags origin \
   "refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
