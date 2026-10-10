@@ -182,8 +182,42 @@ def test_wrong_way_forensics_include_rejected_counterfactual_winners():
         "direction_supported_over_hurdle"
     ] == 1
     anti_chase = report["predeclared_predecision_filter_slices"][
-        "NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR"
+        "NO_1H_CONTEXT_EXTENDED_BREAKOUT_OVER_1ATR"
     ]
     assert anti_chase["retained"] == 1
     assert anti_chase["rejected"] == 1
     assert "05:00" in report["by_ist_entry_hour"]
+
+
+
+def test_true_rescue_setup_names_score_distinctly_from_v4_hourly_setups():
+    """Freeze exactly the names emitted by evaluate_trigger_v5 in real replay."""
+    entry = event()
+    rescue = {**event(), "lane": "15m_rescue",
+              "setup_type": "momentum_breakout_15m",
+              "trigger_open_ms": T-Q}
+    baseline = run(ev=entry)
+    rescued = run(ev=rescue)
+    scored = directional_accuracy_study([baseline, rescued])
+    assert scored["by_setup_type"]["momentum_breakout"]["15"]["observed_count"] == 1
+    assert scored["by_setup_type"]["momentum_breakout_15m"]["15"]["observed_count"] == 1
+    assert scored["by_lane"]["15m_rescue"]["15"]["observed_count"] == 1
+    assert scored["predeclared_predecision_filter_slices"][
+        "NO_1H_CONTEXT_EXTENDED_BREAKOUT_OVER_1ATR"
+    ]["retained"] == 2
+
+
+def test_pullback_rescue_is_a_valid_and_separately_named_setup():
+    rescue = {**event(), "lane": "15m_rescue",
+              "setup_type": "pullback_continuation_15m",
+              "trigger_open_ms": T-Q}
+    result = directional_accuracy_study([run(ev=rescue)])
+    assert result["by_setup_type"]["pullback_continuation_15m"]["15"][
+        "observed_count"
+    ] == 1
+
+
+def test_invalid_rescue_hourly_type_mismatch_fails_closed():
+    ev = {**event(), "lane": "15m_rescue", "trigger_open_ms": T-Q}
+    with pytest.raises(ValueError, match="V4 hourly setup"):
+        run(ev=ev)
