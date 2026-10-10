@@ -148,7 +148,9 @@ def single_archive_lock(path: Path):
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
-def acquire_one(root: Path, plan: dict, spec_sha: str) -> dict:
+def acquire_one(root: Path, plan: dict, spec_sha: str, *, max_archive_bytes: int = MAX_COMPRESSED_BYTES) -> dict:
+    if type(max_archive_bytes) is not int or not 0 < max_archive_bytes <= MAX_COMPRESSED_BYTES:
+        raise ValueError("Invalid per-archive compressed-byte limit")
     archive, manifest_path = archive_location(root, plan)
     archive.parent.mkdir(parents=True, exist_ok=True)
     with single_archive_lock(archive.with_suffix(archive.suffix + ".lock")):
@@ -176,7 +178,7 @@ def acquire_one(root: Path, plan: dict, spec_sha: str) -> dict:
                     with temporary.open("wb") as out:
                         for chunk in download.iter_bytes(chunk_size=1024 * 1024):
                             total += len(chunk)
-                            if total > MAX_COMPRESSED_BYTES:
+                            if total > max_archive_bytes:
                                 raise ValueError("Compressed archive exceeds safety limit")
                             hasher.update(chunk)
                             out.write(chunk)
