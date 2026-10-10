@@ -684,6 +684,179 @@ def _signal_rows(
     return result
 
 
+def _independent_reference_outcome(row: Candidate) -> dict | None:
+    """Per-entry historical path; never treated as booked portfolio P&L."""
+    if row.v4_plan is None or row.v4_scaled_outcome is None:
+        return None
+    outcome = row.v4_scaled_outcome
+    return {
+        key: outcome.get(key)
+        for key in (
+            "status",
+            "terminal_at",
+            "conservative_r",
+            "mfe_r",
+            "mae_r",
+            "mark_r",
+            "tp1_reached",
+            "tp2_reached",
+            "tp3_reached",
+            "favorable_050_at",
+            "adverse_050_at",
+        )
+    }
+
+
+def _candidate_audit_rows(
+    candidates: list[Candidate], meta: dict[str, dict]
+) -> list[dict]:
+    """Audit every formed candidate, including rejected and displaced entries.
+
+    Accepted rows are accumulated in the same publication-time/ranking order as
+    the safety replay. A blocker is reported only when it demonstrably matches
+    the specific concentration, active-cap or dedupe predicate. Other rejection
+    reasons remain explicit but have no inferred blocker list.
+    """
+    accepted: list[Candidate] = []
+    results: list[dict] = []
+    for row in sorted(
+        candidates,
+        key=lambda item: (item.published_at, item.ranking, item.signal_id),
+    ):
+        earlier = [
+            prior for prior in accepted
+            if prior.published_at <= row.published_at
+        ]
+        recent_directional = [
+            prior for prior in earlier
+            if prior.direction == row.direction
+            and row.published_at - V5_ROLLING_CONCENTRATION_MS
+            < prior.published_at <= row.published_at
+        ]
+        reason = row.capped_reason
+        blockers: list[Candidate] = []
+        if reason == "ROLLING_MARKET_DIRECTION_CONCENTRATION_LIMIT":
+            blockers = recent_directional
+        elif reason == "MARKET_DIRECTION_CONCENTRATION_LIMIT":
+            blockers = [
+                prior for prior in earlier
+                if prior.source_open_time == row.source_open_time
+                and prior.direction == row.direction
+            ]
+        elif reason == "SAME_DIRECTION_SIGNAL_THIS_SESSION":
+            blockers = [
+                prior for prior in earlier
+                if (prior.symbol, prior.direction) == (row.symbol, row.direction)
+            ]
+        elif reason == "ACTIVE_DIRECTIONAL_EXPOSURE_LIMIT":
+            blockers = [
+                prior for prior in earlier
+                if prior.direction == row.direction
+                and prior.published_at < row.published_at
+                and (
+                    (prior.v4_scaled_outcome or {}).get("terminal_at") is None
+                    or (prior.v4_scaled_outcome or {})["terminal_at"]
+                    >= row.published_at
+                )
+            ]
+
+        selected = reason == "WOULD_PUBLISH_V4"
+        outcome = _independent_reference_outcome(row)
+        results.append({
+            "id": row.signal_id,
+            "symbol": row.symbol,
+            "direction": row.direction,
+            "published_at": row.published_at,
+            "source_open_time": row.source_open_time,
+            "setup_type": row.setup_type,
+            "regime": row.regime,
+            "candidate_rank": {
+                "recent_run_atr": str(row.recent_run_atr),
+                "source_extension_atr": str(row.source_extension_atr),
+                "established_priority": row.regime == "established",
+            },
+            "preliminary_reason": row.preliminary_reason,
+            "portfolio_reason": reason,
+            "selected": selected,
+            "plan_available": row.v4_plan is not None,
+            "rolling_same_direction_accepted_before_decision": len(
+                recent_directional
+            ),
+            "blocked_by_published": [
+                {
+                    "id": prior.signal_id,
+                    "symbol": prior.symbol,
+                    "direction": prior.direction,
+                    "published_at": prior.published_at,
+                    "lane": meta.get(prior.signal_id, {}).get("lane", "v4"),
+                }
+                for prior in blockers
+            ],
+            # For rejected entries this is an independent hypothetical trade
+            # path, not a trade that was taken by the replayed portfolio.
+            "independent_reference_full_available": outcome,
+            **meta.get(row.signal_id, {}),
+        })
+        if selected:
+            accepted.append(row)
+    return results
+
+
+def _v4_base_preservation(
+    v4_candidates: list[Candidate],
+    v5_candidates: list[Candidate],
+    v5_meta: dict[str, dict],
+    v5_audit: list[dict],
+) -> dict:
+    """Explain which V4 baseline publications V5 kept or displaced."""
+    base_lookup = {
+        (row.source_open_time, row.symbol, row.direction): row
+        for row in v5_candidates
+        if v5_meta.get(row.signal_id, {}).get("lane") == "v4_base"
+    }
+    audit_by_id = {row["id"]: row for row in v5_audit}
+    rows = []
+    for original in sorted(
+        (row for row in v4_candidates if row.capped_reason == "WOULD_PUBLISH_V4"),
+        key=lambda row: (row.published_at, row.ranking, row.signal_id),
+    ):
+        base = base_lookup.get(
+            (original.source_open_time, original.symbol, original.direction)
+        )
+        detail = audit_by_id.get(base.signal_id, {}) if base else {}
+        rows.append({
+            "symbol": original.symbol,
+            "direction": original.direction,
+            "published_at": original.published_at,
+            "v4_signal_id": original.signal_id,
+            "v5_base_signal_id": base.signal_id if base else None,
+            "v5_base_preserved": (
+                base is not None and base.capped_reason == "WOULD_PUBLISH_V4"
+            ),
+            "v5_base_rejection_reason": (
+                None if base is None and False
+                else "MISSING_V5_BASE_CANDIDATE" if base is None
+                else None if base.capped_reason == "WOULD_PUBLISH_V4"
+                else base.capped_reason
+            ),
+            "v5_base_blocked_by": detail.get("blocked_by_published", []),
+            "v4_independent_reference_full_available": (
+                _independent_reference_outcome(original)
+            ),
+            "v5_base_independent_reference_full_available": (
+                _independent_reference_outcome(base) if base else None
+            ),
+        })
+    return {
+        "v4_published": len(rows),
+        "v5_base_preserved": sum(row["v5_base_preserved"] for row in rows),
+        "v5_base_displaced": sum(
+            not row["v5_base_preserved"] for row in rows
+        ),
+        "rows": rows,
+    }
+
+
 async def run_day(day: str):
     session_start, session_end = ist_session_bounds(day)
     current_now = now_ms()
@@ -1052,6 +1225,10 @@ async def run_day(day: str):
     simulate_v5_with_safety(v5_candidates)
     simulate_v5_with_safety(balanced_candidates)
 
+    v4_audit = _candidate_audit_rows(v4_candidates, v4_meta)
+    v5_audit = _candidate_audit_rows(v5_candidates, v5_meta)
+    balanced_audit = _candidate_audit_rows(balanced_candidates, balanced_meta)
+
     v4_analysis, v4_mature_ids = _analysis_4h_outcomes(
         v4_candidates,
         minute_cache,
@@ -1073,11 +1250,20 @@ async def run_day(day: str):
         "read_only": True,
         "observation_window_hours": 4,
         "full_available_outcome_cutoff_exclusive_ms": available_outcome_boundary,
+        "v4_base_preservation": {
+            "v5_candidate": _v4_base_preservation(
+                v4_candidates, v5_candidates, v5_meta, v5_audit
+            ),
+            "v5_balanced": _v4_base_preservation(
+                v4_candidates, balanced_candidates, balanced_meta, balanced_audit
+            ),
+        },
         "watchlist_size": len(symbols),
         "source_1h_rows": sum(len(rows) for rows in source_opens.values()),
         "v4": {
             "architecture": "4H confirmation -> completed 1H setup/entry",
             "setup_reasons": dict(sorted(v4_setup_reasons.items())),
+            "candidate_audit": v4_audit,
             "summary": _summary(
                 v4_candidates, v4_analysis, v4_mature_ids
             ),
@@ -1094,6 +1280,7 @@ async def run_day(day: str):
             ),
             "context_reasons": dict(sorted(v5_context_reasons.items())),
             "trigger_reasons": dict(sorted(v5_trigger_reasons.items())),
+            "candidate_audit": v5_audit,
             "summary": _summary(
                 v5_candidates, v5_analysis, v5_mature_ids
             ),
@@ -1109,6 +1296,7 @@ async def run_day(day: str):
                 "same rolling concentration and risk replay"
             ),
             "filter_reasons": balanced_filter_reasons,
+            "candidate_audit": balanced_audit,
             "summary": _summary(
                 balanced_candidates, balanced_analysis, balanced_mature_ids
             ),
@@ -1195,6 +1383,8 @@ async def main_async(days: list[str]):
             "independent full_available block includes later paths only "
             "through each day's session-end-plus-four-hour cutoff. "
             "Unresolved rows and mark_R are not booked P&L. "
+            "candidate_audit includes individually modeled, hypothetical paths "
+            "for rejected candidates; these are not selected portfolio trades. "
             "This is an incomplete-cost retrospective, not a production "
             "signal, a full backtest, or proof of profitability."
         ),
