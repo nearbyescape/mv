@@ -13,6 +13,16 @@ on:
       - tools/v6hbr-*.sh
       - packages/strategy/**
       - packages/contracts/v5-history-v1.json
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/v6hbr-research.yml
+      - services/api/app/research/**
+      - services/api/tests/test_v6hbr_*.py
+      - tools/v6hbr-*.sh
+      - packages/strategy/**
+      - packages/contracts/v5-history-v1.json
   workflow_dispatch:
 
 permissions:
@@ -25,7 +35,12 @@ concurrency:
 jobs:
   isolated-unit:
     name: Read-only research regressions (no VPS)
-    if: github.ref == 'refs/heads/codex/mv-v6hbr-research'
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/codex/mv-v6hbr-research') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/mv-v6hbr-research') ||
+      (github.event_name == 'pull_request' &&
+       github.head_ref == 'codex/mv-v6hbr-research' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
@@ -36,11 +51,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - name: Verify the exact approved research branch and frozen contract
         shell: bash
         run: |
           set -Eeuo pipefail
-          test "${GITHUB_REF}" = refs/heads/codex/mv-v6hbr-research
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              test "${GITHUB_HEAD_REF}" = codex/mv-v6hbr-research ;;
+            push|workflow_dispatch)
+              test "${GITHUB_REF}" = refs/heads/codex/mv-v6hbr-research ;;
+            *) exit 2 ;;
+          esac
           printf '%s  %s\n' \
             48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64 \
             packages/contracts/v5-history-v1.json | sha256sum -c -
