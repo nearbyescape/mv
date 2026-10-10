@@ -218,3 +218,32 @@ host access. Continue toward net-cost performance evidence.
 rescues can recover valuable hourly misses while protecting V4
 base signals and improving cost-adjusted portfolio returns — not
 whether a scanner can print more alerts.*
+
+
+## 9. V6HBR-specific isolated operator entry points (research only)
+
+New branch-only scripts have been copied from the frozen V5 pilots without
+altering V5's trading logic or archival spec:
+- `tools/v6hbr-btc-replay-pilot.sh` — old BTC tests + source parity +
+  development decision-only pilot, all offline/read-only. **Not P&L**.
+- `tools/v6hbr-eth-foundation-pilot.sh` — explicit `plan` (offline),
+  `verify` (offline) or `fetch --confirm-fetch` (separately
+  operator-authorized research-volume-only writes). **No auto-fetch**.
+- `services/api/tests/test_v6hbr_operator_pilots.py` — static/shell
+  safety tests; run on VPS before relying on wrappers.
+
+The original `tools/v5-*.sh` files remain untouched as historical evidence.
+These new wrappers specifically require branch
+`codex/mv-v6hbr-research` at the **existing isolated**
+`/tmp/mv-v5-history-pilot` worktree path. The directory name
+remains unchanged to preserve the operator's vetted environment.
+Before switching the *research* worktree, check it is clean and
+review the ref; NEVER run Git operations against
+`/opt/mv-signal/app`. Do not execute either wrapper from this
+repository in an unreviewed environment. The V6HBR GitHub branch has
+been prepared; **no branch change, downloads or tests have been
+performed on the VPS by this PR migration itself**.
+
+Research archive `/var/tmp/mv-v5-history-archives` is reused
+unchanged: physical ZIPs never moved into GitHub, and a branch
+rename never authorizes archive rewriting.
