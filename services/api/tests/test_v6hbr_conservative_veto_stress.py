@@ -100,3 +100,36 @@ def test_premarked_ineligible_event_remains_disqualified_and_unmodified():
     assert r == before
     assert out["experiments"]["ESTABLISHED_REGIME_ONLY"][
         "cohorts"]["V4"]["rejections"]["UNAVAILABLE_SOURCE"] == 1
+
+
+
+def test_real_15m_breakout_rescue_is_rejected_if_trigger_overextended():
+    """Real rescue rank_extension is trigger 15m ATR, not an hourly feature."""
+    r = row("rescue-breakout", T, extension="1.25")
+    r["lane"] = "15m_rescue"
+    r["setup_type"] = "momentum_breakout_15m"
+    assert veto_reason(r, "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR") == (
+        "RESEARCH_LATE_BREAKOUT_EMA_EXTENSION"
+    )
+    original, counterfactual = study([r])
+    assert original["H"]["accepted_ids"] == ["rescue-breakout"]
+    assert original["V4"]["accepted_ids"] == []
+    changed = counterfactual["experiments"][
+        "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR"
+    ]["cohorts"]["H"]
+    assert changed["accepted_after_veto"] == 0
+    assert changed["original_accepted_missing"] == 1
+
+
+def test_valid_15m_pullback_rescue_not_treated_as_breakout():
+    r = row("rescue-pullback", T, extension="1.25")
+    r["lane"] = "15m_rescue"
+    r["setup_type"] = "pullback_continuation_15m"
+    assert veto_reason(r, "BREAKOUT_EMA_EXTENSION_AT_MOST_ONE_ATR") is None
+
+
+def test_mismatched_strategy_lane_is_not_pooled_with_hourly_v4():
+    r = row("mismatch", T)
+    r["lane"] = "15m_rescue"
+    with pytest.raises(ValueError, match="V4 hourly setup"):
+        veto_reason(r, "ESTABLISHED_REGIME_ONLY")
