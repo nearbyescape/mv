@@ -96,3 +96,70 @@ def test_command_line_requires_explicit_proxy_acknowledgement(monkeypatch):
     with pytest.raises(SystemExit) as e:
         pilot.main()
     assert e.value.code == 2
+
+
+def test_pinned_agent_coverage_entry_adversity_reversal_and_censoring():
+    """Pinned VPS script already runs this test module at every revision."""
+    from app.research.v6hbr_entry_adversity import entry_adversity_report
+
+    published = 1775016000000  # UTC minute boundary; exact date immaterial
+    first = published + M
+    bars = [
+        SimpleNamespace(open_time=first, open=D(100), close=D(100),
+                        high=D("100.2"), low=D("98.8")),
+        SimpleNamespace(open_time=first + M, open=D(100), close=D(100),
+                        high=D("101.5"), low=D("99.6")),
+    ]
+    row = {
+        "id": "BTCUSDT:v4:diagnostic", "at_ms": published,
+        "lane": "v4_base", "direction": "long",
+        "outcome": {
+            "status": "TP3",
+            "entry_at_ms": first,
+            "terminal_at_ms": first + 2 * M,
+            "entry_price_scenario": "100",
+            "risk_distance_at_fill": "2",
+        },
+    }
+    states = {
+        name: {"accepted_ids": [row["id"]]}
+        for name in ("V4", "H", "B", "R")
+    }
+    report = entry_adversity_report(
+        [row], bars, states, end_exclusive_ms=first + 2*M
+    )
+    sample = report["cohorts"]["V4"]["entry_details"][0]["windows"]["15"]
+    assert sample["first_0p5r_event"] == "ADVERSE_FIRST"
+    assert sample["observed_minutes"] == 2
+    assert sample["complete_window"] is False
+    assert report["cohorts"]["V4"]["windows"]["15"]["overall"][
+        "closed_before_window_end"
+    ] == 1
+
+
+def test_pinned_agent_coverage_entry_adversity_requires_all_minutes():
+    """No hidden favorable-only interpolation across missing 1m candles."""
+    from app.research.v6hbr_entry_adversity import entry_adversity_report
+
+    published = 1775016000000
+    first = published + M
+    row = {
+        "id": "BTCUSDT:v4:minute-gap", "at_ms": published,
+        "lane": "v4_base", "direction": "long",
+        "outcome": {
+            "status": "TP3",
+            "entry_at_ms": first,
+            "terminal_at_ms": first + 3*M,
+            "entry_price_scenario": "100",
+            "risk_distance_at_fill": "2",
+        },
+    }
+    states = {
+        name: {"accepted_ids": [row["id"]]}
+        for name in ("V4", "H", "B", "R")
+    }
+    with pytest.raises(ValueError, match="Minute-gap"):
+        entry_adversity_report(
+            [row], [bar(first), bar(first + 2*M)], states,
+            end_exclusive_ms=first + 3*M
+        )
