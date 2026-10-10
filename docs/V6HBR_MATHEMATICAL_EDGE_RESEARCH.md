@@ -25,3 +25,11 @@ The BTC pilot nests prospective_math_abstention_shadow in post_hoc_attribution, 
 ## Release decision
 
 NO-GO: the baseline BTC April–May reference outcomes were negative net R for V4/H/B/R, and the October live V4 losses have not been independently reconciled against actual signal_outcomes and venue fills. This prototype has not produced demonstrated profitable predictions. Do not promote without independent full 30-coin time-forward validation, preserved out-of-sample periods, venue-accurate costs, correlation-aware portfolio risk and explicit operator signoff.
+
+## Additional fixed candidate protections tested only as counterfactuals
+
+Research file services/api/app/research/v6hbr_conservative_veto_stress.py predeclares three no-hindsight experiments: (a) established 1h+4h trend regimes only; (b) skip momentum-breakout references whose source close is over +1.00 ATR in trade direction beyond EMA20; and (c) both restrictions simultaneously. The original production source still accepts emerging regimes and has a more permissive breakout extension limit. None of these experimental parameters are tuned to the observed BTC losses.
+
+Each experiment first vetoes an entry using its decision-time regime/setup/source-extension only, then **independently replays the full chronological portfolio** under existing V4/H/B/R concurrency, deduplication and directional risk policies. This is crucial: simply subtracting losing trades after the fact ignores later trades that become possible when a slot is freed. Each report includes missed original signals, newly admitted candidates, accepted references and resolved net R change. Prospective filters can still miss future profitable V4 trades; both sides of that cost are displayed.
+
+The BTC pilot inserts prospective_conservative_veto_stress into the post_hoc_attribution object printed by the installed research agent; the original V4/H/B/R cohort metrics and production API are untouched. GH-only and manual pilot tests exercise the fixed-rule counterfactuals. Actual independent validation, venue fills and portfolio drawdown remain required before any live strategy change.
