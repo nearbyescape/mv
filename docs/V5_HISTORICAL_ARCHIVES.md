@@ -118,3 +118,28 @@ corrections and document any chosen canonicalization before indicator replay.
 
 This does not prove 1m/15m source equivalence and is not yet a historical
 trading backtest. Archive source auditing remains a separate gate.
+
+
+## Stage 1d — 15-minute trigger source audit
+
+After downloading and verifying independent BTCUSDT 15m archives for
+2026-04 through 2026-06 using the **existing one-symbol, one-timeframe,
+six-month-capped batch CLI**, reconcile every hourly candle against four
+completed 15m bars:
+
+```sh
+python -m app.research.v5_archive_audit reconcile-15m-1h \
+  --root /research --symbol BTCUSDT \
+  --start-month 2026-04 --end-month 2026-06
+```
+
+The command is strictly offline and read-only and audits month seams in both
+timeframes. The expected BTC sample is 8,736 fifteen-minute candles and
+2,184 hourly candles. It emits independently pinned source fingerprints, exact
+Decimal OHLCV mismatch counts and no more than eight example discrepancies.
+On any source mismatch it exits with code 3, requiring investigation before
+indicator construction or V5 strategy evaluation.
+
+**No inference of 15m execution fills is made from this aggregation.** The
+separate 1m history, entry latency and exchange-specific fees/funding still
+need validation before portfolio P&L research.
