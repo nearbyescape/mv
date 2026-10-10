@@ -34,6 +34,7 @@ from .v6hbr_attribution import diagnose
 from .v6hbr_quality_diagnostics import quality_report
 from .v6hbr_entry_adversity import entry_adversity_report
 from .v6hbr_abstention_audit import audit_mathematical_abstention
+from .v6hbr_conservative_veto_stress import audit_conservative_veto_stress
 
 SYMBOL = "BTCUSDT"
 DEVELOPMENT_START = "2026-04-01"
@@ -233,6 +234,11 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
     attribution["post_hoc_entry_adversity"] = adversity
     math_abstention = audit_mathematical_abstention(priced, cohorts)
     attribution["prospective_math_abstention_shadow"] = math_abstention
+    veto_stress = audit_conservative_veto_stress(
+        priced, cohorts, risk_unit=risk_unit,
+        max_aggregate_risk=max_aggregate_risk
+    )
+    attribution["prospective_conservative_veto_stress"] = veto_stress
     return {
         "schema": 1,
         "status": "BTC_ONLY_EXPLICIT_COST_SCENARIO_NOT_CERTIFIED",
@@ -248,6 +254,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         "post_hoc_quality_diagnostics": quality,
         "post_hoc_entry_adversity": adversity,
         "prospective_math_abstention_shadow": math_abstention,
+        "prospective_conservative_veto_stress": veto_stress,
         "pricing_preliminary_reasons": dict(sorted(Counter(
             x["preliminary_reason"] or "ELIGIBLE" for x in priced
         ).items())),
@@ -274,6 +281,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
             "Entry adversity is measured on 1m Binance reference candles, not recent delivered alerts or observed Lighter fills",
             "Intraminute reversal threshold ties are treated adverse-first; early exits censor longer observation windows",
             "The mathematical abstention filter is shadow-only, consumes previously terminal V4 proxy outcomes and changes no HBR entries or ledger",
+            "Established-only and maximum-one-ATR breakout-extension vetoes are fixed counterfactual replay experiments, not trading rule changes",
             "Legacy v4_base_ids_displaced means baseline accepted but missing in cohort; post_hoc_attribution distinguishes filter veto from proven rescue blocker",
         ],
     }
