@@ -22,6 +22,8 @@ from random import Random
 from statistics import fmean
 from zoneinfo import ZoneInfo
 
+from .v6hbr_setup_taxonomy import BREAKOUT_SETUP_TYPES, validated_setup_type
+
 IST = ZoneInfo("Asia/Kolkata")
 
 QUARTER = 900_000
@@ -99,8 +101,7 @@ def label_directional_events(
             raise ValueError("Invalid frozen source 1h ATR")
         if ev["regime"] not in ("emerging", "established"):
             raise ValueError("Invalid regime")
-        if ev["setup_type"] not in ("pullback_continuation", "momentum_breakout"):
-            raise ValueError("Invalid setup type")
+        validated_setup_type(ev["setup_type"], ev["lane"])
 
         first = fifteen.get(t)
         if first is None:
@@ -262,7 +263,10 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
     fields = {
         "by_lane": ("v4_base", "15m_rescue"),
         "by_regime": ("established", "emerging"),
-        "by_setup_type": ("pullback_continuation", "momentum_breakout"),
+        "by_setup_type": (
+            "pullback_continuation", "momentum_breakout",
+            "pullback_continuation_15m", "momentum_breakout_15m",
+        ),
         "by_direction": ("long", "short"),
     }
     report = {
@@ -322,13 +326,13 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
     filters = {
         "ALL_CANDIDATES": lambda r: True,
         "ESTABLISHED_ONLY": lambda r: r["regime"] == "established",
-        "NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR": (
-            lambda r: r["setup_type"] != "momentum_breakout"
+        "NO_1H_CONTEXT_EXTENDED_BREAKOUT_OVER_1ATR": (
+            lambda r: r["setup_type"] not in BREAKOUT_SETUP_TYPES
             or dec(r["predecision_source_extension_atr"], "source extension") <= D(1)
         ),
-        "ESTABLISHED_AND_NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR": (
+        "ESTABLISHED_AND_NO_1H_CONTEXT_EXTENDED_BREAKOUT_OVER_1ATR": (
             lambda r: r["regime"] == "established"
-            and (r["setup_type"] != "momentum_breakout"
+            and (r["setup_type"] not in BREAKOUT_SETUP_TYPES
                  or dec(r["predecision_source_extension_atr"], "source extension") <= D(1))
         ),
     }
@@ -370,6 +374,8 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
         "BTC 15m/4h contradiction and live V4 risk veto require separate parity audit",
         "An after-cost hurdle is not a genuine after-cost execution simulation",
         "Predeclared filter slices do not model portfolio slot reuse, risk, fees or actual fills",
+        "Directional context-extension veto measures 1h EMA20/ATR for BOTH V4 and 15m rescue: not interchangeable with the portfolio study's 15m trigger ranking",
+        "V4 base and 15m rescue breakout/pullback stats are kept distinct by full setup_type names",
         "Worst-opposite examples are selected with FUTURE outcomes for forensic description only, never valid for rule selection",
         "Time-of-day breakdown involves multiple comparisons and cannot validate a time veto without independent data",
         "Development statistics must not be used to pick a filter and then quoted as independent accuracy",
