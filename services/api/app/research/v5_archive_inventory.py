@@ -12,6 +12,7 @@ from collections import Counter
 from datetime import datetime
 import json
 from pathlib import Path
+from zipfile import BadZipFile
 
 from .v5_archives import (
     FRAME_MS,
@@ -104,7 +105,7 @@ def inspect_one(root: Path, plan: dict, spec_sha: str, *, deep_verify: bool = Fa
             verify_existing(root, plan, spec_sha)
         finding["status"] = "VERIFIED" if deep_verify else "PRESENT_UNVERIFIED"
         finding["source_sha256"] = checksum
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, BadZipFile) as exc:
         finding["status"] = "REVIEW_REQUIRED"
         finding["reason"] = type(exc).__name__ + ": " + str(exc)[:180]
     return finding
