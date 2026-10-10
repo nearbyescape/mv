@@ -1,5 +1,10 @@
 # Production release 0.9.2 verification
 
+## 10 October 2026 — V5 bounded acquisition planner
+
+On the operator VPS, `test_v5_archive_inventory.py` passed 7 tests and the metadata-only 30-coin inventory returned 21 `PRESENT_UNVERIFIED`, 1,059 `MISSING`, 0 `REVIEW_REQUIRED`, 0 `VERIFIED`, 1,080 total. Separately, the isolated research branch now has `v5_archive_worklist.py`, ten authored offline-focused tests and an operator guide. **The new worklist tests, any 30-coin historical acquisition, the Jan–May BTC decision replay pilot, and the full performance study have not yet been recorded as executed.** No CI, live-fill, trading P&L or deployment evidence is claimed. Worklist does not download or change archives; per-batch acquisition still requires explicit confirmation.
+
+
 ## 10 October 2026 — V5 archive inventory (research PR #12)
 
 Added `services/api/app/research/v5_archive_inventory.py`, `services/api/tests/test_v5_archive_inventory.py`, and `docs/V5_ARCHIVE_COVERAGE_GATE.md`. The inventory is offline/read-only and labels mere manifest presence as `PRESENT_UNVERIFIED`; it cannot claim source continuity, strategy signals, or profitability. Synthetic/mock-backed tests have been authored but **are not recorded as executed or passed** in this checkpoint. The disposable VPS command and the expected 1,080-cell frozen matrix are documented in the coverage guide. Full 30-coin source completion, replay, execution costs, and V5 evaluation remain pending; no production V4 deployment was performed.
