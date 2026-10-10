@@ -84,3 +84,37 @@ operator must inspect the orphan files instead of automatically replacing them.
 The full 30-symbol, four-timeframe 2026 dataset is **not** yet authorized for
 unattended bulk acquisition. The month-series pilot is only the first controlled
 increment.
+
+
+## Stage 1c — independent month seam and 1H/4H reconciliation
+
+After individual monthly ZIPs have verified locally, the **read-only, offline**
+`v5_archive_audit.py` entry point can verify every candle across month
+boundaries and issue a SHA-256 fingerprint for the ordered decimal OHLCV
+series:
+
+```sh
+python -m app.research.v5_archive_audit continuity \
+  --root /research --symbol BTCUSDT --timeframe 1h \
+  --start-month 2026-04 --end-month 2026-06
+```
+
+This requires no 4h history. When the corresponding three native 4h months
+have also been pinned, check both series and compare the exact 1h→4h
+aggregation against the independent 4h archive:
+
+```sh
+python -m app.research.v5_archive_audit reconcile-1h-4h \
+  --root /research --symbol BTCUSDT \
+  --start-month 2026-04 --end-month 2026-06
+```
+
+The CLI emits JSON containing counts, canonical source-series hashes, source
+mismatch field counts and up to eight concrete OHLCV discrepancies. Exit code 3
+means native independently published datasets disagree, **not** that the
+downloader failed or that trading performance is negative. Never silently
+accept one series or rewrite source candles: investigate Binance archive
+corrections and document any chosen canonicalization before indicator replay.
+
+This does not prove 1m/15m source equivalence and is not yet a historical
+trading backtest. Archive source auditing remains a separate gate.
