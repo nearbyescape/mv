@@ -10,6 +10,7 @@ from app.research.v5_compare import (
     _v5_reference_plan,
     balanced_15m_filter_reason,
     make_balanced_candidates,
+    _summary,
     simulate_v5_with_safety,
 )
 from app.research.v4_retrospective import Candidate
@@ -231,3 +232,65 @@ def test_balanced_preserves_existing_rejection_and_isolated_portfolio_state():
     simulate_v5_with_safety(balanced)
     assert all(row.capped_reason != "WOULD_PUBLISH_V4" for row in balanced)
     assert emerging.capped_reason is None
+
+
+
+def test_summary_keeps_four_hour_and_full_available_returns_separate():
+    # Resolved after four hours must not silently disappear from the study.
+    row = _safety_candidate("xrp-later-tp3", "XRPUSDT", 30_600_000)
+    row.capped_reason = "WOULD_PUBLISH_V4"
+    row.v4_scaled_outcome = {
+        "status": "tp3",
+        "conservative_r": "1.550",
+        "mfe_r": "2.1",
+        "mae_r": "0.1",
+        "tp1_reached": True,
+        "tp2_reached": True,
+        "tp3_reached": True,
+        "favorable_050_at": 31_200_000,
+        "adverse_050_at": None,
+    }
+    four_hour_outcome = {
+        row.signal_id: {
+            "status": "open",
+            "conservative_r": None,
+            "mfe_r": "1.4",
+            "mae_r": "0.1",
+            "tp1_reached": True,
+            "tp2_reached": False,
+            "tp3_reached": False,
+            "favorable_050_at": 31_200_000,
+            "adverse_050_at": None,
+        }
+    }
+    summary = _summary([row], four_hour_outcome, {row.signal_id})
+    assert summary["published"] == 1
+    assert summary["resolved"] == 0
+    assert summary["conservative_r_sum_resolved"] == "0"
+    assert summary["mature_4h"]["resolved"] == 0
+    assert summary["full_available"]["resolved"] == 1
+    assert D(summary["full_available"]["conservative_r_sum_resolved"]) == D("1.550")
+    assert summary["full_available"]["tp3_reached"] == 1
+
+
+def test_summary_unresolved_full_available_position_is_not_booked_pnl():
+    row = _safety_candidate("link-open", "LINKUSDT", 30_600_000)
+    row.capped_reason = "WOULD_PUBLISH_V4"
+    row.v4_scaled_outcome = {
+        "status": "open",
+        "conservative_r": None,
+        "mfe_r": "1.43",
+        "mae_r": "0.15",
+        "tp1_reached": True,
+        "tp2_reached": False,
+        "tp3_reached": False,
+        "favorable_050_at": 31_200_000,
+        "adverse_050_at": None,
+        "mark_r": "1.32",
+    }
+    summary = _summary([row], {}, set())
+    extended = summary["full_available"]
+    assert extended["observed"] == 1
+    assert extended["resolved"] == 0
+    assert extended["conservative_r_sum_resolved"] == "0"
+    assert extended["status"] == {"open": 1}
