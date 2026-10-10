@@ -40,9 +40,9 @@ def event(t=T, direction="long", lane="v4_base"):
 
 
 def run(ev=None, bars=None, end=None, source=None):
-    ev = ev or event()
-    bars = bars or {T: candle(T)}
-    source = source or {T-HOUR: hour(T-HOUR)}
+    ev = event() if ev is None else ev
+    bars = {T: candle(T)} if bars is None else bars
+    source = {T-HOUR: hour(T-HOUR)} if source is None else source
     return label_directional_events(
         [ev], bars, source, end_exclusive_ms=end or T+Q
     )[0]
