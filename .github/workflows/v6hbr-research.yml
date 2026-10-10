@@ -89,7 +89,8 @@ jobs:
             tests/test_v6hbr_attribution.py \
             tests/test_v6hbr_candidate_operator_script.py \
             tests/test_v6hbr_btc_pricing_operator.py \
-            tests/test_v6hbr_operator_pilots.py
+            tests/test_v6hbr_operator_pilots.py \
+            tests/test_v6hbr_automation_bootstrap.py
       - name: Research-only summary
         if: success()
         shell: bash
