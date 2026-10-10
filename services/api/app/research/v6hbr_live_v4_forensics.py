@@ -123,12 +123,15 @@ def analyze_live_v4(records: list[dict], *, start_ms: int, end_ms: int) -> dict:
                 or type(raw["source_revised"]) is not bool
                 or type(raw["intrabar_ambiguous"]) is not bool):
             raise ValueError("Invalid direction/regime/evidence flags")
-        if raw["source_revised"] and status not in ("source_revised", "open"):
-            raise ValueError("Source-revised row not excluded from resolved sample")
+        # A previously resolved outcome may later be flagged source_revised
+        # without rewriting its resolved status or stored reference result.
+        # Keep it in the revised census, but never in the usable cohort.
         favorable, adverse = raw["favorable_050_at"], raw["adverse_050_at"]
         for field, t in (("favorable_050_at", favorable),
                          ("adverse_050_at", adverse)):
-            if t is not None and (type(t) is not int or t < first or t % MINUTE):
+            # Production persists Candle.close_time (often xx:xx:59.999),
+            # not the *next* minute boundary; do not require t % 60000 == 0.
+            if t is not None and (type(t) is not int or t < first):
                 raise ValueError("Invalid " + field)
         if not raw["observed_bars"] and (favorable is not None or adverse is not None):
             raise ValueError("Milestones without observed bars")
