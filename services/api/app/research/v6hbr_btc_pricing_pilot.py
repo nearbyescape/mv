@@ -30,6 +30,7 @@ from .v4_retrospective import btc_timing_reason
 from .v6hbr_candidate_export import export_events
 from .v6hbr_execution_model import ExecutionScenario, simulate_reference_trade, MINUTE
 from .v6hbr_portfolio_replay import simulate_cohort
+from .v6hbr_attribution import diagnose
 
 SYMBOL = "BTCUSDT"
 DEVELOPMENT_START = "2026-04-01"
@@ -209,7 +210,9 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
     baseline = set(cohorts["V4"]["accepted_ids"])
     for name in ("H", "B", "R"):
         kept = set(cohorts[name]["accepted_ids"])
+        # Backward-compatible legacy key: 'missing' does NOT itself prove rescue crowd-out.
         cohorts[name]["v4_base_ids_displaced"] = sorted(baseline - kept)
+    attribution = diagnose(priced, cohorts)
     return {
         "schema": 1,
         "status": "BTC_ONLY_EXPLICIT_COST_SCENARIO_NOT_CERTIFIED",
@@ -221,6 +224,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
         },
         "event_stream_sha256": events["export_stream_sha256"],
         "candidate_count": len(priced),
+        "post_hoc_attribution": attribution,
         "pricing_preliminary_reasons": dict(sorted(Counter(
             x["preliminary_reason"] or "ELIGIBLE" for x in priced
         ).items())),
@@ -242,6 +246,7 @@ def run_development_proxy(root: Path, *, scenario: ExecutionScenario,
             "No 30-market correlation/margin certification or live-signal parity",
             "May cutoff censors unresolved positions; no June/holdout outcomes consumed",
             "No future selection by net R; outputs cannot justify V6HBR promotion",
+            "Legacy v4_base_ids_displaced means baseline accepted but missing in cohort; post_hoc_attribution distinguishes filter veto from proven rescue blocker",
         ],
     }
 
