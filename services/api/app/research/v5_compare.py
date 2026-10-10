@@ -834,8 +834,7 @@ def _v4_base_preservation(
                 base is not None and base.capped_reason == "WOULD_PUBLISH_V4"
             ),
             "v5_base_rejection_reason": (
-                None if base is None and False
-                else "MISSING_V5_BASE_CANDIDATE" if base is None
+                "MISSING_V5_BASE_CANDIDATE" if base is None
                 else None if base.capped_reason == "WOULD_PUBLISH_V4"
                 else base.capped_reason
             ),
