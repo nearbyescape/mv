@@ -91,6 +91,8 @@ ExecStart=/usr/local/libexec/mv-v6hbr-auto-agent
 TimeoutStartSec=45min
 NoNewPrivileges=true
 PrivateTmp=true
+# Expose exactly the needed host archive through the private mount namespace.
+BindReadOnlyPaths=/var/tmp/mv-v5-history-archives
 PrivateDevices=true
 ProtectSystem=strict
 ReadWritePaths=/var/lib/mv-v6hbr-auto
