@@ -102,14 +102,12 @@ def test_deep_verify_uses_full_archive_validator_and_rejects_corruption(tmp_path
         assert calls == [("BTCUSDT", "2026-04")]
     finally:
         inv.verify_existing = original
-    # Real full validator rejects our deliberately invalid ZIP.
-    with pytest.raises(Exception):
-        # Deep verifier may reject before returning a status depending on ZIP parser.
-        inv.verify_existing(
-            tmp_path,
-            archive_plan(load_spec()[0], "BTCUSDT", "1h", "2026-04"),
-            load_spec()[1],
-        )
+    # Actual full validator rejects deliberately corrupt bytes and the
+    # inventory reports REVIEW_REQUIRED rather than falsely claiming complete.
+    result = _scope(tmp_path, deep=True)
+    assert result["status"] == "REVIEW_REQUIRED"
+    assert result["counts"]["VERIFIED"] == 0
+    assert result["cells"][0]["status"] == "REVIEW_REQUIRED"
 
 
 def test_deep_verify_is_bounded_and_nonlisted_symbols_rejected(tmp_path):
