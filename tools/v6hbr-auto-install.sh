@@ -35,10 +35,12 @@ command -v systemctl >/dev/null
 command -v flock >/dev/null
 command -v timeout >/dev/null
 command -v sha256sum >/dev/null
+command -v python3 >/dev/null
 test -d /run/systemd/system
-test ! -e "$ROOT"             # Never overwrite or adopt an existing service.
-test ! -e "$EXEC"
-test ! -e "$SERVICE" && test ! -e "$TIMER"
+test ! -e "$ROOT" && test ! -L "$ROOT"  # Never adopt an existing service.
+test ! -e "$EXEC" && test ! -L "$EXEC"
+test ! -e "$SERVICE" && test ! -L "$SERVICE"
+test ! -e "$TIMER" && test ! -L "$TIMER"
 test -r "$WT/packages/contracts/v5-history-v1.json"
 echo '48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64  '"$WT"'/packages/contracts/v5-history-v1.json' | sha256sum -c -
 
