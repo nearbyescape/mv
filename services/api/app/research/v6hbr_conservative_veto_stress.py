@@ -80,9 +80,12 @@ def audit_conservative_veto_stress(
         changed = []
         veto_counts = {VETO_REGIME: 0, VETO_EXTENSION: 0}
         for original in priced:
-            veto = veto_reason(original, exp)
-            if original.get("preliminary_reason"):
-                veto = None  # original disqualification always takes precedence
+            # Existing ineligibility always takes precedence. Never require
+            # additional indicators for a row already rejected by V4 safety.
+            veto = (
+                None if original.get("preliminary_reason")
+                else veto_reason(original, exp)
+            )
             if veto is not None:
                 veto_counts[veto] += 1
             changed.append({
