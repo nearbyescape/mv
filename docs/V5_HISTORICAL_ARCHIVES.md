@@ -212,3 +212,30 @@ backtest parity with live September 2026 checkpoints.
 This stage proves source-to-indicator determinism for one symbol and
 fixed origin, *not* that V5's entry decisions, execution costs, or portfolio
 P&L have passed historical validation.
+
+
+### Correction to frozen study-window interpretation (500-bar 4h requirement)
+
+The existing `v5-history-v1.json` labels Jan–Feb 2026
+`indicator_warmup` and March–May `development`. This is only a
+**calendar split**, not an assertion that all March observations are trade
+eligible. With the historical indicator origin at **2026-01-01 00:00 UTC**,
+the 500th completed 4h candle becomes available at
+**2026-03-25 08:00 UTC**, assuming continuous source coverage.
+Before that timestamp, all candidate contexts are **BLOCKED_DATA**
+by the unchanged 500-bar strategy warmup gate. Do not count March 1–25
+as no-signal, losing, or eligible strategy exposure.
+
+In the verified April–June-only proof of the indicator pipeline, the
+first 500-bar 4h snapshot is instead at **2026-06-23 08:00 UTC**,
+and the CLI correctly reports 185 potential completed hourly context
+boundaries through July 1 00:00 UTC. This is only a source-availability
+upper bound; there may be additional context/trigger/portfolio vetoes.
+
+To evaluate the *entire* March–May declared development window, a
+separately versioned spec extending history back into **December 2025**
+would be required. Do **not** silently change the active spec: all existing
+monthly archive manifests pin the original spec SHA-256 and would then
+need explicit provenance-preserving migration/reverification. The
+conservative current approach is to keep the original spec and report
+March 1–25 as ineligible; defer any versioned expansion until justified.
