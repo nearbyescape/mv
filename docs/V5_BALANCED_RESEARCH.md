@@ -1,6 +1,6 @@
 # V5 Balanced — research-only candidate (10 October 2026)
 
-**Status:** draft experiment, not tested on the VPS, not promoted to production, and not proof of an improvement in accuracy or P&L.
+**Status:** draft, not promoted to production and not proof of an improvement in accuracy or P&L. The original V5 Balanced cohort passed 18 isolated VPS unit tests on 10 October 2026; October 7–9 retrospective runs produced preliminary results. The candidate-audit extension on this separate branch still requires isolated validation.
 
 This work branches from the earlier `codex/mv-v5-15m-entry-candidate` draft. It adds a third independently evaluated cohort to its full-watchlist historical comparison. No live engine, Telegram service, signal contract, database migration, or production deployment configuration has been changed.
 
@@ -48,6 +48,19 @@ The script prints three JSON cohorts under `combined.v4`, `combined.v5_candidate
 - The near-term October 7–10 market events have already been examined by the project team. They are **development evidence**, not an unseen final evaluation. Multiple chronological regimes and a genuinely untouched holdout plus forward data must be evaluated before choosing V5.
 - This research script does not establish that any filter is more profitable. A lower signal count or better +0.5R ordering on a tiny sample does not prove higher accuracy.
 - If the missing observation progress and Decimal precision fixes remain unimplemented, the production V4 safety and arithmetic concerns from the October 10 audit remain open independently of this research experiment.
+
+## Candidate-level decision audit (stacked research extension)
+
+The separate research branch `codex/mv-v5-candidate-decision-audit` extends the V5 Balanced experiment with **visibility only**, not different entry rules or position sizing. Daily JSON now includes:
+
+- `reports[0].v4.candidate_audit`, `v5_candidate.candidate_audit`, and `v5_balanced.candidate_audit`: every formed candidate, including rejected candidates, with the proposed publication time, source, lane, ranking inputs, preliminary reason, final portfolio reason, and selected flag. Rows without an eligible setup are still summarized in context/setup-reason counts and are **not** fabricated as candidates.
+- `blocked_by_published`: the earlier selected signals that satisfy the actual rolling-window concentration, hourly-cluster concentration, active-directional-exposure, or same-direction session-dedupe predicate. It does not speculate about circuit-breaker blockers or forecast what a later signal will do.
+- `independent_reference_full_available`: when a usable plan and reference bars exist, an *independent hypothetical path* for an entry even if the portfolio rejected it. **Never add rejected entries to portfolio R, win rates, or booked results.** This is an opportunity-cost diagnostic only; it does not model the other trades the rejected signal would have displaced.
+- `reports[0].v4_base_preservation.v5_candidate` and `.v5_balanced`: matches each V4-published source setup to its V5 base counterpart and reports whether it was preserved, displaced, or unexpectedly missing. For displaced entries, the exact blockers and entry-only hypothetical outcomes are included.
+
+The October 9 working hypothesis is that 19:15 IST UNI/LDO rescue SHORTs occupied the rolling-hour two-SHORT capacity when 19:30 IST AAVE/HBAR original V4 SHORT candidates arrived. Inspect the **individual** audit rows before calling that cause established. This report is intended to settle that question without changing policy or optimizing thresholds on an observed three-day sample.
+
+To compare portfolios fairly, choose and register alternative capacity/reservation policies **before** running unseen dates, and replay all policies in chronological order across sessions with realistic entry fill/cost assumptions and persistent active-position state. A later V4 setup cannot retroactively be given precedence over an already-published rescue signal using future information.
 
 ## Promotion gates
 
