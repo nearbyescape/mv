@@ -1,0 +1,82 @@
+name: V6HBR isolated research checks
+
+# Repository-only regression checks.  VPS history ZIPs and production services
+# are intentionally inaccessible to GitHub-hosted runners.
+on:
+  push:
+    branches:
+      - codex/mv-v6hbr-research
+    paths:
+      - .github/workflows/v6hbr-research.yml
+      - services/api/app/research/**
+      - services/api/tests/test_v6hbr_*.py
+      - tools/v6hbr-*.sh
+      - packages/strategy/**
+      - packages/contracts/v5-history-v1.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v6hbr-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  isolated-unit:
+    name: Read-only research regressions (no VPS)
+    if: github.ref == 'refs/heads/codex/mv-v6hbr-research'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      PYTHONPATH: services/api:packages/strategy
+    steps:
+      - name: Checkout research branch without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify the exact approved research branch and frozen contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "${GITHUB_REF}" = refs/heads/codex/mv-v6hbr-research
+          printf '%s  %s\n' \
+            48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64 \
+            packages/contracts/v5-history-v1.json | sha256sum -c -
+          test ! -e /var/tmp/mv-v5-history-archives
+          test ! -e /opt/mv-signal/app
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: services/api/requirements.txt
+      - name: Install pinned API and strategy dependencies
+        run: |
+          python -m pip install -r services/api/requirements.txt
+          python -m pip install -e packages/strategy
+      - name: Offline regression and operator safety checks
+        working-directory: services/api
+        run: |
+          python -m pytest -q -p no:cacheprovider \
+            tests/test_v6hbr_candidate_export.py \
+            tests/test_v6hbr_execution_model.py \
+            tests/test_v6hbr_portfolio_replay.py \
+            tests/test_v6hbr_btc_pricing_pilot.py \
+            tests/test_v6hbr_attribution.py \
+            tests/test_v6hbr_candidate_operator_script.py \
+            tests/test_v6hbr_btc_pricing_operator.py \
+            tests/test_v6hbr_operator_pilots.py
+      - name: Research-only summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '### V6HBR offline checks passed'
+            echo 'Only repository-contained regressions were tested.'
+            echo 'No VPS archive files, live V4 services, Lighter fills,'
+            echo 'August–September holdout, or historical P&L were accessed.'
+            echo 'This does **not** certify trading profitability or authorize deployment.'
+          } >> "$GITHUB_STEP_SUMMARY"
