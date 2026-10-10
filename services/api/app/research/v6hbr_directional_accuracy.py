@@ -20,6 +20,9 @@ import json
 from math import sqrt
 from random import Random
 from statistics import fmean
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo("Asia/Kolkata")
 
 QUARTER = 900_000
 HORIZONS = (15, 30, 60, 120)
@@ -53,6 +56,10 @@ def wilson_95(successes: int, trials: int) -> tuple[str | None, str | None]:
 
 def _date(t: int) -> str:
     return datetime.fromtimestamp(t/1000, tz=timezone.utc).date().isoformat()
+
+
+def _ist_hour(t: int) -> str:
+    return f"{datetime.fromtimestamp(t/1000, tz=IST).hour:02d}:00"
 
 
 def label_directional_events(
@@ -176,6 +183,7 @@ def label_directional_events(
         results.append({
             "symbol": ev["symbol"], "at_ms": t,
             "utc_day": _date(t),
+            "ist_entry_hour": _ist_hour(t),
             "direction": ev["direction"], "lane": ev["lane"],
             "setup_type": ev["setup_type"], "regime": ev["regime"],
             "source_atr": str(atr),
@@ -274,6 +282,40 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
             [r for r in labeled if r["symbol"] == symbol]
         ) for symbol in sorted({r["symbol"] for r in labeled})
     }
+    report["by_ist_entry_hour"] = {
+        hour: summarize_directional_accuracy([
+            r for r in labeled if r["ist_entry_hour"] == hour
+        ]) for hour in sorted({r["ist_entry_hour"] for r in labeled})
+    }
+    # Forensic examples are selected AFTER the fact and must NEVER define
+    # a new trading rule without prospective independent validation.
+    report["worst_12_opposite_direction_examples_by_horizon"] = {}
+    for horizon in HORIZONS:
+        key = str(horizon)
+        opposite = [
+            row for row in labeled
+            if row["horizons"][key]["status"] == "OBSERVED"
+            and row["horizons"][key]["direction_classification"]
+                == "DIRECTION_OPPOSITE_OVER_HURDLE"
+        ]
+        opposite.sort(key=lambda row: (
+            dec(row["horizons"][key]["signed_mark_bps"], "signed mark"),
+            row["at_ms"], row["symbol"], row["lane"]
+        ))
+        report["worst_12_opposite_direction_examples_by_horizon"][key] = [
+            {
+                "symbol": r["symbol"], "at_ms": r["at_ms"],
+                "direction": r["direction"], "lane": r["lane"],
+                "setup_type": r["setup_type"], "regime": r["regime"],
+                "ist_entry_hour": r["ist_entry_hour"],
+                "predecision_source_extension_atr": r["predecision_source_extension_atr"],
+                "signed_forward_bps": r["horizons"][key]["signed_mark_bps"],
+                "first_0p5atr_event": r["horizons"][key]["first_0p5atr_event"],
+                "max_adverse_atr": r["horizons"][key]["max_adverse_atr"],
+                "max_favorable_atr": r["horizons"][key]["max_favorable_atr"],
+            }
+            for r in opposite[:12]
+        ]
     # Predeclared decision-time directional screening hypotheses; subset
     # stats are purely descriptive and cannot estimate portfolio PnL.
     # The full chronological portfolio replay is a SEPARATE research stage.
@@ -297,6 +339,11 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
             "directional_accuracy_of_retained_candidate_references": (
                 summarize_directional_accuracy([
                     r for r in labeled if predicate(r)
+                ])
+            ),
+            "directional_accuracy_of_REJECTED_candidate_references": (
+                summarize_directional_accuracy([
+                    r for r in labeled if not predicate(r)
                 ])
             ),
         }
@@ -323,6 +370,8 @@ def directional_accuracy_study(labeled: list[dict]) -> dict:
         "BTC 15m/4h contradiction and live V4 risk veto require separate parity audit",
         "An after-cost hurdle is not a genuine after-cost execution simulation",
         "Predeclared filter slices do not model portfolio slot reuse, risk, fees or actual fills",
+        "Worst-opposite examples are selected with FUTURE outcomes for forensic description only, never valid for rule selection",
+        "Time-of-day breakdown involves multiple comparisons and cannot validate a time veto without independent data",
         "Development statistics must not be used to pick a filter and then quoted as independent accuracy",
     ]
     return report
