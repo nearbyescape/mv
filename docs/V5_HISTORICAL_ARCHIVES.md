@@ -47,3 +47,40 @@ No futures trade execution, P&L or risk claims are made by this stage. Binance U
 4. Pre-register evaluation metrics and choose policies only on development/validation data. Holdout results should be evaluated once, after implementations, dataset integrity, and comparison policies are frozen.
 
 **Caution:** Bulk downloading all 30 markets' 1-minute archives can consume multiple GB and significant CPU/disk, and must never start until the one-month pilot passes. Do not backfill the production market collector or production database.
+
+
+## Stage 1b — strictly bounded month-series pilot
+
+After the one-archive integrity pilot passes, run the second entry point
+`python -m app.research.v5_archive_batch` **in the same isolated read-only-code / writable-research-only container layout**, never inside the production Compose stack. It accepts exactly **one frozen-universe symbol and one timeframe**, plus an inclusive calendar-month range of **at most six months**. Example three-month 1H-only pilot:
+
+```sh
+python -m app.research.v5_archive_batch plan --root /research \
+  --symbol BTCUSDT --timeframe 1h --start-month 2026-04 --end-month 2026-06
+
+python -m app.research.v5_archive_batch fetch --root /research \
+  --symbol BTCUSDT --timeframe 1h --start-month 2026-04 --end-month 2026-06 \
+  --max-new-mib 64 --min-free-mib 2048 --confirm-fetch
+
+python -m app.research.v5_archive_batch verify --root /research \
+  --symbol BTCUSDT --timeframe 1h --start-month 2026-04 --end-month 2026-06
+```
+
+`plan` has **no network or disk writes**. `verify` reads local archives only.
+`fetch` requires an explicit `--confirm-fetch` flag, downloads serially, sleeps at
+least half a second between archives, enforces at most **256 MiB of newly downloaded
+compressed ZIP bytes per invocation**, and refuses to run if available storage is
+below the requested reserve plus the next archive's byte budget. Existing pinned
+archives are rechecked against publisher SHA-256 without counting their bytes as
+new downloads.
+
+Each attempted month appends a fsynced evidence event to a JSONL audit ledger.
+An unavailable publisher archive is labeled `SOURCE_HTTP_404_REQUIRES_REVIEW`
+and **stops the batch**; 404 cannot be used to infer contract inception or fill
+gaps. On interruption the next invocation revalidates any completed archive, then
+continues with missing months. If archive/sidecar publication was interrupted, an
+operator must inspect the orphan files instead of automatically replacing them.
+
+The full 30-symbol, four-timeframe 2026 dataset is **not** yet authorized for
+unattended bulk acquisition. The month-series pilot is only the first controlled
+increment.
