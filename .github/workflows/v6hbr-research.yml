@@ -31,7 +31,6 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: '1'
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
-      PYTHONPATH: services/api:packages/strategy
     steps:
       - name: Checkout research branch without persisted credentials
         uses: actions/checkout@v4
