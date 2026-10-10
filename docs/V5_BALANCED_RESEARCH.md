@@ -62,6 +62,18 @@ The October 9 working hypothesis is that 19:15 IST UNI/LDO rescue SHORTs occupie
 
 To compare portfolios fairly, choose and register alternative capacity/reservation policies **before** running unseen dates, and replay all policies in chronological order across sessions with realistic entry fill/cost assumptions and persistent active-position state. A later V4 setup cannot retroactively be given precedence over an already-published rescue signal using future information.
 
+## Fourth cohort: prospective reserved-base policy (stacked draft)
+
+The research-only branch `codex/mv-v5-reserved-base-research` adds `v5_reserved` to the historical comparison without modifying V4, Hybrid or Balanced decisions. It uses precisely the **Hybrid candidate set**, independently cloned with its candidate-level audit and V4-base preservation report.
+
+**Precommitted allocation rule (not chosen dynamically from October 9's outcomes):** per LONG/SHORT direction, a rolling 60-minute window can include at most **one published `15m_rescue`** and **two total published signals**. Existing session dedupe, adverse circuit-breaker, active cap, BTC timing veto, ranking, entry/stop/TP, data checks and overall concentration rule remain intact. Only eligible rescue entries can receive rejection reason `RESCUE_LANE_ROLLING_LIMIT`. Hourly `v4_base` entries are not subject to that rescue-only quota, but remain subject to total concentration and other protections.
+
+This is a **prospective capacity reservation** only: a later V4 entry cannot evict or change an earlier signal, and a reservation cannot guarantee any later V4 setup will exist or qualify. The rule may reduce winning rescue trades or admit losing base trades. It is deliberately not a retrospective 'pick whichever won' algorithm.
+
+Report additions: `combined.v5_reserved`, `reports[0].v5_reserved`, and `reports[0].v4_base_preservation.v5_reserved`. Its candidate audit records `rolling_rescue_accepted_before_decision` and the exact earlier published blockers for `RESCUE_LANE_ROLLING_LIMIT`. Rejected candidates' independent outcome paths are **counterfactual diagnostics**, not realized P&L.
+
+**Evaluation:** first confirm unit tests and October 9's individual eligibility decisions in the isolated VPS research clone. Freeze policy specifications before studying additional chronological dates, then compare all cohorts across different trend/regime environments and true unseen dates. Three already reviewed October days are **development data only**. Consider the active risk state across session boundaries, historical warmup, current-versus-historical watchlists and proper fees/slippage/funding before any promotion proposal.
+
 ## Promotion gates
 
 - API and independent numerical tests passing, including precision and safety-progress bugs on an isolated candidate.
