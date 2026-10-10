@@ -160,3 +160,28 @@ source integrity and shell-runner tests have yet to be executed on VPS.
 The 30-coin strategy evaluation, realistic execution/P&L,
 risk controls and untouched August–September holdout remain open.
 Production V4 is unchanged.
+
+
+## 10 October 2026 — ETHUSDT Jan–Jun research plan verified; acquisition remains gated
+
+Operator-reported VPS execution from the isolated research checkout
+`/tmp/mv-v5-history-pilot` fast-forwarded cleanly to
+`7df880226e34c2e3d6d38df0ce2c279052357823` and ran
+`bash tools/v5-eth-foundation-pilot.sh plan`. The two outputs each
+reported `PLANNED_ONLY` under
+`/var/tmp/mv-v5-history-archives`, with frozen spec SHA256
+`48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64`.
+Expected source counts are 4,344 ETHUSDT 1h candles and 1,086 ETHUSDT
+4h candles across six months (January–June 2026): 12 planned archive
+cells / 5,430 candles in total. These counts are expected calendar
+counts, **not downloaded, source-audited or reconstructed observations**.
+
+The plan ran with the research shell pilot's no-network, read-only
+archive mode and produced no production Compose operations, DB access,
+or Telegram sends. The next gate is operator-reviewed independent
+research archive acquisition; it is **not authorized by running plan**.
+Subsequent offline checks must verify publisher SHA256, full candle
+continuity, 1h-to-4h reconciliation, and fixed-origin indicator
+reconstruction before ETH decision replay. V4 production stays
+unchanged. No ETH candidate counts or net V4/V5 trading performance
+are established by this result.
