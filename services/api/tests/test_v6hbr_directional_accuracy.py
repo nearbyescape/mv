@@ -157,3 +157,33 @@ def test_historical_candidate_generation_cannot_be_changed_by_future_prices():
     assert first[0]["horizons"]["15"]["direction_classification"] != (
         second[0]["horizons"]["15"]["direction_classification"]
     )
+
+
+def test_wrong_way_forensics_include_rejected_counterfactual_winners():
+    """A stricter filter can miss good trades; show both sides, not only accuracy."""
+    import copy
+    good = run()
+    good["regime"] = "emerging"
+    bad = run(ev=event(direction="short"))
+    bad["at_ms"] += Q
+    # Simulate the known-at-entry feature driving a stricter breakout veto.
+    bad["predecision_source_extension_atr"] = "1.2"
+    report = directional_accuracy_study([good, bad])
+    assert len(report["worst_12_opposite_direction_examples_by_horizon"]["15"]) == 1
+    example = report["worst_12_opposite_direction_examples_by_horizon"]["15"][0]
+    assert example["symbol"] == "BTCUSDT"
+    assert example["signed_forward_bps"] == "-100"
+    assert example["first_0p5atr_event"] == "ADVERSE_FIRST"
+    assert "ist_entry_hour" in example
+    established = report["predeclared_predecision_filter_slices"]["ESTABLISHED_ONLY"]
+    assert established["retained"] == 1
+    assert established["rejected"] == 1
+    assert established["directional_accuracy_of_REJECTED_candidate_references"]["15"][
+        "direction_supported_over_hurdle"
+    ] == 1
+    anti_chase = report["predeclared_predecision_filter_slices"][
+        "NO_SOURCE_EXTENDED_BREAKOUT_OVER_1ATR"
+    ]
+    assert anti_chase["retained"] == 1
+    assert anti_chase["rejected"] == 1
+    assert "05:00" in report["by_ist_entry_hour"]
