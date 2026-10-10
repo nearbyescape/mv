@@ -18,6 +18,8 @@ from decimal import Decimal as D, InvalidOperation
 from random import Random
 from statistics import fmean
 
+from .v6hbr_setup_taxonomy import validated_setup_type
+
 DAY_MS = 86_400_000
 MIN_RESOLVED = 80
 MIN_DAYS = 20
@@ -63,10 +65,11 @@ def evaluate_abstention(
     if (type(signal_at_ms) is not int or signal_at_ms <= 0
             or signal_at_ms % MINUTE):
         raise ValueError("Signal must be at a completed full minute")
-    if direction not in ("long", "short") or setup_type not in (
-        "pullback_continuation", "momentum_breakout"
-    ) or regime not in ("established", "emerging"):
+    if direction not in ("long", "short") or regime not in ("established", "emerging"):
         raise ValueError("Unrecognized predeclared research bucket")
+    # Keep hourly and completed-15m setups distinct, rather than pretending
+    # the trading behaviors or their expected returns are interchangeable.
+    validated_setup_type(setup_type)
     if not isinstance(prior_outcomes, list):
         raise ValueError("Input must be a finite historical list")
 
