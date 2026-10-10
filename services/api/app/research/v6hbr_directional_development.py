@@ -22,6 +22,7 @@ from .v6hbr_candidate_export import export_events
 from .v6hbr_directional_accuracy import (
     label_directional_events, directional_accuracy_study,
 )
+from .v6hbr_time_cluster_forensics import hour_and_cross_market_forensics
 
 DEVELOPMENT_START = "2026-04-01"
 DEVELOPMENT_END = "2026-06-01"
@@ -91,6 +92,9 @@ def study_development(
         "complete_symbol_count": len(sources),
         "per_symbol_source_provenance": sources,
         "directional_accuracy": report,
+        "exploratory_time_and_cross_market_forensics": (
+            hour_and_cross_market_forensics(labeled)
+        ),
         "limitations": [
             "No live V4 outcome evidence from October 2026 is used",
             "Validation and sealed holdout data are not accessed",
