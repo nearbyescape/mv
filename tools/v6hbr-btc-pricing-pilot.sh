@@ -35,6 +35,7 @@ docker run --rm --pull never \
       tests/test_v6hbr_portfolio_replay.py \
       tests/test_v6hbr_btc_pricing_pilot.py \
       tests/test_v6hbr_attribution.py \
+      tests/test_v6hbr_quality_diagnostics.py \
       tests/test_v6hbr_btc_pricing_operator.py \
       tests/test_v6hbr_candidate_operator_script.py \
       tests/test_v6hbr_operator_pilots.py
