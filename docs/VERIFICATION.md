@@ -202,3 +202,36 @@ Reports/images are saved under ignored `artifacts/`, including `live-market-veri
 Historical acquisition/replay commands are in `README.md`. The completed dataset lives under ignored `research-data/`; pinned reports/CSV/JSONL/manifest/source audit under `artifacts/backtests/<report-id>/`. Independent rational verification writes `artifacts/backtest-verification.json`. Actual research captures are `research-desktop.png`, `research-dark.png` and `research-mobile.png`. Report verification requires the prepared artifacts and running API; actual browser capture also requires the website. Keep the pinned local dataset to reproduce the exact run if upstream archives later change.
 
 The integration tool temporarily reverses the watchlist and restores it in cleanup. The fixture capture mocks signal transport only in its own browser and never changes live data/slots. The live signal capture requires an actual published plan, uses no transport mocks and reads/downloads it without actions. These tools send no alerts or trades. The website uses loopback port 3100 because another local application occupies port 3000.
+
+
+## 10 October 2026 — BTC historical decision-only VPS evidence
+
+The operator's research-only VPS log at research commit
+`47b046aa28f88938d338d47d07605d5261f679a8` reports:
+
+- 23 acquisition/inventory/decision unit tests passed, then 13
+  inventory-and-replay tests passed.
+- BTCUSDT January–June source integrity: 17,376 native 15m bars
+  reconciled exactly into 4,344 independent 1h bars, and 4,344 native
+  1h bars reconciled exactly into 1,086 independent 4h bars.
+  Both audits returned `PASS`, with **zero OHLCV mismatches**.
+- Development-only BTCUSDT replay (January origin; March–May study
+  window; first eligible 4h-warm context after March 25):
+  948 hourly contexts, 27 V4 base qualifiers, 563
+  trend-aligned V4 no-trigger contexts, 357 armed rescue hours,
+  1,286 completed 15m trigger checks, and 43 V5 rescue references.
+  All 27 V4 base qualifiers were preserved **pre-safety**.
+  Candidate digest:
+  `3d6387239680851f6c2493c0eaee43b798572cf18987c89a340d629655f7f90a`.
+  Final command marker `V5_BTC_DEVELOPMENT_DECISION_PILOT: PASS`.
+
+**This is NOT a 70-trade performance result:** 27 + 43 =
+70 **unpriced candidate references**, not safety-approved,
+fillable or profitable signals. No fees, 1m execution, slippage,
+funding, BTC veto, portfolio state or stop/TP execution is modeled.
+The comparison is BTC-only, development-only; no validation/holdout
+trading performance has been examined.
+
+The isolated branch additionally contains the ETHUSDT 1h/4h source
+pilot and safety tests. ETH acquisition and verification have **not
+yet been executed**, so no non-BTC data-integrity PASS is claimed.
