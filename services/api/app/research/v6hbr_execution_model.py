@@ -76,6 +76,8 @@ def simulate_reference_trade(plan: dict, bars: Iterable, published_at: int,
     ambiguous_count = 0
     last_close = None
     charged_funding_through = None
+    favorable_050_at_ms = None
+    adverse_050_at_ms = None
     impact = (scenario.spread_bps / D(2) + scenario.slippage_bps) / D(10_000)
     fee_fraction = scenario.taker_fee_bps / D(10_000)
     debit_fraction = scenario.funding_debit_bps_per_8h / D(10_000)
@@ -100,6 +102,8 @@ def simulate_reference_trade(plan: dict, bars: Iterable, published_at: int,
                 if status == "OPEN_UNRESOLVED" and last_close is not None else None
             ),
             "intraminute_stop_first_ties": ambiguous_count,
+            "favorable_050_at_ms": favorable_050_at_ms,
+            "adverse_050_at_ms": adverse_050_at_ms,
             "exits": exits,
             "scenario_not_observed_fills": True,
         }
@@ -133,6 +137,19 @@ def simulate_reference_trade(plan: dict, bars: Iterable, published_at: int,
                     * debit_fraction * entry / risk * remaining
                 )
                 charged_funding_through = latest_funding_mark
+
+        if sign > 0:
+            favorable_r = max(high - entry, D(0)) / risk
+            adverse_r = max(entry - low, D(0)) / risk
+        else:
+            favorable_r = max(entry - low, D(0)) / risk
+            adverse_r = max(high - entry, D(0)) / risk
+        # Milestones are observable only after this complete reference minute;
+        # same-minute adverse/favorable ties are treated adverse-first by safety.
+        if favorable_050_at_ms is None and favorable_r >= D("0.5"):
+            favorable_050_at_ms = t + MINUTE
+        if adverse_050_at_ms is None and adverse_r >= D("0.5"):
+            adverse_050_at_ms = t + MINUTE
 
         effective_stop = stop if filled == 0 else entry if filled == 1 else levels[0]
         stop_hit = low <= effective_stop if sign > 0 else high >= effective_stop
