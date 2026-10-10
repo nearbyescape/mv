@@ -61,7 +61,7 @@ def test_accounting_real_mismatch_is_never_suppressed():
         for name in ("V4", "H", "B", "R")
     }
     cohorts["V4"]["resolved_net_r_sum"] = "0.5000000000000000000000000001"
-    with pytest.raises(ValueError, match="discrepancy=.*-0.0000000000000000000000000001"):
+    with pytest.raises(ValueError, match="discrepancy=-1E-28"):
         diagnose(rows, cohorts)
 
 
