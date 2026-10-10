@@ -1,5 +1,10 @@
 # Phased delivery status
 
+## 10 October 2026 — research-only V5 archive acquisition worklist
+
+The latest isolated PR #12 adds `app.research.v5_archive_worklist` and focused `test_v5_archive_worklist.py` for a deterministic offline, bounded, symbol-major 30-coin source acquisition plan. It reuses the existing limited one-symbol monthly fetch tool rather than starting bulk network jobs. Previously logged publisher 404s are quarantined for human review, sidecar inconsistencies block the queue, and no holdout strategy results are inspected. See [acquisition worklist](V5_ARCHIVE_ACQUISITION_WORKLIST.md). **Implemented in source, not yet VPS-tested.** The 10 October VPS inventory demonstrated 7 passing inventory tests, 21 BTC pinned-but-not-freshly-verified archives, and 1,059 missing slots. Full 30-coin source integrity, actual strategy replay, conservative fills, costs, portfolio risk and holdout remain open. Production V4 unchanged.
+
+
 ## 10 October 2026 — V5 research-only archive inventory
 
 PR #12 (branch `codex/mv-v5-historical-archive-pilot`) adds the offline `app.research.v5_archive_inventory` coverage gate and focused unit tests. The frozen January–September 2026 proposal implies 30 symbols × 4 timeframes × 9 months = **1,080 monthly archive cells**. The CLI never downloads sources or accesses production, distinguishes missing archives, orphan files, pinned-but-unchecked sources, and deliberately bounded full-verification passes. Operator instructions are in [V5 coverage gate](V5_ARCHIVE_COVERAGE_GATE.md).
