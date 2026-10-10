@@ -146,3 +146,79 @@ def test_mismatched_4h_field_sample_is_bounded(tmp_path):
     # source bars or permit invalid mismatched source scope.
     with pytest.raises(ValueError):
         audit.audit_continuity(tmp_path, [], fingerprint)
+
+
+def _fifteen_fixtures(root, *, discrepant=False):
+    """Construct two independently pinned synthetic monthly archives."""
+    spec, fingerprint = load_spec()
+    quarter = batch_plan(spec, "BTCUSDT", "15m", "2026-04", "2026-05")
+    one = batch_plan(spec, "BTCUSDT", "1h", "2026-04", "2026-05")
+    for plans in (quarter, one):
+        for plan in plans:
+            zip_path, sidecar = archive_location(root, plan)
+            zip_path.parent.mkdir(parents=True, exist_ok=True)
+            step = audit.FRAME_MS[plan["timeframe"]]
+            rows = []
+            for index in range(plan["expected_rows"]):
+                opened = plan["start_ms"] + step * index
+                high = 102 if (
+                    discrepant and plan["timeframe"] == "1h"
+                    and plan["month"] == "2026-05" and index == 3
+                ) else 101
+                volume = 7 if plan["timeframe"] == "15m" else 28
+                rows.append(",".join(
+                    [str(opened), "100", str(high), "99", "100", str(volume),
+                     str(opened + step - 1), "0", "0", "0", "0", "0"]
+                ))
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipped:
+                zipped.writestr(plan["filename"][:-4] + ".csv", "\n".join(rows) + "\n")
+            sidecar.write_text(json.dumps({
+                **plan,
+                "spec_sha256": fingerprint,
+                "source_sha256": sha256(zip_path.read_bytes()).hexdigest(),
+                "verified_rows": plan["expected_rows"],
+            }), encoding="utf-8")
+    return quarter, one, fingerprint
+
+
+def test_native_15m_data_reconciles_to_1h_without_discrepancies(tmp_path):
+    quarter, one, fingerprint = _fifteen_fixtures(tmp_path)
+    result = audit.audit_quarter_pair(tmp_path, quarter, one, fingerprint)
+    assert result["disposition"] == "PASS"
+    assert result["fifteen_minute"]["rows"] == (720 + 744) * 4
+    assert result["one_hour"]["rows"] == 720 + 744
+    assert result["comparison"]["native_1h_rows"] == 720 + 744
+    assert result["comparison"]["mismatched_native_1h_rows"] == 0
+
+
+def test_15m_1h_mismatch_fails_closed_with_evidence(tmp_path):
+    quarter, one, fingerprint = _fifteen_fixtures(tmp_path, discrepant=True)
+    result = audit.audit_quarter_pair(tmp_path, quarter, one, fingerprint)
+    assert result["disposition"] == "REVIEW_REQUIRED"
+    assert result["comparison"]["mismatched_native_1h_rows"] == 1
+    assert result["comparison"]["field_mismatch_counts"] == {"high": 1}
+    assert result["comparison"]["samples"][0]["fields"]["high"] == {
+        "from_15m": "101", "native_1h": "102"
+    }
+
+
+def test_15m_1h_cli_exit_three_on_publisher_disagreement(tmp_path, monkeypatch, capsys):
+    _fifteen_fixtures(tmp_path, discrepant=True)
+    monkeypatch.setattr(sys, "argv", [
+        "v5_archive_audit", "reconcile-15m-1h", "--root", str(tmp_path),
+        "--symbol", "BTCUSDT", "--start-month", "2026-04",
+        "--end-month", "2026-05",
+    ])
+    with pytest.raises(SystemExit) as raised:
+        audit.main()
+    assert raised.value.code == 3
+    output = json.loads(capsys.readouterr().out)
+    assert output["disposition"] == "REVIEW_REQUIRED"
+
+
+def test_15m_1h_reconciliation_rejects_wrong_scope(tmp_path):
+    quarter, one, fingerprint = _fifteen_fixtures(tmp_path)
+    with pytest.raises(ValueError, match="matching scope"):
+        audit.audit_fifteen_vs_hour(tmp_path, one, quarter, fingerprint)
+    with pytest.raises(ValueError, match="matching scope"):
+        audit.audit_fifteen_vs_hour(tmp_path, quarter, one[:1], fingerprint)
