@@ -13,6 +13,7 @@ from decimal import Decimal as D
 from zoneinfo import ZoneInfo
 
 from .v6hbr_portfolio_replay import CLOSED
+from .v6hbr_decimal_reconciliation import exact_reference_sum
 
 IST = ZoneInfo("Asia/Kolkata")
 ACCEPTED = "ACCEPTED_REFERENCE"
@@ -62,9 +63,12 @@ def diagnose(priced: list[dict], cohorts: dict[str, dict]) -> dict:
         lane_counts = Counter()
         lane_resolved = Counter()
         lane_unresolved = Counter()
-        lane_net = {"v4_base": D(0), "15m_rescue": D(0)}
-        lane_fees = {"v4_base": D(0), "15m_rescue": D(0)}
-        lane_funding = {"v4_base": D(0), "15m_rescue": D(0)}
+        # Store atomic modeled amounts first: summing separately by lane at
+        # ambient Decimal precision can round differently from chronological
+        # portfolio totals, producing a false unreconciled P&L failure.
+        lane_net_values = {"v4_base": [], "15m_rescue": []}
+        lane_fee_values = {"v4_base": [], "15m_rescue": []}
+        lane_funding_values = {"v4_base": [], "15m_rescue": []}
         lane_positive = Counter()
         lane_negative = Counter()
         for row in accepted:
@@ -74,13 +78,16 @@ def diagnose(priced: list[dict], cohorts: dict[str, dict]) -> dict:
             if out["status"] in CLOSED:
                 lane_resolved[lane] += 1
                 value = _num(out["net_realized_r"])
-                lane_net[lane] += value
-                lane_fees[lane] += _num(out.get("fee_debit_r", 0))
-                lane_funding[lane] += _num(out.get("funding_debit_r", 0))
+                lane_net_values[lane].append(value)
+                lane_fee_values[lane].append(_num(out.get("fee_debit_r", 0)))
+                lane_funding_values[lane].append(_num(out.get("funding_debit_r", 0)))
                 lane_positive[lane] += value > 0
                 lane_negative[lane] += value < 0
             elif out["status"] == "OPEN_UNRESOLVED":
                 lane_unresolved[lane] += 1
+        lane_net = {lane: exact_reference_sum(v) for lane, v in lane_net_values.items()}
+        lane_fees = {lane: exact_reference_sum(v) for lane, v in lane_fee_values.items()}
+        lane_funding = {lane: exact_reference_sum(v) for lane, v in lane_funding_values.items()}
         ignored_baseline = []
         for baseline in sorted(baseline_ids):
             state = by_id[baseline]
@@ -146,8 +153,17 @@ def diagnose(priced: list[dict], cohorts: dict[str, dict]) -> dict:
             ).items())),
             "missing_v4_base_details": ignored_baseline,
         }
-        if lane_net["v4_base"] + lane_net["15m_rescue"] != _num(report["resolved_net_r_sum"]):
-            raise ValueError("Lane P&L attribution does not reconcile to cohort net R")
+        # Exact equality remains non-negotiable: only addition-order rounding
+        # is removed, never a material discrepancy or missing reference.
+        lane_total = exact_reference_sum(lane_net.values())
+        cohort_total = _num(report["resolved_net_r_sum"])
+        if lane_total != cohort_total:
+            difference = exact_reference_sum((lane_total, -cohort_total))
+            raise ValueError(
+                "Lane P&L attribution does not reconcile to cohort net R "
+                f"(cohort={cohort}, lane_net={lane_total}, "
+                f"cohort_net={cohort_total}, discrepancy={difference})"
+            )
         result["cohorts"][cohort] = outcome
     eligible_rescues = [
         row for row in priced
