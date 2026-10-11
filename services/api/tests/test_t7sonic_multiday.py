@@ -126,7 +126,7 @@ class MultiDayTests(unittest.TestCase):
             "failed_breakout_reversal", "volatility_transition"
         ]
         entry = first["directional_episode_labels"][0]
-        raw = json.dumps(entry, sort_keys=True, separators=(",", ":")).encode() + b"\\n"
+        raw = json.dumps(entry, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         first["label_stream_sha256"] = _hash(raw)
         self._write()
         report = self._run()
