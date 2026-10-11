@@ -98,6 +98,46 @@ class MultiDayTests(unittest.TestCase):
         self.assertEqual(r["by_expert_at_onset"]["failed_breakout_reversal"]["active_days"], 2)
         self.assertTrue(r["april_20_anchor_verified"])
 
+    def test_paired_expert_baselines_account_for_each_onset(self):
+        report = self._run()
+        paired = report["paired_onsets"]
+        self.assertEqual(paired["actual"]["favorable"], 1)
+        self.assertEqual(paired["matched_long"]["favorable"], 2)
+        self.assertEqual(paired["matched_short"]["favorable"], 0)
+        self.assertEqual(
+            paired["vs_matched_long"]["net_favorable_episodes_actual_minus_baseline"], -1
+        )
+        self.assertEqual(paired["vs_matched_long"]["baseline_only_favorable"], 1)
+        self.assertEqual(paired["vs_matched_long"]["actual_only_favorable"], 0)
+        self.assertEqual(
+            paired["vs_matched_short"]["net_favorable_episodes_actual_minus_baseline"], 1
+        )
+        expert = report["by_expert_paired_matched_baselines"]["failed_breakout_reversal"]
+        self.assertEqual(expert["active_days"], 2)
+        self.assertEqual(expert["active_days_worse_than_matched_long"], 1)
+        self.assertEqual(expert["active_days_tied_with_matched_long"], 1)
+        self.assertEqual(expert["active_days_better_than_matched_short"], 1)
+        self.assertEqual(expert["active_days_tied_with_matched_short"], 1)
+        self.assertEqual(sum(day["episodes"] for day in expert["daily"].values()), 2)
+
+    def test_coactivated_experts_share_cohort_but_not_total_episodes(self):
+        first = self.reports["2026-04-19"]
+        first["directional_episode_labels"][0]["experts_at_onset"] = [
+            "failed_breakout_reversal", "volatility_transition"
+        ]
+        entry = first["directional_episode_labels"][0]
+        raw = json.dumps(entry, sort_keys=True, separators=(",", ":")).encode() + b"\\n"
+        first["label_stream_sha256"] = _hash(raw)
+        self._write()
+        report = self._run()
+        self.assertEqual(report["actual_watch_direction"]["episodes"], 2)
+        self.assertEqual(
+            report["by_expert_paired_matched_baselines"]["volatility_transition"]["actual"]["episodes"], 1
+        )
+        self.assertEqual(
+            report["by_expert_paired_matched_baselines"]["failed_breakout_reversal"]["actual"]["episodes"], 2
+        )
+
     def test_report_byte_tampering_rejected(self):
         path = self.root / "2026-04-19.json"
         path.write_bytes(path.read_bytes() + b"\n")
