@@ -569,3 +569,66 @@ evidence or strategy certification.
 Only after this pilot passes should the April 12–25 replication across
 the five new symbols be run; retain BTC original sealed report ledger.
 All results remain descriptive inspected development research.
+
+## Phase 2I — six independent Apr 20 market pilot, certified on VPS
+
+Operator reported successful six-market isolated retrospective WATCH replays
+on the authenticated April 2026 source collection, pinned engine revision
+`384d08906a8cf9b0ed3e471ee126af680b90fc71`. Every symbol was
+replayed independently (288 five-minute UTC boundaries) without a live
+market-breadth arbitration change. All six individual episode-label SHA256
+streams verified; BTC decision and label streams reproduced original
+frozen SHA256 values exactly, and its 50 episodes matched 18 favorable,
+19 adverse, 13 neutral at the 60-minute strict 10bps proxy.
+
+Operator evidence:
+- Directory: `/var/tmp/t7sonic-phase2i-rdy4r1OV`
+- Evidence `SHA256SUMS` SHA256:
+  `bf221b117095daec1540ec1f42e90bfb4aecaaaede32aa06fb6844efe5051ef5`
+- BTC: 50 episodes, 18 favorable, 19 adverse, 13 neutral;
+  matched-long 22 favorable and matched-short 15.
+- ETH: 61 episodes, 23 favorable, 29 adverse, 9 neutral;
+  matched-long 28 favorable and matched-short 24.
+- SOL: 53 episodes, 19 favorable, 29 adverse, 5 neutral;
+  matched-long 30 favorable and matched-short 18.
+- XRP: 52 episodes, 21 favorable, 24 adverse, 7 neutral;
+  matched-long 30 favorable and matched-short 15.
+- DOGE: 51 episodes, 16 favorable, 26 adverse, 9 neutral;
+  matched-long 26 favorable and matched-short 16.
+- BNB: 47 episodes, 17 favorable, 16 adverse, 14 neutral;
+  matched-long 20 favorable and matched-short 13.
+- Total 314 episodes, 114 favorable/143 adverse/57 neutral;
+  same-onset matched-long 156 favorable, matched-short 101.
+- Failed-breakout-reversal expert-at-onset across six symbols:
+  82 cohort observations, 39 favorable/21 adverse/22 neutral;
+  expert coactivation and common-day correlation remain.
+- V4 production engine remained stopped and restart=no;
+  no trade orders or Telegram messages.
+
+This one day and the BTC 14-day development sample have already been
+inspected. These are NOT six independent live market trials, an
+unseen holdout, a win-rate estimate or trading performance.
+
+### Phase 2J — five additional markets, Apr 12–25 developmental replication
+
+Use the same pinned engine SHA and immutable source ZIP/sidecar
+collection from Phase 2H. Re-run the *same one-symbol-at-a-time*
+`t7sonic_outcomes_cli` across 14 April UTC dates for each of
+ETH/SOL/XRP/DOGE/BNB (70 runs) without changing any rule or labels.
+For the identical April 20 market/symbol, require the complete JSON
+bytes to match the 2I anchor. Preserve the original BTC 14-day files
+byte-for-byte, check source, Phase 2I, and BTC archive ledger digests,
+and publish newly hashed reporting files to an isolated research directory.
+
+Descriptive reporting should show each market separately, matched
+long/short favorable rates on the exact same episode onsets, individual
+expert-at-onset counts and direction-versus-matched-baseline deltas,
+including sign consistency across market days. More favorable episodes
+on a market-day do not imply an independent or cost-adjusted edge:
+the crypto markets and overlapping future horizons are correlated.
+
+Do not tune the six experts from the same 14 inspected development dates,
+promote the historically best expert, or enable signal publishing/production
+in response to this research. A predeclared later window with strict
+chronological separation is essential before validating a proposed
+new candidate after realistic execution/friction modeling.
