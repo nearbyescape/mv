@@ -65,6 +65,12 @@ jobs:
           assert contract["publication_enabled"] is False
           assert contract["live_order_execution_enabled"] is False
           assert contract["target_is_guarantee"] is False
+          legacy = contract["legacy_retirement_boundary"]
+          assert legacy["legacy_prediction_models_packaged"] is False
+          assert legacy["legacy_market_signal_workers_packaged"] is False
+          assert legacy["legacy_model_imports_allowed"] is False
+          assert legacy["production_compose_or_live_strategy_may_be_modified"] is False
+          assert legacy["legacy_signal_history_may_be_deleted"] is False
           PY
           test ! -e /opt/mv-signal/app
           test ! -e /var/tmp/mv-v5-history-archives
