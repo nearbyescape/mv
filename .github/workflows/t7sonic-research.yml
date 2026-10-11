@@ -103,6 +103,9 @@ jobs:
           PY
       - name: Run offline, standard-library-only causal research checks
         run: |
+          # Match the VPS operator's restrictive shell environment.
+          # In particular, chmod explicitly in tests of unsafe modes.
+          umask 077
           python -m unittest discover -s services/api/tests -p 'test_t7sonic_*.py' -v
       - name: Build and inspect T7Sonic-only standalone research container
         shell: bash
