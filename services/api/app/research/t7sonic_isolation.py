@@ -99,13 +99,17 @@ def validate_dedicated_image(root: Path) -> dict:
             instructions.append(line)
     copies=[x for x in instructions if x.upper().startswith(("COPY ","ADD "))]
     permitted_copies={
-        "COPY services/api/app/research/t7sonic_*.py /opt/t7sonic/app/research/",
-        "COPY packages/contracts/t7sonic-research-v1.json /opt/t7sonic/contracts/",
+        "COPY --chown=10001:10001 --chmod=0444 services/api/app/research/t7sonic_*.py /opt/t7sonic/app/research/",
+        "COPY --chown=10001:10001 --chmod=0444 packages/contracts/t7sonic-research-v1.json /opt/t7sonic/contracts/",
     }
     if set(copies) != permitted_copies or len(copies)!=len(permitted_copies):
         raise ValueError("Standalone image would include legacy code or unreviewed files")
     if not any(line=="USER 10001:10001" for line in instructions):
         raise ValueError("Standalone image must run unprivileged")
+    # Explicit ownership/mode is required: the operator uses umask 077
+    # when cloning onto the VPS, so the original source files are 0600.
+    if not any("chmod 0755 /opt/t7sonic" in line for line in instructions):
+        raise ValueError("Standalone image must allow directory traversal by nonroot user")
     if any(
         line.upper().startswith("ENTRYPOINT ") or
         ("app.signals" in line or "app.market.collector" in line or
