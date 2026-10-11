@@ -42,9 +42,17 @@ def inputs(when, active=True):
 def packet(when=START_MS, *, active=True, previous_sha256=FIRST_PREVIOUS_SHA,
            previous_boundary_ms=None, receipt_delay=1000):
     reports, hashes = inputs(when, active)
+    # Send malformed inputs into the validator itself; do not raise an
+    # unrelated Python concatenation error in this test factory.
+    if type(when) is int and type(receipt_delay) is int:
+        receipt = when + receipt_delay
+    elif type(receipt_delay) is not int:
+        receipt = receipt_delay
+    else:
+        receipt = START_MS
     return make_synthetic_precommit(
         boundary_ms=when,
-        receipt_ms=when + receipt_delay,
+        receipt_ms=receipt,
         market_reports=reports,
         feature_source_hashes=hashes,
         previous_sha256=previous_sha256,
