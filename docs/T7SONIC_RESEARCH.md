@@ -1294,3 +1294,52 @@ these offline transport tests pass. If October 15 arrives
 before those additional safeguards are certified, the
 proposed start must move to a later genuinely prospective
 window, without retrospective backfilling.
+
+## Phase 2U — VPS exact-revision offline verification
+
+The operator ran the research-only source checkout at pinned
+`2511fbc501661af3586615e7dbf8e5eb683420ea`.
+All **115** research tests passed in 6.431s. The frozen
+HTTPS source plan was accepted, but an attempt to call the
+optional HTTPS getter without explicit approval raised
+`PermissionError`, as designed.
+
+The operator's Phase 2U JSON evidence:
+`/var/tmp/t7sonic-phase2u-UGoIryVo.json`,
+SHA256 `37ad26a42eba7d7499b650a48baaea3c6724b765ac6b124cd956ae8f084f6598`.
+The MV engine remained stopped with restart=no; no
+Binance network calls, independent timestamps,
+trades, orders or Telegram messages occurred.
+
+### Phase 2V — all-market evidence bundle for independent timestamp handoff
+
+`services/t7sonic/forward_witness.py` creates an
+**UNSUBMITTED** SHA256 imprint encompassing the exact
+pre-outcome complete-six-market WATCH batch and 24 explicit
+four-timeframe source receipts (1m/15m/1h/4h per market).
+For real no-WATCH cycles the full 24 source receipts remain
+required. For an explicit DATA-GAP batch the witness request
+contains zero valid source receipts, and the status remains
+MISSING_DATA, not NO-WATCH. All packets must have a valid
+contiguous previous SHA and five-minute boundary. Frame
+receipts must match the original symbol, boundary, request
+URL, raw-body digest and unverified local receipt claim,
+and must not claim exchange signing or independent
+timestamp proof.
+
+The module emits a deterministic content SHA256 suitable
+for submission to an independently controlled external
+timestamp authority in a later stage. It does **not**
+contact a service, issue a genuine RFC3161 timestamp
+token, validate TSA certificate chains, guarantee TSA
+independence, upload source bytes to off-VPS storage or
+implement a real collector. Its verifier explicitly refuses
+any falsely marked timestamp/replication/trading claims.
+All tests are synthetic and offline; successful source
+digest assembly is NOT independent evidence of a
+pre-outcome decision timestamp.
+
+The forward start of 2026-10-15 remains provisional.
+Do not automatically deploy any observer, count unsigned
+offline packets as forward observations or backfill a
+previously missed decision-time window.
