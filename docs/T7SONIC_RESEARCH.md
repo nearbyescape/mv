@@ -632,3 +632,76 @@ promote the historically best expert, or enable signal publishing/production
 in response to this research. A predeclared later window with strict
 chronological separation is essential before validating a proposed
 new candidate after realistic execution/friction modeling.
+
+## Phase 2J — six-market 14-day development replication (VPS certified)
+
+The operator successfully completed exactly 70 new single-market/day
+historical replays for ETH/SOL/XRP/DOGE/BNB using unchanged source revision
+`384d08906a8cf9b0ed3e471ee126af680b90fc71`.
+The original 14 BTC reports were copied byte-for-byte and verified.
+Every new market's April 20 report reproduced the prior 2I pilot bytewise.
+All 84 daily label streams, horizon rollups and research-only scope passed.
+No orders, Telegram messages or production execution were authorized;
+V4 engine remained stopped and restart=no.
+
+Pinned evidence reported by operator:
+- Directory `/var/tmp/t7sonic-phase2j-Cq0QNHNE`
+- `SHA256SUMS` SHA256
+  `89a520175f442e674799140c0c29bebc0135f945236b19c63374d1cd821e5a07`
+- 84 full per-symbol/day reports, one descriptive summary and SHA256SUMS.
+
+Primary 60m strict +10bps favorable outcome counts among 4,991
+**directional WATCH episodes, not trades**: favorable 1,787 (35.80%);
+adverse 1,994; neutral 1,210. Same-onset always-LONG
+1,930/4,991 (38.67%), always-SHORT 1,851/4,991 (37.09%):
+T7Sonic directions underperformed both at aggregate level.
+BTC 297/854 favorable vs long 313 and short 305;
+ETH 291/807 vs long 315 and short 317;
+SOL 295/823 vs long 322 and short 324;
+XRP 305/857 vs long 337 and short 315;
+DOGE 308/794 vs long 308 and short 325;
+BNB 291/856 vs long 335 and short 265.
+
+The investigated failed-breakout reversal expert at episode onset:
+539/1,279 favorable (42.14%), matched LONG 507/1,279
+(39.64%; favorable episode delta +32, +2.50 percentage points),
+matched SHORT 445/1,279 (34.79%; delta +94).
+Per-market favorable delta vs LONG/SHORT respectively:
+BTC +13/+14, ETH +10/+12, SOL +6/+11, XRP +3/+26,
+DOGE +14/+21, BNB -14/+10. All-market expert cohorts overlap
+other experts; of 84 market-days only 21 had a positive favorable
+delta versus BOTH constant-direction baselines for the
+failed-breakout reversal expert. Co-movement within and across days,
+overlapping forward horizons, market selection and post hoc expert
+identification preclude treating 1,279 episodes as independent trials.
+
+Other expert-at-onset delta vs matched LONG/SHORT:
+breakout -72/-64 (1,036 episodes); participation -69/-67
+(1,242); range reversion -3/+17 (202); trend continuation
+-56/-64 (1,062); volatility transition -63/-76 (2,111).
+Those cohorts overlap; they do not sum to independent episode counts.
+
+These are already-inspected development observations. No inference
+that a specialist is profitable, deployed, or statistically verified
+is permissible. Do not revise any expert rules or selection
+from the above without a separately frozen development plan
+and genuinely new chronological validation.
+
+### Phase 2K — inspect temporal/horizon robustness without tuning
+
+A separate read-only, network-disabled diagnostic of the preserved
+84 Phase 2J reports should verify the externally pinned ledger and
+every record's label-stream SHA256, including original BTC April 20
+causal and label digests. The predeclared *descriptive-only* checks:
+failed-reversal paired favorable episode deltas vs same-onset LONG
+and SHORT at 15/30/60/120min; per-UTC-calendar-day blocks pooling all
+six coins jointly; leave-one-calendar-day-out and leave-one-market-out
+rate sensitivity. Same day across correlated cryptocurrencies is
+ONE correlated calendar block, not six independent replications.
+Ranges from excluding one day/market are **not confidence intervals**
+and cannot establish statistical significance or a trading edge.
+
+No revised thresholds, model training, simulated exchange execution,
+Telegram publication, use of June+ held-out archives, or production
+changes are authorized. The expected outcome is a diagnostic and
+a go/no-go research recommendation, not a new trade engine.
