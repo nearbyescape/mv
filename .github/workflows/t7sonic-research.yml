@@ -12,6 +12,7 @@ on:
       - services/api/tests/test_t7sonic_*.py
       - packages/contracts/t7sonic-research-v1.json
       - docs/T7SONIC_RESEARCH.md
+      - services/t7sonic/Dockerfile.research
   pull_request:
     branches:
       - main
@@ -48,6 +49,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - name: Verify research-only checkout and frozen production boundary
         shell: bash
@@ -68,9 +70,64 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.14'
+      - name: Fail closed if research PR changes production runtime paths
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git merge-base HEAD origin/main >/dev/null
+          python - <<'PY'
+          from pathlib import Path
+          from subprocess import check_output
+          from app.research.t7sonic_isolation import (
+              validate_import_boundary, validate_dedicated_image, validate_change_scope
+          )
+          from os import environ
+          repo = Path.cwd()
+          base = check_output(["git", "merge-base", "HEAD", "origin/main"], text=True).strip()
+          changed = set(
+              check_output(["git", "diff", "--name-only", "-z", base, "HEAD"])
+              .decode().rstrip("\\0").split("\\0")
+          )
+          changed.discard("")
+          print(validate_change_scope(changed))
+          print(validate_import_boundary(repo / "services/api/app/research"))
+          print(validate_dedicated_image(repo))
+          PY
       - name: Run offline, standard-library-only causal research checks
         run: |
           python -m unittest discover -s services/api/tests -p 'test_t7sonic_*.py' -v
+      - name: Build and inspect T7Sonic-only standalone research container
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker build --pull=false -f services/t7sonic/Dockerfile.research \
+            -t t7sonic-isolated-research-check:${{ github.sha }} .
+          docker run --rm --pull never \
+            --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 40 --memory 256m \
+            --user 10001:10001 \
+            t7sonic-isolated-research-check:${{ github.sha }} \
+            python -c '
+          import importlib.util
+          from pathlib import Path
+          from app.research.t7sonic_isolation import validate_import_boundary
+          root = Path("/opt/t7sonic")
+          found = {p.name for p in root.rglob("*.py")}
+          expected = {"t7sonic_cli.py","t7sonic_experts.py","t7sonic_perception.py",
+                      "t7sonic_history.py","t7sonic_history_cli.py","t7sonic_isolation.py"}
+          assert found == expected, (found,expected)
+          assert sorted(root.rglob("*.json")) == [root / "contracts/t7sonic-research-v1.json"]
+          assert importlib.util.find_spec("app.signals") is None
+          assert importlib.util.find_spec("app.telegram") is None
+          assert importlib.util.find_spec("app.market") is None
+          assert importlib.util.find_spec("mv_strategy") is None
+          assert importlib.util.find_spec("sqlalchemy") is None
+          assert validate_import_boundary(root/"app/research")["production_strategy_runtime_imports"] == 0
+          from app.research.t7sonic_experts import EXPERT_NAMES
+          assert len(EXPERT_NAMES) == 6
+          print("T7SONIC_ISOLATED_IMAGE_LEGACY_MODELS_ABSENT: PASS")
+          '
       - name: Non-production conclusion
         if: success()
         run: |
