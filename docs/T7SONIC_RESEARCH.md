@@ -28,6 +28,79 @@ T7Sonic must recognize multiple market conditions, generate *additional distinct
 
 **Be precise:** Phase 1 tests software integrity, not trading effectiveness. It is possible for six heuristic experts to discover more WATCH cases without identifying any profitable opportunity. The system has no trained decision or risk engine yet.
 
+## Phase 2a delivered: pinned calendar-month history adapter
+
+T7Sonic now contains a self-contained, offline-only reader for the
+existing **V5 pinned monthly research archive format**. This is deliberately
+not a dependency on the V6HBR strategy branch; no V6HBR rule or production
+code is imported.
+
+- Module: `services/api/app/research/t7sonic_history.py`.
+- CLI: `services/api/app/research/t7sonic_history_cli.py`.
+- Scope is currently **an explicit 1–6-symbol smoke subset** in **April–May
+  2026 development only**, with decisions at **completed 5-minute UTC
+  boundaries**. Validation and holdout months are forbidden.
+- Reads already-acquired source ZIPs plus matching `.zip.manifest.json`
+  sidecars at `root/archives/<symbol>/<1m|15m|1h|4h>/...`, pinning the
+  original frozen research specification SHA256
+  `48a460a42a1daf3349fe1b32af31154608dd2c6739cfca34eb14f3a5d1763d64`.
+- Rechecks every required **complete calendar month**: the sidecar's source
+  identity, publisher URL claim, spec identity, ZIP SHA256, single CSV member,
+  12-column format, expected monthly count, exact contiguous UTC timestamps,
+  exact exchange-format close time and OHLCV geometry. A locally self-consistent
+  manifest is **not independent publisher authentication**; operator must
+  verify initial acquisition against Binance's published `.CHECKSUM`.
+- Builds **64 completed bars** per model-facing timeframe. The 5m bars are
+  aggregated exclusively from the most recent **320 complete, pinned 1m
+  candles**. Never fills, interpolates or approximates missing 1m history
+  from an hourly/15m price.
+- Cross-checks all native 15m/1h/4h candles fully covered by the minute
+  window against exact minute-derived OHLCV. Inconsistencies **fail closed**.
+  Publisher revisions and native-versus-minute historical discrepancies must
+  be explicitly reviewed in versioned evidence; never silently corrected.
+- The run output reports SHA256 of each ZIP and sidecar used, calendar row
+  counts, source months, full-universe coverage limitations, and zero
+  actionable signals. It is a **one-boundary WATCH snapshot**, not a
+  chronological performance test or production-ready signal generator.
+- The `plan` action reads file/sidecar *presence* only and reports missing
+  source months; it does not download or verify any archives.
+- **Important:** previous V6HBR six-market studies collected 15m/1h/4h
+  Jan–May, **not necessarily the 1m months required here**. A missing 1m
+  archive causes the T7Sonic runner to stop. Do not use a synthetic fallback.
+
+CLI signatures:
+
+```bash
+python -m app.research.t7sonic_history_cli plan \
+  --root /research --symbols BTCUSDT \
+  --at 2026-04-20T12:00:00Z
+
+python -m app.research.t7sonic_history_cli run \
+  --root /research --symbols BTCUSDT \
+  --at 2026-04-20T12:00:00Z
+```
+
+These are **module signatures only**, not instructions to run a checkout in
+production. Use only an operator-approved network-disabled, nonmutating Docker
+research container after staging the exact T7Sonic commit separately from
+the V6HBR service and existing production release.
+
+**Regression proof:** `test_t7sonic_history.py` creates complete synthetic
+April ZIPs, validates full-month read and 5m rolling, then tests tampered
+ZIPs, wrong manifest spec SHA, missing final source rows, native/1m OHLCV
+mismatches, missing 1m, missing month, symlinks, holdout access prevention
+and duplicate markets. These are repository-contained synthetic fixtures,
+not market-data performance results.
+
+### Next implementation gate
+
+Preflight real VPS archive *availability* first, then independently
+validate an authorized, small research-only 1m acquisition before a single
+BTC historical development snapshot. Only after proving deterministic
+historical source equivalence should we implement bounded chronological
+candidate streaming and independently labeled outcomes. Risk and
+calibration modeling remain unimplemented.
+
 ## Historical data requirement
 
 An actual prospective-grade model requires a much larger dataset than six markets and two months. Build a versioned 30-market source lineage with 1m/5m/15m/1h/4h as-of snapshots, plus complete publisher sidecars and no invented gaps. Assess existing historical data availability per feed before committing to a feature; order-book/open-interest archives cannot be backfilled using future snapshots. Synthetic fixtures are exclusively for correctness tests, never for performance claims.
