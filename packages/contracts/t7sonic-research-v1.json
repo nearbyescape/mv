@@ -6,9 +6,17 @@
   "publication_enabled": false,
   "live_order_execution_enabled": false,
   "market": "Binance USDT-margined futures reference feeds; not exchange execution fills",
-  "decision_timeframes": ["1m", "5m", "15m", "1h", "4h"],
+  "decision_timeframes": [
+    "1m",
+    "5m",
+    "15m",
+    "1h",
+    "4h"
+  ],
   "closed_candle_only": true,
-  "required_data_at_initial_prototype": ["completed OHLCV"],
+  "required_data_at_initial_prototype": [
+    "completed OHLCV"
+  ],
   "future_research_optional_sources": [
     "public trade flow with exchange event timestamps and replayable archives",
     "order-book depth updates with gap recovery and sequence validation",
@@ -17,10 +25,19 @@
     "cross-market breadth with explicit symbol coverage and synchronized cutoffs"
   ],
   "research_opportunity_families": [
-    "trend_continuation", "range_reversion", "breakout",
-    "failed_breakout_reversal", "participation", "volatility_transition"
+    "trend_continuation",
+    "range_reversion",
+    "breakout",
+    "failed_breakout_reversal",
+    "participation",
+    "volatility_transition"
   ],
-  "prediction_horizons_minutes": [15, 30, 60, 120],
+  "prediction_horizons_minutes": [
+    15,
+    30,
+    60,
+    120
+  ],
   "target_primary_horizon_minutes": 60,
   "target_correct_fraction": "0.80",
   "target_is_guarantee": false,
@@ -44,5 +61,16 @@
     "realistic exchange-specific cost, depth, funding and fill modeling",
     "positive risk-adjusted expectation with drawdown review",
     "explicit operator signoff, rollback plan and separate production PR"
-  ]
+  ],
+  "legacy_retirement_boundary": {
+    "strategy_runtime": "T7SONIC_RESEARCH_IMAGE_ONLY",
+    "execution_image_dockerfile": "services/t7sonic/Dockerfile.research",
+    "legacy_prediction_models_packaged": false,
+    "legacy_market_signal_workers_packaged": false,
+    "legacy_model_imports_allowed": false,
+    "production_compose_or_live_strategy_may_be_modified": false,
+    "legacy_signal_history_may_be_deleted": false,
+    "historical_archive_compatibility": "READ_ONLY_V5_ARCHIVE_FORMAT_COMPATIBILITY_NOT_LEGACY_MODEL_IMPORT",
+    "production_replacement_requires_separate_operator_approved_cutover": true
+  }
 }
