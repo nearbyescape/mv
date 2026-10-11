@@ -144,8 +144,11 @@ def optional_https_get(plan: dict, *, network_approved: bool = False,
             not isinstance(timeout_seconds, (float, int)) or
             not 0 < timeout_seconds <= MAX_NETWORK_TIMEOUT_SECONDS):
         raise ValueError("Invalid bounded HTTPS timeout")
-    if time.time_ns() // 1_000_000 < plan["boundary_ms"]:
+    local_now = time.time_ns() // 1_000_000
+    if local_now < plan["boundary_ms"]:
         raise ValueError("Cannot request frozen boundary before it occurs")
+    if local_now > plan["boundary_ms"] + RECEIPT_MAX_DELAY_MS:
+        raise ValueError("Deadline already missed before HTTPS request; do not backfill")
     # No redirects and no environment-controlled HTTP(S) proxies.
     context = ssl.create_default_context()
     if not context.check_hostname or context.verify_mode != ssl.CERT_REQUIRED:
