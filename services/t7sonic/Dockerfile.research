@@ -8,10 +8,11 @@ WORKDIR /opt/t7sonic
 
 RUN groupadd --gid 10001 t7sonic && \
     useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin t7sonic && \
-    mkdir -p /opt/t7sonic/app/research /opt/t7sonic/contracts
+    mkdir -p /opt/t7sonic/app/research /opt/t7sonic/contracts && \
+    chmod 0755 /opt/t7sonic /opt/t7sonic/app /opt/t7sonic/app/research /opt/t7sonic/contracts
 
-COPY services/api/app/research/t7sonic_*.py /opt/t7sonic/app/research/
-COPY packages/contracts/t7sonic-research-v1.json /opt/t7sonic/contracts/
+COPY --chown=10001:10001 --chmod=0444 services/api/app/research/t7sonic_*.py /opt/t7sonic/app/research/
+COPY --chown=10001:10001 --chmod=0444 packages/contracts/t7sonic-research-v1.json /opt/t7sonic/contracts/
 
 USER 10001:10001
 CMD ["python", "-m", "app.research.t7sonic_history_cli", "--help"]
