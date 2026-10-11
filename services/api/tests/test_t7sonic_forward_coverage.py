@@ -41,7 +41,7 @@ def watch_at(boundary, prev_sha="0"*64, prior=None):
 def gap_at(boundary, prev_sha="0"*64, prior=None, problems=None, delay=62000):
     return make_synthetic_gap(
         boundary_ms=boundary, recorded_ms=boundary+delay,
-        missing_reasons=problems or {"ETHUSDT": "SOURCE_STALE"},
+        missing_reasons=({"ETHUSDT": "SOURCE_STALE"} if problems is None else problems),
         previous_sha256=prev_sha, previous_boundary_ms=prior,
     )
 
