@@ -121,7 +121,8 @@ jobs:
           root = Path("/opt/t7sonic")
           found = {p.name for p in root.rglob("*.py")}
           expected = {"t7sonic_cli.py","t7sonic_experts.py","t7sonic_perception.py",
-                      "t7sonic_history.py","t7sonic_history_cli.py","t7sonic_isolation.py"}
+                      "t7sonic_history.py","t7sonic_history_cli.py","t7sonic_isolation.py",
+                      "t7sonic_replay.py","t7sonic_replay_cli.py"}
           assert found == expected, (found,expected)
           assert sorted(root.rglob("*.json")) == [root / "contracts/t7sonic-research-v1.json"]
           assert importlib.util.find_spec("app.signals") is None
