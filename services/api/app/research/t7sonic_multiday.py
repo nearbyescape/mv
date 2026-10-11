@@ -45,6 +45,35 @@ def _counts(records: list[dict]) -> dict:
     }
 
 
+def _paired_summary(records: list[dict]) -> dict:
+    """Matched onset comparison; no IID or tradability assumptions."""
+    actual = _counts([{"classification": r["classification"]} for r in records])
+    long = _counts([{"classification": r["long_baseline_class"]} for r in records])
+    short = _counts([{"classification": r["short_baseline_class"]} for r in records])
+    def pair(key: str) -> dict:
+        better = sum(r["classification"] == FAV and r[key] != FAV for r in records)
+        worse = sum(r["classification"] != FAV and r[key] == FAV for r in records)
+        baseline = long if key == "long_baseline_class" else short
+        net = actual["favorable"] - baseline["favorable"]
+        if better - worse != net:
+            raise ValueError("Paired favorable discordance fails reconciliation")
+        return {
+            "actual_only_favorable": better,
+            "baseline_only_favorable": worse,
+            "net_favorable_episodes_actual_minus_baseline": net,
+            "favorable_rate_delta_percentage_points": (
+                round(100 * net / len(records), 4) if records else None
+            ),
+        }
+    return {
+        "actual": actual,
+        "matched_long": long,
+        "matched_short": short,
+        "vs_matched_long": pair("long_baseline_class"),
+        "vs_matched_short": pair("short_baseline_class"),
+    }
+
+
 def _report_records(report: dict, day: str) -> list[dict]:
     if (report.get("schema") != 1 or report.get("engine") != "T7Sonic" or
         report.get("day") != day or report.get("symbols") != ["BTCUSDT"] or
@@ -156,11 +185,13 @@ def analyze(root: Path, start_day: str, days: int,
 
     per_day = []
     by_expert = defaultdict(list)
+    by_expert_pairs = defaultdict(list)
     by_direction = defaultdict(list)
     by_consensus = defaultdict(list)
     all_actual = []
     all_long = []
     all_short = []
+    all_pairs = []
     anchor_verified = False
     for day in dates:
         report = json.loads((root / (day + ".json")).read_text(encoding="utf-8"))
@@ -176,6 +207,7 @@ def analyze(root: Path, start_day: str, days: int,
         all_actual.extend(actual)
         all_long.extend(long)
         all_short.extend(short)
+        all_pairs.extend(records)
         for r in records:
             by_direction[r["direction"]].append(r["classification"])
             by_consensus["MULTIPLE" if len(r["experts"]) > 1 else "SINGLE"].append(
@@ -183,10 +215,12 @@ def analyze(root: Path, start_day: str, days: int,
             )
             for expert in r["experts"]:
                 by_expert[expert].append((day, r["classification"]))
+                by_expert_pairs[expert].append((day, r))
         per_day.append({
             "day": day, "actual": _counts([{"classification": x} for x in actual]),
             "matched_long": _counts([{"classification": x} for x in long]),
             "matched_short": _counts([{"classification": x} for x in short]),
+            "paired_favorable": _paired_summary(records),
         })
     if not anchor_verified:
         raise ValueError("Frozen April 20 anchor must be within evaluated days")
@@ -204,6 +238,38 @@ def analyze(root: Path, start_day: str, days: int,
         c = _counts([{"classification": x} for _, x in records])
         c["active_days"] = len({day for day, _ in records})
         expert_out[expert] = c
+    expert_paired = {}
+    for expert, entries in sorted(by_expert_pairs.items()):
+        aligned = [r for _, r in entries]
+        stats = _paired_summary(aligned)
+        days_by_expert = defaultdict(list)
+        for day, record in entries:
+            days_by_expert[day].append(record)
+        daily = {}
+        for day, grouped in sorted(days_by_expert.items()):
+            day_stats = _paired_summary(grouped)
+            daily[day] = {
+                "episodes": len(grouped),
+                "actual_favorable": day_stats["actual"]["favorable"],
+                "long_favorable": day_stats["matched_long"]["favorable"],
+                "short_favorable": day_stats["matched_short"]["favorable"],
+                "net_favorable_vs_long": day_stats["vs_matched_long"][
+                    "net_favorable_episodes_actual_minus_baseline"
+                ],
+                "net_favorable_vs_short": day_stats["vs_matched_short"][
+                    "net_favorable_episodes_actual_minus_baseline"
+                ],
+            }
+        for side in ("long", "short"):
+            vals = [v["net_favorable_vs_" + side] for v in daily.values()]
+            stats["active_days_better_than_matched_" + side] = sum(v > 0 for v in vals)
+            stats["active_days_worse_than_matched_" + side] = sum(v < 0 for v in vals)
+            stats["active_days_tied_with_matched_" + side] = sum(v == 0 for v in vals)
+        stats["daily"] = daily
+        stats["active_days"] = len(daily)
+        if stats["actual"]["episodes"] != expert_out[expert]["episodes"]:
+            raise ValueError("Expert attribution to matched-baseline mismatch")
+        expert_paired[expert] = stats
     return {
         "engine": "T7Sonic",
         "status": "DESCRIPTIVE_FROZEN_DEVELOPMENT_NO_TRADING_SELECTION",
@@ -213,6 +279,8 @@ def analyze(root: Path, start_day: str, days: int,
         "april_20_anchor_verified": True,
         "primary_horizon_minutes": 60,
         "actual_watch_direction": total_counts,
+        "paired_onsets": _paired_summary(all_pairs),
+        "by_expert_paired_matched_baselines": expert_paired,
         "matched_always_long_on_same_watch_onsets":
             _counts([{"classification": x} for x in all_long]),
         "matched_always_short_on_same_watch_onsets":
@@ -231,6 +299,8 @@ def analyze(root: Path, start_day: str, days: int,
             "Episode times were selected by current experts: constant-side baselines are matched only, not market-wide",
             "Overlapping forward horizons and coactivated experts violate independence",
             "Leave-one-day-out range is sensitivity only, NOT a confidence interval",
+            "Expert matched baselines share EXACTLY the same onset times as each individual expert cohort",
+            "Per-expert day counts and paired discordances are descriptive, not inferential p-values",
             "No executable prices, fees, slippage, latency, funding, SL/TP, trade expectancy",
             "No training, threshold selection, live recommendations or production mutation",
         ],
