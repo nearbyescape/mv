@@ -1,7 +1,7 @@
 name: T7Sonic isolated research foundation
 
 # Do not check out or run the production tree as an executable strategy.
-# Synthetic snapshot tests only; no historical archive access or network feeds.
+# Synthetic full-calendar source archives only; no VPS archives or network feeds.
 on:
   push:
     branches:
@@ -76,7 +76,7 @@ jobs:
         run: |
           {
             echo '### T7Sonic causal snapshot research checks passed'
-            echo 'Synthetic, local data only. No real signals or fills were backtested.'
+            echo 'Synthetic ZIP/manifest calendar validation only. No real signals or fills were backtested.'
             echo 'No VPS, exchanges, trading services, order APIs or historical validation accessed.'
             echo 'This is NOT evidence of accuracy or authorization to trade.'
           } >> "$GITHUB_STEP_SUMMARY"
