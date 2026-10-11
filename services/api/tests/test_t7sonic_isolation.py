@@ -139,6 +139,10 @@ class T7SonicIsolationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"directory traversal"):
                 validate_dedicated_image(Path(temp))
 
+    @unittest.skipUnless(
+        HAS_DEDICATED_RESEARCH_DOCKERFILE,
+        "T7Sonic image definition intentionally absent from production API container",
+    )
     def test_standalone_image_scope_drift_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="t7sonic-image-guard-") as temp:
             p=Path(temp)/"services/t7sonic"
