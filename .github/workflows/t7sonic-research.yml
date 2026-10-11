@@ -127,7 +127,8 @@ jobs:
           expected = {"t7sonic_cli.py","t7sonic_experts.py","t7sonic_perception.py",
                       "t7sonic_history.py","t7sonic_history_cli.py","t7sonic_isolation.py",
                       "t7sonic_replay.py","t7sonic_replay_cli.py",
-                      "t7sonic_outcomes.py","t7sonic_outcomes_cli.py"}
+                      "t7sonic_outcomes.py","t7sonic_outcomes_cli.py",
+                      "t7sonic_diagnostics.py","t7sonic_diagnostics_cli.py"}
           assert found == expected, (found,expected)
           assert sorted(root.rglob("*.json")) == [root / "contracts/t7sonic-research-v1.json"]
           import os, stat
