@@ -1025,3 +1025,57 @@ cutoffs, and absence of future bars. Test data are artificial;
 they must not be interpreted as Binance-market or independent
 validation evidence. This does not unlock the holdout or
 enable the original April-May replay on June-August.
+
+## Phase 2Q — conservative forward-only evaluation path (synthetic planning)
+
+Because no human attestation establishes that June–August 2026
+was never used by previous V4/V5/V6HBR/JalTerminal research,
+**that retrospective proposed validation remains blocked**.
+The operator authorized continuing development; this does NOT
+constitute a declaration that the old period was clean.
+No download or evaluation of 66 missing June–August archive pairs.
+
+A separate immutable forward-only research precommit protocol has
+been added as `t7sonic_forward_protocol.py`, preserving the
+original expert-selection source SHA
+`384d08906a8cf9b0ed3e471ee126af680b90fc71`.
+Predeclared prospective observation interval:
+**2026-10-15 00:00 UTC inclusive to 2026-12-29
+00:00 UTC exclusive** (75 days, six markets, fixed 5m cutoffs).
+This interval is a PROPOSAL for a forward paper-research trial,
+not an operating signal service or retroactive substitute for
+a separately reserved final audit period.
+
+The new code is a **synthetic-only protocol validator**:
+it accepts an all-six-market list of as-of WATCH hypotheses
+(including explicit no-WATCH cases), rejects missing/duplicated
+markets, actionable price/stop/target fields, wrong expert source
+digests, early/late receipt claims and missing/noncontiguous
+5m boundaries. Each full six-market packet has a canonical
+SHA256 linked to the previous packet. All future labels,
+trades, Telegram publications and production deployments
+remain absent. Existing market-history modules and heuristic
+expert rules were not changed.
+
+**Essential security/data-validity limitation:** caller-supplied
+receipt times and hash links alone do NOT prove any event was
+recorded in real time. The code explicitly reports that
+trusted timestamps are NOT implemented. No live collector,
+network exchange connector, persistent append-only receipt
+service, immutable outside-VPS witness or auditable capture of
+pre-outcome data has been deployed. A later separately reviewed
+component is required to obtain trusted real-time Binance
+source timestamps, preserve finalized as-of candles and
+raw response digests, record all six markets at each boundary,
+prevent backfilling and skip/censoring, and seal decisions
+before the 15/30/60/120-minute future prices are observed.
+Do not count a synthetic packet as a real observed signal.
+
+**Approval gate:** production V4 remains stopped (restart=no);
+PR #14 does not include live collection, Telegram, orders or
+legacy worker modifications. The October window must not be
+represented as an operational trial until a trusted receiver,
+source-authentication and archive retention policy are
+reviewed/tested, and user explicitly authorizes paper-only
+observation. Outcome labels, costs and risk are separate
+subsequent non-actionable stages.
