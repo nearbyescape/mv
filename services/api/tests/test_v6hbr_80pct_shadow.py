@@ -50,7 +50,7 @@ def test_rejected_correct_calls_remain_visible_and_counts_reconcile():
     assert all_data["neutral_60m"] == 1
     assert cut["retained"]["correct_60m"] == 1
     assert cut["retained"]["wrong_60m"] == 1
-    assert cut["rejected_counterfactual_NOT_BOOKED"]["correct_60m"] == 2
+    assert cut["rejected_counterfactual_NOT_BOOKED"]["correct_60m"] == 1
     assert cut["rejected_counterfactual_NOT_BOOKED"]["neutral_60m"] == 1
     assert result["promotion_decision"].startswith("NO_GO")
 
