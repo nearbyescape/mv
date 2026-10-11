@@ -1,6 +1,6 @@
 # T7Sonic — research foundation and controlled development contract
 
-**Status:** DRAFT ONLY. Not a production strategy. No trading signals, portfolio orders, execution quotes, stop losses, risk budgets or exchange activity are authorized. Created on its own \`codex/t7sonic-research\` branch from \`main\` while the existing V4 engine remains stopped by operator action on the VPS.
+**Status:** DRAFT ONLY. Not a production strategy. No trading signals, portfolio orders, execution quotes, stop losses, risk budgets or exchange activity are authorized. Created on its own `codex/t7sonic-research` branch from `main` while the existing V4 engine remains stopped by operator action on the VPS.
 
 ## Problem to solve
 
@@ -19,11 +19,11 @@ T7Sonic must recognize multiple market conditions, generate *additional distinct
 
 ## What is implemented in PR #14 Phase 1
 
-- \`packages/contracts/t7sonic-research-v1.json\` pins research-only/no-execution scope and lists candidate timeframes, expert families, research targets and operator-signoff boundaries.
-- \`t7sonic_perception.py\` validates five contiguous OHLCV streams and as-of publication timing. Rejects missing/duplicate/stale/incomplete/future bars and malformed prices/volumes. Computes deterministic EMA8/EMA21 trend separation, ATR14 normalized momentum, completed-breakout/rejection, range position, recent relative volume and VWAP from finished candles. Reports source-input SHA256. Source data may not be assumed authentic until external archive verification is added.
-- \`t7sonic_experts.py\` derives a descriptive market state and produces research WATCH hypotheses from six transparent, independent expert families. A shared report records contradictory directions rather than concealing disagreement. Every hypothesis declares no calibrated probability, entry price, stop, take profit or executable order.
-- \`t7sonic_cli.py\` reads a bounded JSON snapshot without networking or writing to any service. It deliberately has no direct MV production import or integration. Its market-breadth summary states observed/30 and refuses to represent a six-coin subset as the market's whole breadth.
-- \`test_t7sonic_perception.py\` tests timeframe availability, OHLCV geometry, no-future/stale/gap handling, market matching, expert discovery, schema restrictions and zero executable signals.
+- `packages/contracts/t7sonic-research-v1.json` pins research-only/no-execution scope and lists candidate timeframes, expert families, research targets and operator-signoff boundaries.
+- `t7sonic_perception.py` validates five contiguous OHLCV streams and as-of publication timing. Rejects missing/duplicate/stale/incomplete/future bars and malformed prices/volumes. Computes deterministic EMA8/EMA21 trend separation, ATR14 normalized momentum, completed-breakout/rejection, range position, recent relative volume and VWAP from finished candles. Reports source-input SHA256. Source data may not be assumed authentic until external archive verification is added.
+- `t7sonic_experts.py` derives a descriptive market state and produces research WATCH hypotheses from six transparent, independent expert families. A shared report records contradictory directions rather than concealing disagreement. Every hypothesis declares no calibrated probability, entry price, stop, take profit or executable order.
+- `t7sonic_cli.py` reads a bounded JSON snapshot without networking or writing to any service. It deliberately has no direct MV production import or integration. Its market-breadth summary states observed/30 and refuses to represent a six-coin subset as the market's whole breadth.
+- `test_t7sonic_perception.py` tests timeframe availability, OHLCV geometry, no-future/stale/gap handling, market matching, expert discovery, schema restrictions and zero executable signals.
 - Isolated GitHub workflow runs synthetic tests with no downloaded archive, historical ground truth, VPS or live exchange services.
 
 **Be precise:** Phase 1 tests software integrity, not trading effectiveness. It is possible for six heuristic experts to discover more WATCH cases without identifying any profitable opportunity. The system has no trained decision or risk engine yet.
