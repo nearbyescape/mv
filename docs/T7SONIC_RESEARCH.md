@@ -1245,3 +1245,52 @@ crash recovery certification remain distinct prerequisites.
 The current Phase 2T helper offers no network connection,
 daemon, deployment permission, Telegram or order execution.
 The October 15 proposed start is still NOT an active trial.
+
+## Phase 2T — operator-confirmed offline source contract
+
+On the VPS, the operator tested research revision
+`b285af6dfd0fb81bea0a3c130b4706e67fdc98bf`.
+All **105** synthetic tests passed. The frozen BTC request plans
+were 480 x 1m and 64 x each 15m, 1h and 4h completed candles.
+Source request planning performed zero HTTP requests and opened
+zero exchange-market records.
+
+The operator-reported evidence JSON:
+`/var/tmp/t7sonic-phase2t-plan-RgQD7j9I.json`,
+SHA256 `2bf3fb2b0cff9add0c8cf559e587f77079d13b1e57e1f0dd2ecb8deed010a784`.
+The MV trading engine remained stopped and restart=no;
+no orders, trades or Telegram signals.
+
+### Phase 2U — optional HTTPS origin restriction (still NOT deployed)
+
+A separate `services/t7sonic/forward_https.py` provides
+a **disabled-by-default** optional single-request adapter for
+the approved public Binance USD-M `/fapi/v1/klines` path,
+without installing or deploying an observer. It accepts only
+the exact immutable Phase 2T request plans. Its optional
+network method uses system-CA/hostname-verifying HTTPS,
+explicit no-proxy handling, no redirects, bounded body reads
+and bounded timeout, and rejects non-200 status and anything
+other than JSON media type. A synthetic response injection
+interface tests all failure cases without network access.
+
+Every HTTP response must pass the original 12-position OHLCV
+geometry and completed-bar validation before any downstream use.
+The module records deterministic request/raw-body digests
+but deliberately marks all receipt times as *local machine
+clock claims without independent attestation*. Its TLS
+certificate verification proves only authentication to the
+configured HTTPS origin under the OS trust store; it is not
+a Binance data signature or proof of genuine pre-outcome
+timing. Local logs are not tamper-proof.
+
+The adapter is not a scheduled service; no collector is
+deployed, no witness receipts, clock-drift guard, off-server
+append-only replication, or complete all-six-market boundary
+recording is configured. Publication, orders, live trading,
+and existing production runtime changes remain prohibited.
+A paper-only forward evaluation must NOT start simply because
+these offline transport tests pass. If October 15 arrives
+before those additional safeguards are certified, the
+proposed start must move to a later genuinely prospective
+window, without retrospective backfilling.
