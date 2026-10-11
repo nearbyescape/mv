@@ -1,0 +1,82 @@
+name: T7Sonic isolated research foundation
+
+# Do not check out or run the production tree as an executable strategy.
+# Synthetic snapshot tests only; no historical archive access or network feeds.
+on:
+  push:
+    branches:
+      - codex/t7sonic-research
+    paths:
+      - .github/workflows/t7sonic-research.yml
+      - services/api/app/research/t7sonic_*.py
+      - services/api/tests/test_t7sonic_*.py
+      - packages/contracts/t7sonic-research-v1.json
+      - docs/T7SONIC_RESEARCH.md
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/t7sonic-research.yml
+      - services/api/app/research/t7sonic_*.py
+      - services/api/tests/test_t7sonic_*.py
+      - packages/contracts/t7sonic-research-v1.json
+      - docs/T7SONIC_RESEARCH.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: t7sonic-research-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  causal-foundation:
+    name: T7Sonic isolated causal market-perception tests
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/codex/t7sonic-research') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/codex/t7sonic-research') ||
+      (github.event_name == 'pull_request' &&
+       github.head_ref == 'codex/t7sonic-research' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: services/api
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Verify research-only checkout and frozen production boundary
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          contract = json.loads(Path("packages/contracts/t7sonic-research-v1.json").read_text())
+          assert contract["strategy_family"] == "T7Sonic"
+          assert contract["production_deployment_allowed"] is False
+          assert contract["publication_enabled"] is False
+          assert contract["live_order_execution_enabled"] is False
+          assert contract["target_is_guarantee"] is False
+          PY
+          test ! -e /opt/mv-signal/app
+          test ! -e /var/tmp/mv-v5-history-archives
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Run offline, standard-library-only causal research checks
+        run: |
+          python -m unittest discover -s services/api/tests -p 'test_t7sonic_*.py' -v
+      - name: Non-production conclusion
+        if: success()
+        run: |
+          {
+            echo '### T7Sonic causal snapshot research checks passed'
+            echo 'Synthetic, local data only. No real signals or fills were backtested.'
+            echo 'No VPS, exchanges, trading services, order APIs or historical validation accessed.'
+            echo 'This is NOT evidence of accuracy or authorization to trade.'
+          } >> "$GITHUB_STEP_SUMMARY"
