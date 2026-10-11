@@ -224,8 +224,14 @@ def fetch_one(root: Path, symbol: str, month: str, *, approved: bool) -> dict:
         # A crash between renames leaves a partial pair and fails closed.
         if target.exists() or sidecar.exists():
             raise ValueError("Source was concurrently added; cannot overwrite")
-        os.rename(candidate,target)
-        os.rename(saved,sidecar)
+        # os.rename/os.replace can overwrite an existing destination after
+        # the existence check in a concurrent invocation. Exclusive links
+        # fail atomically if another fetch has already published this path.
+        # Source and manifest are still a two-file transaction; any crash
+        # after the first link produces a partial pair that requires manual
+        # recovery and is never silently adopted.
+        os.link(candidate,target)
+        os.link(saved,sidecar)
     result=verify_pinned(root,symbol,month)
     result.update({
         "action":"SINGLE_EXPLICIT_PUBLISHER_FETCH",
