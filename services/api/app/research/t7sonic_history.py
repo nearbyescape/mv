@@ -43,6 +43,7 @@ DEVELOPMENT_END = int(datetime(2026, 6, 1, tzinfo=timezone.utc).timestamp() * 10
 # Exactly 64 completed periods for every model-facing frame. 320 verified
 # 1m candles are needed for 64 completed 5m periods.
 OBSERVATION_BARS = 64
+RECONCILIATION_MINUTE_BARS = 480  # full prior 4h bar even late in the next 4h period
 MAX_ZIP_BYTES = 64 * 1024 * 1024
 MAX_UNCOMPRESSED_CSV = 96 * 1024 * 1024
 MAX_INPUT_SYMBOLS = 6  # preliminary development-only subset
@@ -199,7 +200,7 @@ def _verify_month(root: Path, symbol: str, frame: str, month: str,
 def _necessary_first_ms(frame: str, as_of_ms: int) -> tuple[int, int]:
     step = INTERVAL_MS[frame]
     last_completed_end = (as_of_ms // step)*step
-    count = OBSERVATION_BARS*5 if frame == "1m" else OBSERVATION_BARS
+    count = RECONCILIATION_MINUTE_BARS if frame == "1m" else OBSERVATION_BARS
     return last_completed_end-count*step, last_completed_end
 
 
@@ -303,7 +304,7 @@ def verified_historical_snapshot(root: Path, symbol: str,
     source_provenance = {}
     for frame in HISTORICAL_FRAMES:
         begin,end = _necessary_first_ms(frame,as_of_ms)
-        wanted = OBSERVATION_BARS*5 if frame == "1m" else OBSERVATION_BARS
+        wanted = RECONCILIATION_MINUTE_BARS if frame == "1m" else OBSERVATION_BARS
         months = _calendar_months(begin,end)
         parsed = []
         evidence = []
@@ -321,7 +322,7 @@ def verified_historical_snapshot(root: Path, symbol: str,
         frames[frame] = parsed
         source_provenance[frame] = evidence
     resolution_proof = _reconcile_higher_frames_against_minutes(frames)
-    derived_five = _derive_5m(frames["1m"])
+    derived_five = _derive_5m(frames["1m"][-OBSERVATION_BARS*5:])
     snapshot = {
         "symbol":symbol, "as_of_ms":as_of_ms,
         "bars":{
@@ -340,6 +341,7 @@ def verified_historical_snapshot(root: Path, symbol: str,
         "source_months_verified":source_provenance,
         "resolution_reconciliation":resolution_proof,
         "five_minute_derivation":"EXACT_FIVE_CONSECUTIVE_PINNED_ONE_MINUTE_BARS",
+        "minute_bars_verified_for_cross_resolution":RECONCILIATION_MINUTE_BARS,
         "upstream_publisher_checksum_authentication":"PINNED_SIDECAR_ONLY_NO_LIVE_PUBLISHER_QUERY",
         "future_validation_and_holdout_access":False,
     }
