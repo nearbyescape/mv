@@ -132,6 +132,15 @@ class HttpsEnvelopeTests(TestCase):
                     https.optional_https_get(plan, network_approved=True)
                 network.assert_not_called()
 
+    def test_https_rejects_expired_cutoff_before_connection(self):
+        plan, _ = synthetic_1m()
+        with patch.object(https.time, "time_ns",
+                          return_value=(START_MS+60001)*1_000_000):
+            with patch.object(https, "build_opener") as network:
+                with self.assertRaisesRegex(ValueError, "Deadline already missed"):
+                    https.optional_https_get(plan, network_approved=True)
+                network.assert_not_called()
+
     def test_mocked_ca_eligible_approved_transport_has_no_redirect(self):
         plan, raw = synthetic_1m()
         class FakeResponse:
