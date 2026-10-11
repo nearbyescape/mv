@@ -15,6 +15,7 @@ on:
       - services/t7sonic/Dockerfile.research
       - services/t7sonic/forward_journal.py
       - services/t7sonic/forward_acquisition.py
+      - services/t7sonic/forward_https.py
   pull_request:
     branches:
       - main
@@ -27,6 +28,7 @@ on:
       - services/t7sonic/Dockerfile.research
       - services/t7sonic/forward_journal.py
       - services/t7sonic/forward_acquisition.py
+      - services/t7sonic/forward_https.py
   workflow_dispatch:
 
 permissions:
