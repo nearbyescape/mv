@@ -18,7 +18,8 @@ from .t7sonic_forward_protocol import (
     START_MS, END_MS, STEP_MS, RECEIPT_MAX_DELAY_MS,
     FIRST_PREVIOUS_SHA, _digest, _valid_sha, frozen_forward_protocol,
 )
-from .t7sonic_validation_plan import MARKETS, STRATEGY_SHA
+from .t7sonic_validation_plan import MARKETS, STRATEGY_SHA, EXPERT
+from .t7sonic_experts import EXPERT_NAMES
 
 GAP_REASONS = frozenset({
     "SOURCE_UNAVAILABLE", "SOURCE_STALE", "SOURCE_INCOMPLETE",
@@ -145,7 +146,12 @@ def verify_synthetic_coverage(packets: list[dict]) -> dict:
                         any(d not in ("LONG", "SHORT") for d in dirs) or
                         obs.get("candidate_active") is not bool(dirs) or
                         not isinstance(keys, list) or
-                        any(not isinstance(k, list) or len(k) != 2 for k in keys)):
+                        any(not isinstance(k, list) or len(k) != 2 or
+                                k[0] not in EXPERT_NAMES or
+                                k[1] not in ("LONG", "SHORT") for k in keys) or
+                        len({tuple(k) for k in keys}) != len(keys) or
+                        dirs != sorted({side for expert, side in keys
+                                        if expert == EXPERT})):
                     raise ValueError("Malformed observed WATCH/no-WATCH state")
             tally["WATCH_CYCLE_COMPLETE"] += 1
         elif status == GAP_STATUS:
