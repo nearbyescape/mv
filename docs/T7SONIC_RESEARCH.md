@@ -1133,3 +1133,58 @@ later truly prospective date **before any real results are viewed**.
 Do not backfill days with historical prices and call them forward
 records. The previous June–August holdout remains unapproved
 due to unresolved prior-outcome exposure.
+
+## Phase 2R — VPS offline gap protocol certified by operator
+
+The operator executed the frozen research commit
+`bf91f0f0bfd3f6e84a7cbf819c2e3b707aec259d` in a
+restricted standalone Docker image (network=none, read-only,
+non-root, capabilities removed). Three synthetic five-minute
+cycles comprising WATCH, GAP, WATCH verified with contiguous
+SHA256 links; complete cycles=2, explicit missing-source cycles=1,
+coverage=0.666667. The data gap was NOT counted as an ordinary
+no-WATCH event. External timestamp evidence was explicitly
+NOT IMPLEMENTED. The legacy MV production engine remained
+stopped (restart=no); no trades or Telegram messages were
+emitted. This is proof of offline logic only, NOT a real
+prospective market observation.
+
+### Phase 2S — offline append-only journal and restart safety
+
+The separate file `services/t7sonic/forward_journal.py` is a
+minimal OS-backed offline **synthetic-only** journaling prototype.
+It intentionally resides *outside* the sealed research inference
+image, and does not import exchange/network/trading workers.
+It opens only a caller-supplied absolute pathname under a private
+0700 directory, enforces file owner/mode 0600 and single-link
+non-symlink regular files, obtains an exclusive nonblocking
+Linux flock, and scans *every* canonical JSONL record on reopen.
+
+Each append validates the exact next five-minute boundary and
+prior SHA256; separates complete/watch from missing-data/gap
+events; requires all six markets; writes one bounded-size
+canonical JSON line via O_APPEND and fsyncs the file. A
+partial/torn final line, altered record, duplicated timestamp
+or omitted boundary fails CLOSED and is **not auto-repaired**.
+A second concurrent writer fails locking. A new journal file
+is fsynced together with the containing directory.
+Offline synthetic tests exercise those invariants, including
+restart and one cycle after a gap. The existing independent
+market-history, expert, live production, Telegram and
+payment/order paths have NOT been changed.
+
+**Limitations / next certification:** the journal does not
+collect Binance candles, does not verify whether caller-supplied
+receipt times are real, does not provide independent signed
+time witnesses, does not protect against an administrator
+rewriting the entire history including hashes, and does not
+reserve a remote durable replication destination. Its status
+is explicitly offline/synthetic, never an independently
+authenticated paper-research history. No scheduled observer,
+deployment, exchange connectivity, trading or Telegram message
+publication was activated. Before any forward trial, separately
+review source authenticity, trustworthy time stamps, external
+witness receipts, disk crash/restart drills, non-censoring
+of collector outages and an independent retention location.
+The proposed October 15 start must move forward if these
+gates are not met before any real outcomes are observed.
