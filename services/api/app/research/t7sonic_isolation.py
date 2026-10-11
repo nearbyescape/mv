@@ -35,12 +35,13 @@ EXECUTION_DOCKERFILE = "services/t7sonic/Dockerfile.research"
 
 def _module_tree(source_dir: Path) -> dict[str, ast.Module]:
     files = sorted(source_dir.glob(PREFIX + "*.py"))
-    if len(files) < 8 or not all(f.is_file() and not f.is_symlink() for f in files):
+    if len(files) < 10 or not all(f.is_file() and not f.is_symlink() for f in files):
         raise ValueError("Missing or symlinked dedicated T7Sonic research modules")
     if {f.stem for f in files} != {
         "t7sonic_cli", "t7sonic_experts", "t7sonic_perception",
         "t7sonic_history", "t7sonic_history_cli", "t7sonic_isolation",
         "t7sonic_replay", "t7sonic_replay_cli",
+        "t7sonic_outcomes", "t7sonic_outcomes_cli",
     }:
         raise ValueError("Unreviewed T7Sonic model/runtime module name; extend allowlist explicitly")
     return {f.stem:ast.parse(f.read_text(encoding="utf8"),filename=str(f))
