@@ -325,7 +325,10 @@ def verified_historical_snapshot(root: Path, symbol: str,
     snapshot = {
         "symbol":symbol, "as_of_ms":as_of_ms,
         "bars":{
-            frame:_bars_to_json(derived_five if frame=="5m" else frames[frame])
+            frame:_bars_to_json(
+                derived_five if frame=="5m" else
+                frames[frame][-OBSERVATION_BARS:]
+            )
             for frame in REQUIRED_FRAMES
         },
     }
