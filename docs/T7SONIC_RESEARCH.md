@@ -398,3 +398,61 @@ Operator reviews final results, release controls, distinct DB/worker permissions
 - No relabeling past losers as wins via selective censoring.
 - No cross-market future leaks, hindsight order-book reconstructions or synthetic missing price data.
 - No restart of the stopped MV V4 workers, telegram, AI or daily report.
+
+## Phase 2E BTC 14-day development observations (operator-provided evidence)
+
+An isolated, nonpublishing T7Sonic image at pinned research revision
+`0f327593c79eb4783c0008dbb623ddd895be305b` analyzed BTCUSDT
+UTC 2026-04-12 through 2026-04-25, 288 completed five-minute boundaries
+per day, with pinned historical source archives. The report directory is
+`/var/tmp/t7sonic-phase2e-L7gWHdIG`. The original SHA256SUMS file is
+externally pinned by operator-reported SHA256
+`50654b21b6241f57fba149329ae4315ec988ed5abb667b3918b4efe4b365ef8d`.
+Apr 20 recreated original decision and label digests without changes.
+
+The 14-day 60-minute directional price-proxy results:
+- 854 grouped directional WATCH episodes, not independent trades.
+- 297 favorable, 321 adverse, 236 neutral (10bps strict threshold);
+  favorable rate 34.78%, 297/618=48.06% of nonneutral outcomes.
+- Only 3 days had more favorable than adverse episodes; one was tied.
+- Expert-at-onset counts overlap across coactivations:
+  failed-breakout reversal 95/224 favorable, 68 adverse (14 days);
+  range reversion 18/32 favorable, 9 adverse (7 days);
+  breakout 58/196 favorable, 87 adverse (14 days);
+  participation 63/220 favorable, 85 adverse (14 days);
+  trend continuation 48/154 favorable, 66 adverse (11 days);
+  volatility transition 123/369 favorable, 146 adverse (14 days).
+- Multiple experts at onset: 80/256 favorable; single expert:
+  217/598 favorable. No consensus improvement demonstrated.
+- Long directional episodes 171/468 favorable; short 126/386.
+- No exchange fills or after-cost returns; no statistical claims of
+  independence, generalization or deployable directional skill.
+
+These 14 days were already inspected in development. Do not tune experts,
+pick a winning specialist, count these as profitable trades, or present
+them as held-out evidence. Production V4 stayed suspended, restart=no.
+
+## Phase 2F — frozen evidence audit and matched-direction baselines
+
+The separate `t7sonic_multiday.py` research-only CLI consumes the
+already-saved 14 report files and summary, not the market archive itself.
+It verifies every report byte against the `SHA256SUMS` ledger and pins
+that ledger to the externally preserved digest above. It recomputes
+individual episode label-stream SHA256 and horizon classifications,
+reconciles day totals, and requires the Apr 20 original decision and
+label digests to match. For all 854 expert-selected episode onsets,
+it constructs **matched** always-long and always-short directional
+price-proxy baselines using the *same future mark moves*. These are
+NOT unconditional always-long or always-short trading strategies,
+executions, or zero-cost trading models.
+
+The CLI reports per-day, per-expert-at-onset, consensus and direction
+cohorts and a leave-one-day-out favorable-rate sensitivity range
+(**not** a confidence interval). It DOES NOT change any WATCH decisions,
+fit a trading model, choose thresholds, or enable production.
+
+Run the pin-verified reader only in the isolated, no-network research
+image with the evidence directory mounted read-only; follow the separate
+operator-run invocation. Its development-only output is evidence for
+planning multi-symbol replication, cost modeling and independent
+validation—not authorization to publish or trade.
