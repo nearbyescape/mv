@@ -73,7 +73,7 @@ class T7SonicOutcomesTests(unittest.TestCase):
                          "FAVORABLE_ABOVE_10BPS")
         self.assertEqual(label["horizons_minutes"]["120"]["classification"],
                          "FAVORABLE_ABOVE_10BPS")
-        self.assertEqual(label["horizons_minutes"]["15"]["signed_mark_move_bps"],"100")
+        self.assertEqual(D(label["horizons_minutes"]["15"]["signed_mark_move_bps"]),D("100"))
         self.assertTrue("NOT_EXECUTABLE_FILL" in label["proxy_entry_type"])
         short=dict(episode,direction="SHORT")
         self.assertEqual(label_directional_episode(short,future)[
