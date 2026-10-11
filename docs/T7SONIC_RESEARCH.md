@@ -514,3 +514,58 @@ quality gates. Evaluation must assess day/market-grouped uncertainty,
 price path/excursion, liquidity, fees, slippage, stop/target-first
 ordering and realistic quote execution. None of this research
 authorizes production deployment or Telegram publishing.
+
+## Phase 2H — six-market April archive source certification
+
+Operator VPS evidence reported after executing the checksum-authenticated
+research-only source-preparation workflow at pinned code SHA
+`384d08906a8cf9b0ed3e471ee126af680b90fc71`.
+
+The April 2026 USD-M perpetual archive has the exact predeclared six
+development markets BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT,
+BNBUSDT; 1m/15m/1h/4h for each. Nineteen archive/manifest pairs were
+copied byte-for-byte from `/var/tmp/mv-v5-history-archives`, five new
+1m archives (ETH/SOL/XRP/DOGE/BNB) were explicitly downloaded with
+full-month 43,200-row geometry and Binance published .CHECKSUM matches.
+All 24 archive ZIPs independently matched the publisher .CHECKSUM
+at audit time. Six-market research-only historical snapshot as of
+2026-04-20 12:00 UTC completed strict 1m-vs-15m/1h/4h OHLCV
+reconciliation for every symbol.
+
+Evidence locations and operator-reported SHA256:
+- Source archive root `/var/tmp/t7sonic-6market-MbjsaBD3`
+- Immutable file SHA256SUMS ledger SHA256
+  `d185fe400948978b037751d4ee91bb4d288fa2bcb62a89b47c6b57fe41c48ab1`
+- Historical nontrading pilot report
+  `/var/tmp/t7sonic-6market-pilot-DzEPkFFF.json`,
+  SHA256 `43bbf1dc389cfcec29083e6baa7fd71c656c28031ae50abb6d015605eb1e3aa7`
+- Production legacy engine remained stopped with restart=no;
+  no orders or Telegram messages were emitted.
+
+These are operator-provided local VPS run observations, not a claim that
+GitHub CI independently fetched market archives. Publisher authentication
+confirms archive bytes matched publicly distributed checksums at check
+time, not that these archives describe executable bid/ask fills.
+
+### Phase 2I — one-day six-market outcome integrity pilot
+
+At the Apr 20 2026 UTC development date, run original unmodified
+`t7sonic_outcomes_cli` independently for each of the six symbols, with
+288 boundaries and full episode records, in a read-only, networkless
+research Docker image. This single-symbol-at-a-time design preserves
+the original BTC digest, allows per-market expert attribution,
+and prevents cross-market breadth effects from changing the
+originally validated one-market baseline.
+
+The original BTC decision SHA256 must remain
+`16136d13ff78180009cb408b696d1727a566f9bc279ca858cd150a60065cb5c6`;
+the label SHA256 must remain
+`e1316002aa257dab698456728df7958d952ddd2c71f4cf2d3205b198655196d8`.
+Any discrepancy fails closed. Additional per-symbol output hashes must
+be preserved without changing the expert definitions or retrospective
+label threshold. Never interpret the day as independent holdout
+evidence or strategy certification.
+
+Only after this pilot passes should the April 12–25 replication across
+the five new symbols be run; retain BTC original sealed report ledger.
+All results remain descriptive inspected development research.
