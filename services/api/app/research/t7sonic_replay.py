@@ -115,11 +115,14 @@ def _as_of(raw: dict, symbol: str, when: int) -> dict:
 
 
 def replay_day(root: Path, symbols: tuple[str,...], day: str, *,
-               maximum: int=MAX_BOUNDARIES) -> dict:
+               maximum: int=MAX_BOUNDARIES,
+               include_decision_events: bool=False) -> dict:
     if (not isinstance(symbols,tuple) or not 1<=len(symbols)<=MAX_INPUT_SYMBOLS
         or len(set(symbols))!=len(symbols)
         or any(s not in FROZEN_MARKETS for s in symbols)):
         raise ValueError("Explicit unique 1–6 frozen symbols only")
+    if type(include_decision_events) is not bool:
+        raise ValueError("include_decision_events requires an explicit boolean")
     times=bounded_boundaries(day,maximum=maximum)
     loaded={}
     provenance={}
@@ -136,6 +139,7 @@ def replay_day(root: Path, symbols: tuple[str,...], day: str, *,
     conflicting_periods=0
     stream=sha256()
     sample=[]
+    full_events=[] if include_decision_events else None
     for when in times:
         perceptions=[]
         window_proof={}
@@ -178,7 +182,9 @@ def replay_day(root: Path, symbols: tuple[str,...], day: str, *,
         stream.update(serialized+b"\n")
         if len(sample)<5:
             sample.append(event)
-    return {
+        if full_events is not None:
+            full_events.append(event)
+    result = {
         "schema":1,
         "status":"T7SONIC_DEV_ONLY_HISTORICAL_WATCH_EPISODES_NOT_TRADE_SIGNALS",
         "engine":"T7Sonic",
@@ -213,3 +219,8 @@ def replay_day(root: Path, symbols: tuple[str,...], day: str, *,
             "Source sidecars must independently match Binance publisher .CHECKSUM evidence",
         ],
     }
+    if full_events is not None:
+        # This is the *unchanged* pre-outcome evidence stream. Future price
+        # labeling takes a separate data path and cannot modify this digest.
+        result["decision_events"] = full_events
+    return result
