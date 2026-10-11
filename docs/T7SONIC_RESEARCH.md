@@ -705,3 +705,131 @@ No revised thresholds, model training, simulated exchange execution,
 Telegram publication, use of June+ held-out archives, or production
 changes are authorized. The expected outcome is a diagnostic and
 a go/no-go research recommendation, not a new trade engine.
+
+## Phase 2K — completed retrospective stability audit (operator-certified)
+
+The operator ran a pinned, nonprivileged, networkless Phase 2K analysis
+of the 84 previously inspected market/day T7Sonic reports. The original
+Phase 2J 85-file ledger was verified before the read-only analysis.
+No production, Telegram, order or model changes were performed.
+
+Evidence:
+- Readable report: `/var/tmp/t7sonic-phase2k-result-agSFl6Et.txt`
+  SHA256 `335cbb2f89978d9b1135111430e0e00371683b8ae83ec6ee6d0c3ee04818929b`
+- Machine-readable report:
+  `/var/tmp/t7sonic-phase2k-result-agSFl6Et.json`
+  SHA256 `17c1af36ded16da9870d3831db4d7decb9e455cdd7554641d1c4f9f8bc9c3411`
+- Scope: 1,279 failed-breakout-reversal expert-at-onset observations
+  over six markets and the same 14 UTC development dates Apr 12–25.
+- Predeclared 15-minute outcomes: expert 384 vs matched LONG 384
+  (difference 0) and SHORT 364 (+20).
+- 30-minute: expert 489 vs LONG 474 (+15) and SHORT 395 (+94).
+- 60-minute *primary*: expert 539 vs LONG 507 (+32 = +2.502
+  percentage points), SHORT 445 (+94 = +7.349 pp).
+- 120-minute: expert 593 vs LONG 568 (+25) and SHORT 499 (+94).
+- At the primary 60-minute horizon, cross-market UTC-day-block
+  differences vs matched LONG: 7 days >0, 6 <0 and 1 tie.
+- Leave-one-UTC-day-out, pooling all six correlated markets jointly:
+  +1.419 to +3.863 pp against LONG; +6.266 to +9.013 pp
+  against SHORT. These are NOT confidence intervals.
+- Leave-one-market-out paired rate differences:
+  +1.626 to +4.373 pp versus LONG (six exclusions);
+  BNB was the one market with negative standalone
+  failed-reversal difference vs LONG (-14 favorable episodes).
+- Six-expert aggregate was worse than both matched constant-direction
+  controls at 60 minutes.
+
+This development-period *post-selection* signal is not statistically
+independent, not cost-adjusted, and not proof of skill or profitability.
+Fifteen-minute directional value versus LONG is zero; the 60-minute
+advantage is small, and fewer than half of correlated UTC-day blocks
+showed a positive difference versus LONG. No selection weights, expert
+rules, exit horizon, or trade execution rules were changed.
+
+### Phase 2L — freeze a prospective validation contract before new data access
+
+**Candidate under test:** only the frozen `failed_breakout_reversal`
+expert at onset, from strategy implementation commit
+`384d08906a8cf9b0ed3e471ee126af680b90fc71`.
+The other five expert rules remain unchanged and the complete
+six-expert engine is NOT considered a candidate for deployment.
+No new threshold or gating based on observed April data is permitted.
+The experiment's goal is to test a hypothesis, not maximize signal counts.
+
+**Universe:** predeclared BTCUSDT, ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT,
+BNBUSDT USD-M perpetual contracts, each replayed independently using
+the identical one-market causal decision logic as Phase 2J.
+Include BNB: excluding a weak market after seeing results is prohibited.
+The 14 Apr 12–25 days and the entire April/May 2026 period are
+development only; none can be reused as unseen validation.
+
+**Proposed first untouched chronological validation window:**
+2026-06-12 through 2026-08-25 UTC inclusive, for all six markets.
+This is a prospective *evaluation plan*, not a claim that these dates
+are genuinely untouched in every external project. Before reading
+labels, independently audit whether this span or its outcomes were
+used by any prior model research; if already consulted, choose a
+later untouched contiguous period and record that change **before**
+opening its source data. Reserve a subsequent later contiguous test
+interval for a final untouched audit, with no inspection or fitting
+during primary validation. Require fully authenticated historical
+ZIP and sidecar provenance, 1m OHLCV continuity, exact
+15m/1h/4h reconciliation, context warmup across month boundaries,
+full 120m future labeling with no selective truncation, and pinned
+strategy bytecode/source hash. The existing T7Sonic historical replay
+is hard bounded to April–May and MUST NOT be unlocked in place:
+a separate, audited research-only validation loader and tests
+must be created before any June+ replay.
+
+**Primary fixed metric:** paired difference in favorable outcome
+share at exactly 60 minutes using strict +10bps versus neutral and
+strict -10bps versus neutral, relative to both matched always-LONG
+and always-SHORT on *exactly the same expert onset timestamps*.
+Count every onset including neutral, do not relabel a first-future-1m
+candle open as an achievable fill, do not select a better horizon.
+The 15/30/120m horizons, market and day breakdowns are **secondary**
+diagnostics, not grounds to change the locked primary metric.
+
+**Sensitivity and uncertainty, fully predeclared:**
+group all six markets into each UTC calendar-day block, never treat
+the six coins as independent, and report day-aggregated numerator
+and denominator per matched side. Compute a chronological 7-day
+moving-block bootstrap over *whole six-market UTC day blocks*,
+with fixed 10,000 resamples, fixed deterministic seed 20261011,
+and two-sided 95% percentile bounds for each paired delta, alongside
+the observed paired result. A bootstrap CI here is an approximation,
+not proof of economic value. Include raw daily and per-market effects;
+leave-one-day-out and leave-one-market-out only as sensitivity analyses,
+never as significance tests.
+
+**Predeclared directional-research gate:** pass only if both
+matched-direction paired differences are positive, both approximate
+95% block-bootstrap lower bounds are above zero, at least two of
+three chronological monthly groups have a positive difference
+against BOTH matched directions, and at least four of the six
+markets have a positive difference versus BOTH controls.
+If any predeclared comparison is absent, ambiguous, or materially
+incomplete, the gate fails rather than censoring unfavorable cases.
+Passing is only eligibility for further realistic execution analysis,
+NOT authorization to trade, publish, or claim profitability.
+Do not relax a failed gate or rerun alternative thresholds on the same
+validation data.
+
+**Separate economic/execution gate:** historical 1m candles and
+same-onset constant-side baselines cannot validate bid/ask,
+liquidity, fill latency, depth, spread, taker/maker fees, funding,
+or stop/target first touch. Before any production decision, require
+a predeclared entry/exit/invalidation policy with actual or
+conservatively justified executable quotes and conservative intrabar
+ambiguity handling. Report after-cost R/expectancy and adverse
+excursion/drawdowns, simultaneous positions and portfolio limits,
+including no-trade cases. If authentic execution evidence is
+insufficient, economic certification fails; do not fabricate
+historical order books or retrofit best-case fills.
+
+**Prospective operation gate:** only after independent chronological
+directional and after-cost gates are met, separately run a
+paper-only forward period with the original legacy engine still
+stopped, no orders and no Telegram signal publication without explicit
+authorization. Production migration requires a distinct reviewed
+deployment PR and operator approval; this research PR cannot grant it.
