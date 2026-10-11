@@ -881,3 +881,38 @@ Production, Telegram, order execution, and June–August data access
 remain disabled until a separate research-only validation reader
 and no-lookahead/integrity tests pass and operator attestation is
 documented.
+
+## Phase 2N — VPS filename-only evidence, completion status UNRESOLVED
+
+Operator executed the sealed Phase 2M planning checkpoint and a
+metadata-only Phase 2N survey on October 11, 2026. No June–August
+candle data or historical outcome labels were read. V4 remained
+stopped and restart=no.
+
+Operator-reported Phase 2N evidence:
+- Report `/var/tmp/t7sonic-phase2n-audit-U3N7WVN8.json`
+- SHA256 `45f22b4d58377429bf3be57db63880d99d0f6bd09aa2b53d3b49a775a0c3602c`
+- Limited to preselected research-directory names under `/var/tmp`
+  and `/tmp`; 6,511 directory entries visited; 30 matching paths.
+- Eighteen entries were June 2026 source-archive/manifest/lock
+  filenames under `/var/tmp/mv-v5-history-archives`: four BTC
+  intervals (1m/15m/1h/4h) and two ETH intervals (1h/4h), each
+  represented by ZIP, manifest, and lock path.
+- Twelve were V5 acquisition batch-ledger/lock filenames referencing
+  June (four BTC and two ETH ledger paths plus six locks).
+- No July or August filenames were matched in this limited scope.
+- All observed paths indicate some prior June source acquisition
+  or management but do not prove V5 strategy evaluation, use of
+  June labels in model design or contamination of T7Sonic rule choice.
+
+**Gate remains BLOCKED/UNRESOLVED.** No claim that the planned
+June 12–August 25 span is untouched follows from this survey.
+Next audit should collect acquisition provenance fields and file
+timestamps (without opening ZIP or strategy outcome outputs), check
+other likely workspaces by filename only, and request explicit
+human attestation on whether any earlier V4/V5/V6HBR/JalTerminal
+model or human research reviewed that span's price outcomes.
+If any substantive prior evaluation is confirmed or evidence
+remains incomplete, do not label the proposed span an untouched
+independent confirmation. Record a revised chronological window
+and separate final sealed test before gathering new source labels.
