@@ -234,6 +234,54 @@ def _derive_5m(minute_bars: list[Bar]) -> list[Bar]:
     return output
 
 
+
+def _reconcile_higher_frames_against_minutes(frames: dict) -> dict:
+    """Strictly reject contradiction between OHLCV timeframes.
+
+    Reconciliation uses only completed minute candles already verified with
+    the independently pinned 1m archive. An unavailable/discordant native
+    exchange frame must be reviewed; do NOT patch it silently, which would
+    manufacture the source time series.
+    """
+    minutes = frames["1m"]
+    if not minutes:
+        raise ValueError("Minute source required for independent reconciliation")
+    low_time, high_time = minutes[0].open_ms, minutes[-1].open_ms + 60_000
+    minute_by_time = {r.open_ms:r for r in minutes}
+    checked = {}
+    for frame in ("15m","1h","4h"):
+        count=0
+        step=SOURCE_INTERVALS[frame]
+        for native in frames[frame]:
+            start=native.open_ms
+            if start < low_time or start+step > high_time:
+                continue
+            segment = [minute_by_time.get(start+j*60_000)
+                       for j in range(step//60_000)]
+            if any(row is None for row in segment):
+                raise ValueError("Insufficient minute bars for resolution reconciliation")
+            minute_derived = Bar(
+                start, segment[0].opening,
+                max(b.high for b in segment),
+                min(b.low for b in segment),
+                segment[-1].close,
+                sum((b.volume for b in segment),D(0)),
+            )
+            if minute_derived != native:
+                raise ValueError(
+                    "Native timeframe contradicts independently verified minute OHLCV: "
+                    + frame
+                )
+            count+=1
+        if count < 1:
+            raise ValueError("Minute source did not cover even one full " + frame + " bar")
+        checked[frame]=count
+    return {
+        "status":"STRICT_EXACT_CROSS_RESOLUTION_RECONCILIATION",
+        "native_bars_reconciled_to_1m":checked,
+        "disagreement_policy":"FAIL_CLOSED_NO_SYNTHETIC_CORRECTION",
+    }
+
 def verified_historical_snapshot(root: Path, symbol: str,
                                  as_of_ms: int) -> tuple[dict, dict]:
     """Construct one complete 5-frame development-only market snapshot.
@@ -272,6 +320,7 @@ def verified_historical_snapshot(root: Path, symbol: str,
             raise ValueError("Missing, stale, duplicated or future historical context: " + frame)
         frames[frame] = parsed
         source_provenance[frame] = evidence
+    resolution_proof = _reconcile_higher_frames_against_minutes(frames)
     derived_five = _derive_5m(frames["1m"])
     snapshot = {
         "symbol":symbol, "as_of_ms":as_of_ms,
@@ -286,6 +335,7 @@ def verified_historical_snapshot(root: Path, symbol: str,
         "source_spec_sha256": FROZEN_SOURCE_SPEC_SHA256,
         "symbol":symbol, "as_of_ms":as_of_ms,
         "source_months_verified":source_provenance,
+        "resolution_reconciliation":resolution_proof,
         "five_minute_derivation":"EXACT_FIVE_CONSECUTIVE_PINNED_ONE_MINUTE_BARS",
         "upstream_publisher_checksum_authentication":"PINNED_SIDECAR_ONLY_NO_LIVE_PUBLISHER_QUERY",
         "future_validation_and_holdout_access":False,
