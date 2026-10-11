@@ -982,3 +982,46 @@ labels, change decision rules, publish trade signals or grant
 permission to access a real June–August holdout. It also does
 not replace an independent comparison with the upstream
 publisher .CHECKSUM before opening real archived sources.
+
+## Phase 2P — external validation source readiness, archive names only
+
+The operator executed the separate Phase 2P presence-only preflight
+at pinned research commit
+`a461f8c99a4a3d3d188a026853df00a91df48e17`,
+without reading exchange historical market values or outcomes.
+The frozen six-market and three-month list implies 72 monthly
+ZIP-plus-sidecar source pairs (6 symbols x 4 timeframes x 3 months).
+
+Operator-reported evidence:
+- `/var/tmp/t7sonic-phase2p-UzIZqgs7.json`
+- SHA256 `2953267eac102786d49ccf6d0b6f33125961f947f17c8ade1379f773310b41f9`
+- June 2026: six of 24 pairs present (BTC 1m/15m/1h/4h;
+  ETH 1h/4h), 18 missing.
+- July 2026: zero of 24 pairs present, 24 missing.
+- August 2026: zero of 24 pairs present, 24 missing.
+- Overall: 6 present, 66 missing; neither present nor
+  absent denotes content integrity, publisher authentication,
+  independent holdout suitability or directional performance.
+- Frozen original production service remained stopped,
+  restart=no; no trades or Telegram messages were emitted.
+
+The source-readiness result is a *storage inventory*, not
+a go-ahead to acquire or evaluate the missing 66 pairs.
+The provenance and prior-use audit for June 12–August 25
+remains unresolved. Before fetching real source data or
+assessing directional outcomes, obtain a credible independent
+prior-exposure review or select a genuinely future/sealed
+validation period.
+
+### Synthetic seam regression: July and August month transitions
+
+The separate validation loader receives additional synthetic
+fixture testing for June/July and July/August at the first
+UTC calendar-day cutoffs, where the 1m/15m/1h/4h completed
+warmup can require the previous source month. The tests
+also check date-scoped source expectations on July 15,
+full calendar July fixture integrity, as-of timestamp
+cutoffs, and absence of future bars. Test data are artificial;
+they must not be interpreted as Binance-market or independent
+validation evidence. This does not unlock the holdout or
+enable the original April-May replay on June-August.
