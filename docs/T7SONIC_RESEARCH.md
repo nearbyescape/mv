@@ -1188,3 +1188,60 @@ witness receipts, disk crash/restart drills, non-censoring
 of collector outages and an independent retention location.
 The proposed October 15 start must move forward if these
 gates are not met before any real outcomes are observed.
+
+## Phase 2S — VPS regression confirmation after umask correction
+
+The operator ran exact pinned research commit
+`cd1ea0dec0702e02275e5446f0696f05b6918cfe`
+on the VPS with shell `umask 077`.
+All **98/98** synthetic research tests passed in 6.207 seconds,
+including offline journal restart, corruption detection,
+locking and refusal of insecure parent permissions.
+The corrected test fixture explicitly chmods the deliberately
+unsafe directory to 0755; relying on
+`mkdir(mode=0755)` was invalid under `umask 077`.
+Original production engine remained stopped (restart=no).
+No orders or Telegram signals were sent. No live market data,
+independent time witnessing or genuine paper trial occurred.
+
+### Phase 2T — offline, pre-network source intake verification
+
+New standalone, **not deployed** helper
+`services/t7sonic/forward_acquisition.py` defines an
+exact prospective source request contract for public Binance
+USD-M futures `GET https://fapi.binance.com/fapi/v1/klines`:
+fixed six symbols, fixed 5m as-of boundary between 2026-10-15
+and 2026-12-29 UTC, 1m/15m/1h/4h data only, pinned
+startTime, endTime (last completed candle's inclusive
+millisecond), and limit. The input requirements are precisely
+480 consecutive 1m rows plus 64 rows for each higher frame,
+and each row must have the 12-entry kline schema with exact
+open and close-time geometry, finite positive OHLCV and
+no duplicate, missing or future/uncompleted bars.
+
+The helper accepts **injected raw response bytes**, explicit
+status code and claimed reception time; it DOES NOT perform
+HTTP requests. It rejects non-200 status, redirects, stale
+claimed responses and malformed/oversized bodies. It hashes
+raw response bytes and request metadata, verifies native
+15m/1h/4h candles against the corresponding completed 1m
+aggregate, and constructs the exact existing causal 5-frame
+T7Sonic perception snapshot from the 480-minute warmup.
+No future outcome labels or fee/trade execution calculations
+are available. Its tests use only synthetic, internally
+consistent twelve-column kline-shaped fixtures and tampered
+negative cases. The original April–May retrospective engine
+and expert rules are unchanged.
+
+**Crucial trust boundary:** Binance's public klines REST
+response is not independently cryptographically signed.
+TLS, raw-body SHA256 and a caller-provided receipt time,
+even if validated locally, do not prove remote source
+authenticity or real-time pre-outcome capture. TLS pinning,
+auditable HTTP exchange, independently verifiable timestamp
+witness, remote append-only evidence storage, complete
+six-symbol simultaneous observation, outage cutoff and
+crash recovery certification remain distinct prerequisites.
+The current Phase 2T helper offers no network connection,
+daemon, deployment permission, Telegram or order execution.
+The October 15 proposed start is still NOT an active trial.
