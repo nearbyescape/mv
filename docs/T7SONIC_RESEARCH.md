@@ -916,3 +916,69 @@ If any substantive prior evaluation is confirmed or evidence
 remains incomplete, do not label the proposed span an untouched
 independent confirmation. Record a revised chronological window
 and separate final sealed test before gathering new source labels.
+
+## Phase 2O — acquired June data, but prior strategy use remains unknown
+
+The operator performed the Phase 2O provenance survey without opening
+source candles or outcome reports. Frozen Phase 2N input hash and
+production-stop assertions passed.
+
+Operator evidence:
+- `/var/tmp/t7sonic-phase2o-hlhExdwI.json`
+- Report SHA256
+  `daa04d49e179130110cd82a307cd0a1b7939e5ba38d29efe142577a7d91183ce`
+- June 2026 Binance source ZIP filesystem modification times:
+  BTC 1h `2026-10-10T09:30:13Z`; BTC 4h
+  `2026-10-10T09:35:42Z`; BTC 15m
+  `2026-10-10T09:39:31Z`; BTC 1m
+  `2026-10-10T09:48:10Z`; ETH 1h
+  `2026-10-10T13:34:27Z`; ETH 4h
+  `2026-10-10T13:34:39Z`.
+- Metadata sidecars declared `2026-06` and full monthly
+  row counts of 43,200 (1m), 2,880 (15m), 720 (1h), 180
+  (4h). The fields `publisher_checksum_retrieved_at` and
+  `checksum_policy` were absent/none for these older files.
+- Additional filename-only survey: `/opt/mv-signal` 3,976
+  entries, no matched June–August path printed. An
+  `/opt/jalterminal-app` directory was not present at
+  this specific time/location. This is not a survey of all
+  old Git commits, deleted files, local workstations, other
+  backups or off-server workspaces.
+- Original production engine remained stopped with restart=no.
+
+**Interpretation:** the October 10 modification times support recent
+archive acquisition/management on this VPS. They do NOT prove that
+June–August historical market outcomes were evaluated, and do NOT
+establish that those outcomes were never used elsewhere. In
+particular, October 10 is before the October 11 frozen candidate
+plan, but filesystem mtimes alone are not a reliable source of
+original acquisition or prior-use history. The independence gate
+remains `UNRESOLVED`; no market outcome analysis is authorized.
+
+### Phase 2P — separately gated synthetic validation source adapter
+
+Add a separate `t7sonic_validation_loader.py` on the isolated research
+branch, leaving April–May historical and expert code untouched.
+Its accepted dates are strictly the proposed June 12–August 25,
+2026 interval; it uses the six frozen markets and the Phase 2M
+plan checksum. An unaudited call is rejected before opening any
+archive. Name-only source presence checks are available without
+reading market data. The authenticated source-window routine requires
+a separately declared approval record stating a completed independent
+exposure review, a later reserved final holdout interval, frozen
+strategy SHA, the exact plan SHA, auditor and evidence reference.
+These approval fields are procedural checks, **not independent
+proof** of zero prior exposure: independent human/source audit
+still governs authorization.
+
+Synthetic fixture tests generate internally consistent full-calendar
+June ZIP and sidecars (not Binance data) to exercise month integrity,
+checksum mismatch refusal, 1m/15m/1h/4h reconciliation,
+causal five-frame snapshot cutoffs, fixed universe/date bounds,
+and default denial of unaudited access. The original live
+production tree and Telegram are not imported or modified.
+This adapter intentionally does NOT generate episode outcome
+labels, change decision rules, publish trade signals or grant
+permission to access a real June–August holdout. It also does
+not replace an independent comparison with the upstream
+publisher .CHECKSUM before opening real archived sources.
