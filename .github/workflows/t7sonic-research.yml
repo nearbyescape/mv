@@ -22,6 +22,7 @@ on:
       - services/api/tests/test_t7sonic_*.py
       - packages/contracts/t7sonic-research-v1.json
       - docs/T7SONIC_RESEARCH.md
+      - services/t7sonic/Dockerfile.research
   workflow_dispatch:
 
 permissions:
@@ -81,12 +82,11 @@ jobs:
           from app.research.t7sonic_isolation import (
               validate_import_boundary, validate_dedicated_image, validate_change_scope
           )
-          from os import environ
           repo = Path.cwd()
           base = check_output(["git", "merge-base", "HEAD", "origin/main"], text=True).strip()
           changed = set(
               check_output(["git", "diff", "--name-only", "-z", base, "HEAD"])
-              .decode().rstrip("\\0").split("\\0")
+              .decode().rstrip(chr(0)).split(chr(0))
           )
           changed.discard("")
           print(validate_change_scope(changed))
