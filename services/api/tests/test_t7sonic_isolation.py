@@ -122,6 +122,23 @@ class T7SonicIsolationTests(unittest.TestCase):
         HAS_DEDICATED_RESEARCH_DOCKERFILE,
         "T7Sonic image definition intentionally absent from production API container",
     )
+    def test_standalone_image_requires_nonroot_readable_copy_modes(self):
+        with tempfile.TemporaryDirectory(prefix="t7sonic-image-permission-") as temp:
+            p=Path(temp)/"services/t7sonic"
+            p.mkdir(parents=True)
+            current=(REPO_ROOT/"services/t7sonic/Dockerfile.research").read_text()
+            assert "--chown=10001:10001 --chmod=0444 " in current
+            (p/"Dockerfile.research").write_text(
+                current.replace("--chown=10001:10001 --chmod=0444 ", "")
+            )
+            with self.assertRaisesRegex(ValueError,"legacy code"):
+                validate_dedicated_image(Path(temp))
+            (p/"Dockerfile.research").write_text(
+                current.replace("chmod 0755 /opt/t7sonic", "chmod 0700 /opt/t7sonic")
+            )
+            with self.assertRaisesRegex(ValueError,"directory traversal"):
+                validate_dedicated_image(Path(temp))
+
     def test_standalone_image_scope_drift_fails_closed(self):
         with tempfile.TemporaryDirectory(prefix="t7sonic-image-guard-") as temp:
             p=Path(temp)/"services/t7sonic"
