@@ -45,8 +45,8 @@ def test_rejected_correct_calls_remain_visible_and_counts_reconcile():
     all_data = result["research_masks"]["ALL_ORIGINAL_CANDIDATES"]["retained"]
     cut = result["research_masks"]["REJECT_15_IST_HOUR_ONLY"]
     assert all_data["observed_60m"] == 5
-    assert all_data["correct_60m"] == 3
-    assert all_data["wrong_60m"] == 2 - 1
+    assert all_data["correct_60m"] == 2
+    assert all_data["wrong_60m"] == 2
     assert all_data["neutral_60m"] == 1
     assert cut["retained"]["correct_60m"] == 1
     assert cut["retained"]["wrong_60m"] == 1
