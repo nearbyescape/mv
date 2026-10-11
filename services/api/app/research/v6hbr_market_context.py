@@ -92,8 +92,8 @@ def snapshot_asof(universe: list[str], source_frames: list[dict], asof_ms: int) 
         raise ValueError("Exactly 30 unique frozen USDT markets required")
     if REQUIRED_LEADER not in universe:
         raise ValueError("Market-wide context requires BTCUSDT in universe")
-    if type(asof_ms) is not int or asof_ms <= 0 or asof_ms % FRAMES_MS["15m"]:
-        raise ValueError("Decision must be at completed 15m UTC boundary")
+    if type(asof_ms) is not int or asof_ms <= 0:
+        raise ValueError("As-of decision timestamp must be positive epoch milliseconds")
     if not isinstance(source_frames, list):
         raise ValueError("Explicit source frame list required")
 
