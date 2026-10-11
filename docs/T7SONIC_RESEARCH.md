@@ -141,6 +141,84 @@ historical source equivalence should we implement bounded chronological
 candidate streaming and independently labeled outcomes. Risk and
 calibration modeling remain unimplemented.
 
+## Phase 2B delivered: one-month acquisition and one-day opportunity replay
+
+**Status: code + synthetic integrity testing only. Real market-data results
+require the operator's isolated VPS archive. V4 must stay suspended.**
+
+### Source-only acquisition tool
+
+`services/t7sonic/archive_fetch.py` is a separate standard-library-only
+operator utility. It is deliberately **NOT copied into the T7Sonic model
+container**, nor is it callable by the trading expert pipeline.
+
+- `plan` lists one required frozen 2026 Jan–May USD-M futures 1m archive.
+  No files are downloaded or replaced.
+- `fetch --confirm-single-fetch` explicitly downloads **one** full
+  `<SYMBOL>-1m-<YYYY-MM>.zip` and its publisher `.CHECKSUM`, checks
+  downloaded bytes against the published SHA256, validates all **calendar
+  minute** rows, close times and OHLCV, enforces a 48 MiB compressed ceiling
+  and a 2 GiB free-space reserve, and writes a matching pinned V5-format
+  sidecar. A second fetch cannot replace an existing ZIP; exclusive filesystem
+  links prevent the last-write-wins race. If interrupted between two links
+  a partial pair fails closed and must be repaired manually.
+- `verify` rehashes a previously acquired local ZIP and validates its
+  complete candle geometry and sidecar without network access.
+- Only explicitly selected frozen markets and Jan–May 2026 months are
+  accepted. The research root must be an existing real absolute `/var/tmp`
+  or `/tmp` location. **No automated bulk fetching or trading workers**.
+- The checksum URL is publisher-controlled: if it changes later, the pinned
+  archived version must be reviewed rather than silently overwritten.
+  Actual source correctness requires this publisher-authenticated acquisition,
+  not merely a self-consistent local sidecar.
+
+### Offline opportunity replay
+
+`t7sonic_replay.py` and `t7sonic_replay_cli.py` run in the dedicated
+legacy-free image, without network access or any write permissions.
+
+- `plan` inventories required 1m/15m/1h/4h source-month ZIP/manifest
+  pairs for a **single UTC day**, not checksums; missing months are listed.
+- `run` first verifies the needed complete pinned month archives exactly
+  once. Each 5m boundary selects only fully closed price bars, with 1m/15m/
+  1h/4h inputs synchronized to their most recent completed candle.
+- The adapter now keeps **480 prior verified 1m bars** in internal
+  reconciliation memory, so a full most recently completed 4h candle can
+  be independently checked even late in a 4h interval; only the final 320
+  1m bars create 64 derived 5m bars, and the model itself sees only 64
+  completed 1m bars.
+- Emits descriptive WATCH hypotheses from six expert families. Reports
+  repeated bar-by-bar observations separately from **new activation
+  episodes** (an expert+symbol+direction reappearing after a gap). Reports
+  both directions and opposing hypotheses without declaring them trades.
+- This pilot requires an explicit 1–6-market subset and a single day from
+  **2026-04-01 through 2026-05-30**, with a bounded 1–288 completed 5m
+  decision count. June–September validation/holdout is not accessed.
+- The opportunity stream includes deterministic SHA256, source-month hashes,
+  expert/direction/market counts, output limitations, and permanent
+  `actionable_signals=0` / `outcomes_labeled=false`.
+- A WATCH activation episode does **not** establish a separate executable
+  trade, high-confidence entry, favorable outcome, or profits. These
+  cannot be measured before the separate cost/label/replay work.
+
+Command signatures (do not run from a production checkout):
+
+```bash
+# Download-free acquisition inventory:
+python services/t7sonic/archive_fetch.py plan \
+  --root /var/tmp/mv-v5-history-archives \
+  --symbol BTCUSDT --month 2026-04
+
+# Source pair presence for a single pilot day:
+python -m app.research.t7sonic_replay_cli plan \
+  --root /research --symbols BTCUSDT \
+  --day 2026-04-20 --max-boundaries 12
+```
+
+After CI and the VPS preflight evidence, a **separate operator-reviewed
+acquisition command** can acquire exactly the missing 1m month. No generic
+permission to activate V4 or deploy any research code is implied.
+
 ## Historical data requirement
 
 An actual prospective-grade model requires a much larger dataset than six markets and two months. Build a versioned 30-market source lineage with 1m/5m/15m/1h/4h as-of snapshots, plus complete publisher sidecars and no invented gaps. Assess existing historical data availability per feed before committing to a feature; order-book/open-interest archives cannot be backfilled using future snapshots. Synthetic fixtures are exclusively for correctness tests, never for performance claims.
