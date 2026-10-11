@@ -124,6 +124,28 @@ class ForwardCoverageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             verify_synthetic_coverage([forged_claim])
 
+    def test_rehashed_candidate_must_match_original_expert_watch_keys(self):
+        correct = watch_at(START_MS)
+        modified = deepcopy(correct)
+        modified["observations"][0]["candidate_directions"] = ["LONG"]
+        modified["batch_sha256"] = _digest({
+            key: value for key, value in modified.items()
+            if key != "batch_sha256"
+        })
+        with self.assertRaisesRegex(ValueError, "Malformed observed"):
+            verify_synthetic_coverage([modified])
+        modified = deepcopy(correct)
+        modified["observations"][0]["all_expert_watch_keys"] = [
+            ["failed_breakout_reversal", "SHORT"],
+            ["failed_breakout_reversal", "SHORT"],
+        ]
+        modified["batch_sha256"] = _digest({
+            key: value for key, value in modified.items()
+            if key != "batch_sha256"
+        })
+        with self.assertRaisesRegex(ValueError, "Malformed observed"):
+            verify_synthetic_coverage([modified])
+
     def test_witness_request_does_not_claim_timestamp_proof(self):
         record = watch_at(START_MS)
         witness = make_external_witness_request(record)
