@@ -25,7 +25,7 @@ class T7SonicIsolationTests(unittest.TestCase):
     def test_source_has_only_t7sonic_and_stdlib_import_graph(self):
         report = validate_import_boundary(MODULES)
         self.assertEqual(report["production_strategy_runtime_imports"],0)
-        self.assertEqual(len(report["checked_modules"]),6)
+        self.assertEqual(len(report["checked_modules"]),8)
         self.assertFalse(report["permission_to_publish_signals"])
         for name, deps in report["direct_import_graph"].items():
             self.assertTrue(name.startswith("t7sonic_"))
