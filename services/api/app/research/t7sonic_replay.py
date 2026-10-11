@@ -21,6 +21,7 @@ from pathlib import Path
 from .t7sonic_history import (
     DEVELOPMENT_END, DEVELOPMENT_START, FROZEN_MARKETS,
     HISTORICAL_FRAMES, INTERVAL_MS, MAX_INPUT_SYMBOLS, OBSERVATION_BARS,
+    RECONCILIATION_MINUTE_BARS,
     _bars_to_json, _calendar_months, _derive_5m,
     _necessary_first_ms, _reconcile_higher_frames_against_minutes,
     _verify_month,
@@ -91,7 +92,7 @@ def _as_of(raw: dict, symbol: str, when: int) -> dict:
         candidates=raw[frame]
         opens=[r.open_ms for r in candidates]
         ix=bisect_left(opens,end)
-        n=OBSERVATION_BARS*5 if frame=="1m" else OBSERVATION_BARS
+        n=RECONCILIATION_MINUTE_BARS if frame=="1m" else OBSERVATION_BARS
         if ix<n:
             raise ValueError("Missing completed causal warmup at "+frame)
         bars=candidates[ix-n:ix]
@@ -99,7 +100,7 @@ def _as_of(raw: dict, symbol: str, when: int) -> dict:
             raise ValueError("Causal timeframe window has missing candles: "+frame)
         selected[frame]=bars
     reconciliation=_reconcile_higher_frames_against_minutes(selected)
-    five=_derive_5m(selected["1m"])
+    five=_derive_5m(selected["1m"][-OBSERVATION_BARS*5:])
     snap={
         "symbol":symbol,"as_of_ms":when,
         "bars":{
