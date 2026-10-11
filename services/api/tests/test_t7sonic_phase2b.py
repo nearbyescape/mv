@@ -72,6 +72,24 @@ class ReplayAndAcquisitionTests(unittest.TestCase):
         copy["1m"][-1]=replace(last,volume=last.volume+1000)
         self.assertEqual(_as_of(copy,SYMBOL,times[0]),old)
 
+    def test_late_4h_cycle_still_has_full_verified_minute_reconciliation(self):
+        # At 15:55 the most recently completed 4h candle is 08:00..12:00.
+        # A mere 320-minute window starts 10:35 and would miss its beginning.
+        # 480 verified minutes are required while 5m features still use 320.
+        from app.research.t7sonic_history_cli import _date_ms
+        when=_date_ms("2026-04-20T15:55:00Z")
+        loaded,_=load_source_windows(self.root,SYMBOL,(when,))
+        state=_as_of(loaded,SYMBOL,when)
+        self.assertGreaterEqual(
+            state["reconciliation"]["native_bars_reconciled_to_1m"]["4h"],1
+        )
+        self.assertEqual(len(state["snapshot"]["bars"]["1m"]),64)
+        self.assertEqual(len(state["snapshot"]["bars"]["5m"]),64)
+        self.assertEqual(
+            state["snapshot"]["bars"]["4h"][-1]["open_ms"],
+            _date_ms("2026-04-20T08:00:00Z")
+        )
+
     def test_missing_1m_pinned_source_fails_closed(self):
         path,_=_source_location(self.root,SYMBOL,"1m","2026-04")
         original=path.read_bytes()
