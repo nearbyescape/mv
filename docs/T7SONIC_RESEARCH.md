@@ -290,6 +290,64 @@ nonroot image, mounting only a byte-identical certified research
 archive copy read-only, with V4 suspension checked before and after.
 No source in production Compose may be mutated.
 
+## Phase 2C operator result and Phase 2D expert attribution
+
+On 2026-10-11, the operator ran the standalone SHA
+`ee0898fd18d47348a1774eb0aebc484919e5d5e3` on certified BTCUSDT
+1m/15m/1h/4h **2026-04-20** market data at all 288 completed 5m
+boundaries. The pre-label candidate digest
+`16136d13ff78180009cb408b696d1727a566f9bc279ca858cd150a60065cb5c6`
+**MATCHED** the prior pilot.
+
+- Raw expert WATCH observations: 92.
+- Expert new activations: 80.
+- Grouped same-direction contiguous WATCH episodes: **50** (24 LONG,
+  26 SHORT), with 25 symbol/side boundaries showing multiple expert votes.
+  This is **not** 50 independent trades; horizon overlap remains.
+- 15m (+10bps favorable / -10bps adverse / neutral): **16 / 12 / 22**.
+- 30m: **22 / 15 / 13**.
+- **Primary 60m:** **18 / 19 / 13**, i.e. only **36%** favorable
+  when neutrals are not counted as correct.
+- 120m: **22 / 26 / 2**.
+- Post-label digest:
+  `e1316002aa257dab698456728df7958d952ddd2c71f4cf2d3205b198655196d8`.
+- VPS report
+  `/var/tmp/t7sonic-outcomes-qbvS8uMC.json`,
+  SHA256
+  `3bbf59f19ffe0954626bccd76056eef48d58b565e716acd4fc5dd44e1e33f078`.
+- V4 remained off and restart disabled; no actual signals or orders.
+
+**Interpretation:** The current six early heuristic WATCH experts discover
+activity, but the primary 60-minute price proxy is *not* a convincing
+directional filter. These are one-day, overlapping, uncosted historical
+label counts and NOT reliable strategy prediction accuracy, trading
+performance or statistical significance. Do not raise signal volume
+quotas, tune a model to this single day or enable live T7Sonic trading.
+
+A separate **Phase 2D attribution diagnostic** adds
+`t7sonic_diagnostics.py` and `t7sonic_diagnostics_cli.py` to the
+research-only image:
+
+- Source integrity and the entire causal WATCH replay run *first*.
+- The user must pin **both** the pre-outcome decision digest and
+  the post-outcome label digest. Any mismatch causes a hard error.
+- Counts are reported per expert at the moment an episode first appears,
+  per expert appearing later, LONG/SHORT side, one-vs-multiple experts
+  at onset, and two descriptive UTC half-day windows, at all four horizons.
+- Every cohort reports favorable, adverse, neutral, signed mark movement
+  and MFE/MAE means. All nonoverlapping grouping partitions are verified
+  to reconcile to the 50-episode totals.
+- An episode may be attributed to multiple experts: summed expert
+  cohort counts do *not* represent unique observations or market trades.
+- Results must remain **descriptive**. The first useful conclusion is
+  which expert families deserve testing on **multiple full market days
+  and coins**, with explicit time-overlap and date-grouped uncertainty.
+  No post hoc selection using April 20 may be presented as a validated
+  improvement.
+
+No change to V4/production, no trained model, no online order execution,
+no Telegram signals, no backtest fill pricing and no new trading strategy.
+
 ## Historical data requirement
 
 An actual prospective-grade model requires a much larger dataset than six markets and two months. Build a versioned 30-market source lineage with 1m/5m/15m/1h/4h as-of snapshots, plus complete publisher sidecars and no invented gaps. Assess existing historical data availability per feed before committing to a feature; order-book/open-interest archives cannot be backfilled using future snapshots. Synthetic fixtures are exclusively for correctness tests, never for performance claims.
