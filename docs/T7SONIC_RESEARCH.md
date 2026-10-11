@@ -2,6 +2,46 @@
 
 **Status:** DRAFT ONLY. Not a production strategy. No trading signals, portfolio orders, execution quotes, stop losses, risk budgets or exchange activity are authorized. Created on its own `codex/t7sonic-research` branch from `main` while the existing V4 engine remains stopped by operator action on the VPS.
 
+## Legacy-model retirement and independent runtime boundary
+
+**Implemented and enforced in CI** on the T7Sonic research branch. The
+separate standalone image at `services/t7sonic/Dockerfile.research` includes
+**only** allowlisted `t7sonic_*.py` research modules and the T7Sonic research
+contract; the image does not install the `mv_strategy` package and has no
+V4 worker, V5/V6HBR decision/predictive engine, Telegram, API, database,
+exchange order client or application Docker Compose service.
+
+The source-level `t7sonic_isolation.py` gate checks all import graphs,
+rejects legacy and third-party application imports, prohibits dynamic module
+loading patterns, verifies the dedicated Dockerfile copies only those
+T7Sonic resources, and verifies that PR paths do not include production
+workers or the common strategy package. The GitHub workflow additionally
+builds a real nonroot isolated container and confirms that none of the
+old models, workers or DB ORM dependencies exist inside the image. It
+runs with no network, a read-only root, dropped capabilities and no elevated
+user. The source gate is a regression detector; only the OS isolation
+restricts executable environment access.
+
+**The old code remains in the MAIN repository for now** because it shares
+the production application and stores historical audit-relevant behavior.
+Physically deleting or overwriting production worker files from a research
+branch could cause a dangerous future merge/cutover; it is unnecessary to
+prevent T7Sonic model conflicts. The currently suspended V4 runtime was
+paused separately by the VPS operator; no PR code restarts or changes its
+container. The real T7Sonic production migration will separately retire
+or replace live entry points after an explicitly authorized cutover and
+independent test gates, preserving historical research and signal records.
+
+T7Sonic can read old **archive formats**, not legacy prediction models.
+The `48a460...` source-spec SHA256 in `t7sonic_history.py` identifies
+the frozen checksum-pinned *historical OHLCV archive lineage*, not an
+import of V5 or V6HBR trading strategy code. This compatibility allows
+real-data replay without altering source history.
+
+No old model is merged, reused, executed or included in the T7Sonic-only
+research artifact. No claim is made that these tests validate predictive
+accuracy, actual signal count or profitability.
+
 ## Problem to solve
 
 V4 was primarily a 1H/4H EMA/ATR rule selector with BTC time-of-day and directional-risk vetoes. Previous isolated V4/V6HBR exploratory data for six coins, April–May 2026, showed 143/352 = **40.62%** rule-qualified candidates directionally correct at 60 minutes (10 bps mark hurdle, not filled trade net returns). A later seven-feature logistic fit exhibited May AUROC approximately **0.512**, poor score separation, and a worse Brier score than a late-April constant-probability model. These are not representative live performance metrics and should not be treated as verified exchange fills.
