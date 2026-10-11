@@ -23,12 +23,19 @@ from test_t7sonic_history import (
 )
 
 REPO_ROOT=Path(__file__).resolve().parents[3]
-SPEC=importlib.util.spec_from_file_location(
-    "t7sonic_separate_archive_fetch",
-    REPO_ROOT / "services/t7sonic/archive_fetch.py",
-)
-fetch=importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(fetch)
+# The production API image intentionally contains only services/api and
+# excludes the separate, network-capable research archive fetch utility.
+# Exercise these acquisition tests only when the independent utility exists;
+# synthetic replay tests below still run in the production API test image.
+FETCH_SOURCE = REPO_ROOT / "services/t7sonic/archive_fetch.py"
+if FETCH_SOURCE.is_file():
+    SPEC=importlib.util.spec_from_file_location(
+        "t7sonic_separate_archive_fetch", FETCH_SOURCE,
+    )
+    fetch=importlib.util.module_from_spec(SPEC)
+    SPEC.loader.exec_module(fetch)
+else:
+    fetch=None
 
 
 class ReplayAndAcquisitionTests(unittest.TestCase):
@@ -119,6 +126,7 @@ class ReplayAndAcquisitionTests(unittest.TestCase):
         self.assertEqual(plan["status"],"PRESENCE_ONLY_NOT_SOURCE_CHECKSUM_VALIDATION")
         self.assertEqual(len(plan["required_monthly_pairs"]),4)
 
+    @unittest.skipUnless(fetch is not None, "standalone downloader deliberately absent in API container")
     def test_acquisition_plan_is_bounded_and_does_not_download(self):
         result=fetch.plan(self.root,SYMBOL,"2026-04")
         self.assertEqual(result["action"],"PLANNED_ONLY_NO_DOWNLOAD")
@@ -129,12 +137,14 @@ class ReplayAndAcquisitionTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 fetch.plan(self.root,s,m)
 
+    @unittest.skipUnless(fetch is not None, "standalone downloader deliberately absent in API container")
     def test_existing_pinned_minute_archive_verifies_locally(self):
         out=fetch.verify_pinned(self.root,SYMBOL,"2026-04")
         self.assertFalse(out["network_used"])
         self.assertEqual(out["rows"],43200)
         self.assertEqual(out["status"],"COMPLETE_VERIFIED_EXISTING")
 
+    @unittest.skipUnless(fetch is not None, "standalone downloader deliberately absent in API container")
     def test_single_fetch_requires_explicit_approval_and_publisher_hash(self):
         with tempfile.TemporaryDirectory(prefix="t7sonic-fetch-") as other:
             root=Path(other)
@@ -162,6 +172,7 @@ class ReplayAndAcquisitionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"already present"):
                 fetch.fetch_one(root,SYMBOL,"2026-04",approved=True)
 
+    @unittest.skipUnless(fetch is not None, "standalone downloader deliberately absent in API container")
     def test_checksum_mismatch_download_does_not_create_source_pair(self):
         with tempfile.TemporaryDirectory(prefix="t7sonic-reject-") as other:
             root=Path(other)
@@ -180,6 +191,7 @@ class ReplayAndAcquisitionTests(unittest.TestCase):
             self.assertFalse(state["present_pair"])
             self.assertFalse(state["partial_pair"])
 
+    @unittest.skipUnless(fetch is not None, "standalone downloader deliberately absent in API container")
     def test_mutated_zip_and_manifest_fail_even_when_files_exist(self):
         with tempfile.TemporaryDirectory(prefix="t7sonic-tamper-") as other:
             root=Path(other)
