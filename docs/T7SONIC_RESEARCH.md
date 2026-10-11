@@ -1343,3 +1343,64 @@ The forward start of 2026-10-15 remains provisional.
 Do not automatically deploy any observer, count unsigned
 offline packets as forward observations or backfill a
 previously missed decision-time window.
+
+## Phase 2V — VPS witness-contract verification
+
+The operator ran exact source revision
+`6a1186a262c034b877b333bb1f97b7497b3cf019`
+on the VPS. All **121** offline/synthetic tests passed
+(in 6.848s); the explicit 6-symbol x 4-source-frame
+witness manifest requirement of **24 source receipts**
+passed. No external timestamp was verified.
+No live market data was acquired, and the production
+engine remained stopped with restart=no; no trades
+or Telegram messages were sent.
+
+Preserved operator evidence:
+`/var/tmp/t7sonic-phase2v-7bS4T7a0.json`
+SHA256 `125ed8e09d51cbf897873755546c5eba7dcac19424e7b643e172287c262a2d28`.
+
+### Phase 2W — RFC3161 signed timestamp checking (OFFLINE ONLY)
+
+`services/t7sonic/forward_rfc3161.py` introduces a
+separately housed OpenSSL-based **offline verifier** for
+RFC3161 TSA responses and a nonce-bound request generator.
+It verifies the exact precommit witness SHA256 imprint,
+the submitted query's nonce and certificate-request flag,
+an explicitly pinned SHA256 of the TSA trust-anchor PEM,
+the signed TSA certificate chain, the approved policy OID,
+and the TSA-signed generation time against the frozen
+60-second observation deadline. A nonce mismatch, untrusted
+CA, wrong policy, tampered token, forged witness-manifest
+digest, or token genuinely signed OUTSIDE the deadline
+fails closed.
+
+Tests create an **ephemeral, self-signed synthetic TSA**
+during unit-test execution, never ship its signing key.
+A locally signed test response from October 11 is
+cryptographically verifiable but explicitly rejected because
+it precedes the frozen October 15 start. The synthetic
+test demonstrates independent requirements for valid
+signature *and* acceptable timestamp; it is not a positive
+in-window independent TSA certification.
+
+**Important outstanding gates:** No real outside TSA
+or chain of trust has been selected/attested by an independent
+operator; no RFC3161 request has been sent to one; no actual
+external response has been accepted. The offline verifier's
+trust-anchor and policy values must be independently chosen,
+pinned and audited before actual collection, or a locally
+controlled mock TSA could yield cryptographic signatures
+without independent evidence. No off-VPS immutable raw
+kline/decision-evidence retention, clock-drift verification,
+24-source real-time batch synchronization, forward daemon
+or crash-gap certification is deployed. OpenSSL verification
+of an outside-signed timestamp alone also does not authenticate
+Binance's unsigned REST payload or prove strategy profitability.
+No live source collection, trading, Telegram publication,
+production restart or PR merge is authorized.
+
+The 2026-10-15 scheduled forward start remains
+**provisional**; a later genuinely prospective, predeclared
+window is mandatory if operational integrity controls are
+not externally approved before it starts.
