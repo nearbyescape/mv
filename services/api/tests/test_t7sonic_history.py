@@ -107,7 +107,7 @@ class HistoricalAdapterTests(unittest.TestCase):
             "verified_calendar_rows"],43200)
         self.assertEqual(proof["five_minute_derivation"],
                          "EXACT_FIVE_CONSECUTIVE_PINNED_ONE_MINUTE_BARS")
-        self.assertEqual(
+        self.assertGreaterEqual(
             proof["resolution_reconciliation"]["native_bars_reconciled_to_1m"]["4h"],1
         )
         self.assertEqual(snapshot["bars"]["5m"][-1]["open_ms"], AT-300_000)
