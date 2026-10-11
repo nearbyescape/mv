@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "strategy_family": "T7Sonic",
+  "status": "RESEARCH_ONLY_UNVALIDATED",
+  "production_deployment_allowed": false,
+  "publication_enabled": false,
+  "live_order_execution_enabled": false,
+  "market": "Binance USDT-margined futures reference feeds; not exchange execution fills",
+  "decision_timeframes": ["1m", "5m", "15m", "1h", "4h"],
+  "closed_candle_only": true,
+  "required_data_at_initial_prototype": ["completed OHLCV"],
+  "future_research_optional_sources": [
+    "public trade flow with exchange event timestamps and replayable archives",
+    "order-book depth updates with gap recovery and sequence validation",
+    "funding and mark-price feeds with real historical availability",
+    "open interest with continuously archived historical evidence",
+    "cross-market breadth with explicit symbol coverage and synchronized cutoffs"
+  ],
+  "research_opportunity_families": [
+    "trend_continuation", "range_reversion", "breakout",
+    "failed_breakout_reversal", "participation", "volatility_transition"
+  ],
+  "prediction_horizons_minutes": [15, 30, 60, 120],
+  "target_primary_horizon_minutes": 60,
+  "target_correct_fraction": "0.80",
+  "target_is_guarantee": false,
+  "illustrative_signal_frequency_goal_per_active_day": 3,
+  "frequency_goal_is_guaranteed": false,
+  "risk_limits": {
+    "maximum_leverage": null,
+    "maximum_risk_fraction_per_trade": null,
+    "maximum_aggregate_risk_fraction": null,
+    "maximum_positions": null,
+    "minimum_after_cost_expectancy": null,
+    "status": "REQUIRE_OPERATOR_REVIEW_BEFORE_LIVE"
+  },
+  "do_not_promote_without": [
+    "source-verified all-30-market history and explicit missing data",
+    "causal opportunity generation with no future candles",
+    "purged time-ordered research and selection audit",
+    "untouched period and cross-market validation",
+    "day- and event-cluster-adjusted uncertainty",
+    "nontrivial actionable signal frequency and opportunity coverage",
+    "realistic exchange-specific cost, depth, funding and fill modeling",
+    "positive risk-adjusted expectation with drawdown review",
+    "explicit operator signoff, rollback plan and separate production PR"
+  ]
+}
