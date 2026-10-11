@@ -103,6 +103,7 @@ jobs:
             tests/test_v6hbr_time_cluster_forensics.py \
             tests/test_v6hbr_80pct_shadow.py \
             tests/test_v6hbr_chronological_probability.py \
+            tests/test_v6hbr_probability_diagnostics.py \
             tests/test_v6hbr_candidate_operator_script.py \
             tests/test_v6hbr_btc_pricing_operator.py \
             tests/test_v6hbr_operator_pilots.py \
