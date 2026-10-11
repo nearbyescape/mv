@@ -219,6 +219,77 @@ After CI and the VPS preflight evidence, a **separate operator-reviewed
 acquisition command** can acquire exactly the missing 1m month. No generic
 permission to activate V4 or deploy any research code is implied.
 
+## Phase 2B first full-day BTC replay — operator evidence
+
+The 2026-10-11 user-supplied VPS output authenticates all BTCUSDT
+April 2026 1m/15m/1h/4h data against Binance publisher SHA256 and the
+frozen sidecars. The isolated T7Sonic runtime at
+`666a0da2de36517e17c2270b5562b31c2fcdca2d` completed its first
+full-day **288 completed five-minute boundaries** for **2026-04-20 UTC**.
+
+Observed research-only measurements:
+- 288 decisions, 62 boundaries with any WATCH hypothesis
+- 92 WATCH observations (50 LONG, 42 SHORT)
+- 80 expert-key new activations: breakout 16, failed-breakout
+  reversal 14, participation 14, range reversion 2, trend
+  continuation 5, volatility transition 29
+- 0 contradictory-direction symbol-boundaries; 0 actionable signals
+- `candidate_stream_sha256=16136d13ff78180009cb408b696d1727a566f9bc279ca858cd150a60065cb5c6`
+- Full report from VPS:
+  `/var/tmp/t7sonic-btc-full-day-CCDRyZbb.json`;
+  full report SHA256:
+  `eb94eb41d734698024255305a6fed553c0cd5d1ee1e69e79dbca216a5f56a39b`
+- V4 running=false, restart=no at replay completion
+
+**These are NOT 80 independent trades.** Multiple experts can flag
+the same symbol and direction on one boundary; separate activations can
+be clustered and highly correlated. This is a one-day development
+opportunity *coverage* experiment; no model training, valid accuracy,
+risk model, order fills, fees, slippage, funding, drawdown or trading
+profitability was measured. The broader initial strategy goal of three
+actionable signals daily is not established by 80 WATCH activations.
+
+## Phase 2C — frozen decisions and retrospective directional mark labels
+
+A separate, non-publishing analytical module computes:
+
+- Distinct **directional WATCH episodes**: a same-symbol + same-side
+  observation persisting across consecutive 5m decisions; multiple
+  expert triggers are grouped and attributed, not double-counted.
+  Episodes separated by a gap are still potentially correlated and are
+  **not** independent trading opportunities.
+- Precommitted **15/30/60/120 minute mark-proxy labels**: entry proxy
+  uses the first future 1m candle open after decision time; signed
+  horizon mark movement greater than **+10 basis points** is
+  classified favorable, less than **-10 basis points** adverse,
+  all remaining observations neutral (neutral is not counted correct).
+  Intrahorizon MFE and MAE are measured but their order is not
+  determined from within a 1m candle.
+- The existing pre-outcome SHA256 candidate stream is finalized **before**
+  any future 1m label source is read. Complete source-month sidecars,
+  ZIP SHA256, candle integrity, and *all* required future 1m minutes
+  are mandatory. Missing outcome data and missing next-month archives
+  fail closed; no optimistic censoring.
+- `t7sonic_outcomes.py` and `t7sonic_outcomes_cli.py` are included
+  only within the isolated research image (still no legacy models).
+  Details are returned only when `--include-episode-records` is
+  specified; by default the output is a bounded aggregate plus
+  sample and separate source/decision/label SHA256 evidence.
+
+**IMPORTANT:** Candle *open* is not a guaranteed execution price,
+and Binance kline OHLCV does not provide executable bid/ask depth.
+These are descriptive historical directional labels **not** net
+after-cost trade returns, strategy accuracy estimates, stop/target-first
+outcomes, or evidence of profitable signals. Historical April/May
+is development data, not a fresh sealed holdout. Forward labels must
+never become input features.
+
+The first operator-controlled real-data outcome run must use a
+separate explicitly pinned T7Sonic research Git checkout and rebuilt
+nonroot image, mounting only a byte-identical certified research
+archive copy read-only, with V4 suspension checked before and after.
+No source in production Compose may be mutated.
+
 ## Historical data requirement
 
 An actual prospective-grade model requires a much larger dataset than six markets and two months. Build a versioned 30-market source lineage with 1m/5m/15m/1h/4h as-of snapshots, plus complete publisher sidecars and no invented gaps. Assess existing historical data availability per feed before committing to a feature; order-book/open-interest archives cannot be backfilled using future snapshots. Synthetic fixtures are exclusively for correctness tests, never for performance claims.
