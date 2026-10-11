@@ -833,3 +833,51 @@ paper-only forward period with the original legacy engine still
 stopped, no orders and no Telegram signal publication without explicit
 authorization. Production migration requires a distinct reviewed
 deployment PR and operator approval; this research PR cannot grant it.
+
+## Phase 2M — VPS frozen-plan execution verified by operator
+
+The operator ran the no-market-data validation planning CLI on their
+VPS at exact source revision
+`52dc5eb75360802ada4e429f93823d6d04db79d0`.
+The tool's fixed plan passed its schema guard: six markets,
+75 UTC calendar days, 450 market-days, exactly 72 proposed monthly
+archive/sidecar pairs for June–August. The legacy production engine
+remained stopped and its restart policy was `no`.
+
+Operator-reported evidence:
+- `/var/tmp/t7sonic-phase2m-plan-j4vu0vzr.json`
+- JSON report SHA256
+  `c60e0f8ee11bf44136c4e3db7f620ff2dfc008d0837c1bd9f9d4a33feb63a392`
+- Frozen plan internal SHA256
+  `99d964840b8d2c49d3c99ee03204e9ffa632e2b5606809d477fdfe3e1dfb6f29`
+- Runtime status
+  `BLOCKED_UNTIL_CONTAMINATION_AUDIT_AND_SEPARATE_LOADER`.
+
+This proves only that a deterministic frozen specification was
+produced. No June–August market record was accessed or independently
+certified as a valid holdout.
+
+### Phase 2N — holdout contamination survey, metadata first
+
+Before developing/running a new historical validation reader, collect
+*metadata only* from existing VPS research workspaces and GitHub
+code history: file names, project names, experiment date-range
+descriptions, and prior model/test use. Do not inspect June–August
+candles, labels, reports or research outcomes during this audit.
+If previous validation/hyperparameter selection, market outcome
+review, or strategy development used any part of June 12–August 25,
+that span cannot serve as an untouched confirmation set.
+
+An absence of date-labelled files alone is **not** evidence of
+clean holdout: filenames can omit dates, data can exist on old
+workstations, and external projects/research may have previously
+revealed outcomes. Manual disclosure covering V4/V5/V6HBR, other
+JalTerminal and MV branches, local PCs, VPS backups, online
+visualizations and external sources remains required.
+Mark missing/ambiguous exposure evidence as `UNRESOLVED`;
+never auto-certify clean data from a filesystem scan.
+
+Production, Telegram, order execution, and June–August data access
+remain disabled until a separate research-only validation reader
+and no-lookahead/integrity tests pass and operator attestation is
+documented.
