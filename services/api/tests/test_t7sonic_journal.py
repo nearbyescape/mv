@@ -145,8 +145,13 @@ class OfflineJournalTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             j.append(one)
         wide = Path(self.temp.name) / "shared"
-        wide.mkdir(mode=0o755)
-        with self.assertRaises(ValueError):
+        # mkdir(mode=0755) is filtered by the caller's umask. Production
+        # operators intentionally use umask 077, so force the unsafe mode
+        # to test rejection of a *real* world-accessible directory.
+        wide.mkdir(mode=0o700)
+        wide.chmod(0o755)
+        self.assertEqual(wide.stat().st_mode & 0o777, 0o755)
+        with self.assertRaisesRegex(ValueError, "private 0700"):
             with OfflineSyntheticJournal(wide / "bad.jsonl"):
                 pass
 
