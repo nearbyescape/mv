@@ -122,60 +122,68 @@ def _check_common(packet: dict, prior: str, prior_time: int | None) -> tuple[str
     return digest, t
 
 
+def validate_synthetic_packet(item: dict, prev_sha: str,
+                              prev_time: int | None) -> tuple[str, int, str]:
+    """Validate one next packet, without repeatedly scanning prior history."""
+    digest, t = _check_common(item, prev_sha, prev_time)
+    status = item["status"]
+    if status == WATCH_STATUS:
+        receipt = item.get("receipt_ms_untrusted_claim")
+        if (type(receipt) is not int or
+                not t <= receipt <= t + RECEIPT_MAX_DELAY_MS or
+                item.get("market_prices_read") is not False):
+            raise ValueError("Missing timely synthetic WATCH receipt")
+        for obs in item["observations"]:
+            dirs = obs.get("candidate_directions")
+            keys = obs.get("all_expert_watch_keys")
+            if (not _valid_sha(obs.get("feature_source_sha256")) or
+                    not isinstance(dirs, list) or
+                    any(d not in ("LONG", "SHORT") for d in dirs) or
+                    obs.get("candidate_active") is not bool(dirs) or
+                    not isinstance(keys, list) or
+                    any(not isinstance(k, list) or len(k) != 2 or
+                            k[0] not in EXPERT_NAMES or
+                            k[1] not in ("LONG", "SHORT") for k in keys) or
+                    len({tuple(k) for k in keys}) != len(keys) or
+                    dirs != sorted({side for expert, side in keys
+                                    if expert == EXPERT})):
+                raise ValueError("Malformed observed WATCH/no-WATCH state")
+        category = "WATCH_CYCLE_COMPLETE"
+    elif status == GAP_STATUS:
+        claim = item.get("recorded_ms_untrusted_claim")
+        reasons = item.get("reasons_by_symbol")
+        if (type(claim) is not int or
+                not t <= claim <= t + MAX_RECORD_DELAY_MS or
+                item.get("on_time_observation") is not False or
+                not isinstance(reasons, dict) or not reasons or
+                not set(reasons) <= set(MARKETS) or
+                any(reason not in GAP_REASONS for reason in reasons.values())):
+            raise ValueError("Malformed missing-data gap receipt")
+        for obs in item["observations"]:
+            symbol = obs["symbol"]
+            expected_state = ("DATA_MISSING" if symbol in reasons else
+                              "NOT_EVALUATED_DUE_TO_PARTIAL_SOURCE_FAILURE")
+            if (obs.get("state") != expected_state or
+                    obs.get("reason") != reasons.get(symbol) or
+                    obs.get("candidate_directions", "notset") is not None or
+                    obs.get("watch_evaluation_performed") is not False):
+                raise ValueError("Gap cannot be relabeled as NO_WATCH")
+        category = "MISSING_DATA_CYCLE"
+    else:
+        raise ValueError("Unrecognized protocol event")
+    return digest, t, category
+
+
 def verify_synthetic_coverage(packets: list[dict]) -> dict:
-    """Structural schedule audit; does NOT attest receipt timestamp or source."""
+    """Structural schedule audit; no trusted receipt time or source authentication."""
     if not isinstance(packets, list) or not packets:
         raise ValueError("Nonempty synthetic packet history required")
     prev_sha = FIRST_PREVIOUS_SHA
     prev_time = None
     tally = Counter()
     for item in packets:
-        digest, t = _check_common(item, prev_sha, prev_time)
-        status = item["status"]
-        if status == WATCH_STATUS:
-            receipt = item.get("receipt_ms_untrusted_claim")
-            if (type(receipt) is not int or
-                    not t <= receipt <= t + RECEIPT_MAX_DELAY_MS or
-                    item.get("market_prices_read") is not False):
-                raise ValueError("Missing timely synthetic WATCH receipt")
-            for obs in item["observations"]:
-                dirs = obs.get("candidate_directions")
-                keys = obs.get("all_expert_watch_keys")
-                if (not _valid_sha(obs.get("feature_source_sha256")) or
-                        not isinstance(dirs, list) or
-                        any(d not in ("LONG", "SHORT") for d in dirs) or
-                        obs.get("candidate_active") is not bool(dirs) or
-                        not isinstance(keys, list) or
-                        any(not isinstance(k, list) or len(k) != 2 or
-                                k[0] not in EXPERT_NAMES or
-                                k[1] not in ("LONG", "SHORT") for k in keys) or
-                        len({tuple(k) for k in keys}) != len(keys) or
-                        dirs != sorted({side for expert, side in keys
-                                        if expert == EXPERT})):
-                    raise ValueError("Malformed observed WATCH/no-WATCH state")
-            tally["WATCH_CYCLE_COMPLETE"] += 1
-        elif status == GAP_STATUS:
-            claim = item.get("recorded_ms_untrusted_claim")
-            reasons = item.get("reasons_by_symbol")
-            if (type(claim) is not int or
-                    not t <= claim <= t + MAX_RECORD_DELAY_MS or
-                    item.get("on_time_observation") is not False or
-                    not isinstance(reasons, dict) or not reasons or
-                    not set(reasons) <= set(MARKETS) or
-                    any(reason not in GAP_REASONS for reason in reasons.values())):
-                raise ValueError("Malformed missing-data gap receipt")
-            for obs in item["observations"]:
-                symbol = obs["symbol"]
-                expected_state = ("DATA_MISSING" if symbol in reasons else
-                                  "NOT_EVALUATED_DUE_TO_PARTIAL_SOURCE_FAILURE")
-                if (obs.get("state") != expected_state or
-                        obs.get("reason") != reasons.get(symbol) or
-                        obs.get("candidate_directions", "notset") is not None or
-                        obs.get("watch_evaluation_performed") is not False):
-                    raise ValueError("Gap cannot be relabeled as NO_WATCH")
-            tally["MISSING_DATA_CYCLE"] += 1
-        else:
-            raise ValueError("Unrecognized protocol event")
+        digest, t, category = validate_synthetic_packet(item, prev_sha, prev_time)
+        tally[category] += 1
         prev_sha, prev_time = digest, t
     complete = tally["WATCH_CYCLE_COMPLETE"]
     missing = tally["MISSING_DATA_CYCLE"]
@@ -192,7 +200,6 @@ def verify_synthetic_coverage(packets: list[dict]) -> dict:
         "signals_authorized": False,
         "orders_authorized": False,
     }
-
 
 def make_external_witness_request(packet: dict) -> dict:
     """Prepare a digest-only witness request. DOES NOT contact a witness."""
