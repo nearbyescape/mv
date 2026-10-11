@@ -1079,3 +1079,57 @@ source-authentication and archive retention policy are
 reviewed/tested, and user explicitly authorizes paper-only
 observation. Outcome labels, costs and risk are separate
 subsequent non-actionable stages.
+
+## Phase 2Q — VPS verified frozen forward protocol (operator evidence)
+
+The operator ran the pinned isolated research Docker image from
+`c9c2d6acde4c2f501ddbe3f573895b47f2c9c44a` with
+network=none, read-only filesystem, cap-drop all, non-root uid 10001,
+and verified its zero-trading synthetic forward planning output.
+The MV production engine remained stopped, restart=no.
+
+- Report `/var/tmp/t7sonic-phase2q-plan-PKNhg0II.json`
+- Report SHA256
+  `1f3db26b5e6d0711ee933263a87ede32754b5c80b684973e70a84df8e955afb8`
+- Frozen protocol SHA256
+  `9bed9f51446fb5a76ff9fe64b507028bf09594c09887bd6c1c4bc0335cb237ee`
+- Six existing markets, 2026-10-15T00:00Z inclusive to
+  2026-12-29T00:00Z exclusive.
+- Trusted live recorder was explicitly **NOT DEPLOYED**.
+  No trades, Telegram messages or signed timestamp receipts.
+
+### Phase 2R — synthetic, explicit data-outage accounting
+
+The isolated research-only module
+`t7sonic_forward_coverage.py` introduces a third five-minute
+cycle class: **DATA MISSING / NOT EVALUATED**. Never treat missing
+market data, delayed source completion or a late collector as a
+valid no-WATCH candidate. An affected cycle must carry an explicit
+one-of-enumerated failure reason. Every affected market is marked
+`DATA_MISSING`, and all other markets for that 5m cycle are marked
+`NOT_EVALUATED_DUE_TO_PARTIAL_SOURCE_FAILURE`, even when their
+inputs may otherwise have arrived.
+
+Complete WATCH batches and synthetic gap batches share one
+strictly contiguous SHA256 chain, with all six markets included.
+The checker verifies status, source revision, deadline *claim*,
+original failed-reversal expert/direction consistency,
+ordered nonduplicated market coverage, no trading permissions,
+and non-censoring of outage cycles. A digest-only external
+timestamp request record is available but is marked
+`UNSUBMITTED_EXTERNAL_TIMESTAMP_REQUEST`; it does not send
+network traffic or certify an actual timestamp. The protocol's
+real collector, time synchronization, external witness,
+append-only durable journal, source provenance and future-outcome
+sealing are **still unimplemented**.
+
+The test suite is synthetic only. Passing these gates demonstrates
+the planned format and gap-inclusion invariants, not real time,
+immutability, authenticity, fair evaluation or profitability.
+The proposed 2026-10-15 forward start is not yet an operating
+trial; if the collection service cannot be certified in advance,
+the predeclared observation window must be restated from a
+later truly prospective date **before any real results are viewed**.
+Do not backfill days with historical prices and call them forward
+records. The previous June–August holdout remains unapproved
+due to unresolved prior-outcome exposure.
