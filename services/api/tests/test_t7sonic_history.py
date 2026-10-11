@@ -208,7 +208,7 @@ class HistoricalAdapterTests(unittest.TestCase):
                     "2026-03-20T12:00:00Z"):
             with self.assertRaises(ValueError):
                 _date_ms(iso)
-        with self.assertRaisesRegex(ValueError,"April–May"):
+        with self.assertRaisesRegex(ValueError,"Apr–May"):
             verified_historical_snapshot(
                 self.root,SYMBOL,int(datetime(2026,6,2,tzinfo=timezone.utc).timestamp()*1000))
         with self.assertRaisesRegex(ValueError,"five-minute"):
