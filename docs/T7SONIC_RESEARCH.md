@@ -456,3 +456,61 @@ image with the evidence directory mounted read-only; follow the separate
 operator-run invocation. Its development-only output is evidence for
 planning multi-symbol replication, cost modeling and independent
 validation—not authorization to publish or trade.
+
+## Phase 2G — per-expert matched-baseline diagnosis, certified VPS evidence
+
+The operator ran exactly pinned research commit
+`602dccb6d51a319efa1088e31a41bab52ac16d20` in the isolated image
+against the immutable Apr 12–25 BTCUSDT 14-day ledger documented above.
+Frozen SHA-256 evidence verified and V4 remained stopped with restart=no.
+
+Operator-reported read-only diagnostic:
+- Report `/var/tmp/t7sonic-phase2g-report-28okReyr.json`
+- Report SHA256 `c0fecab6557e647671e77ed98e1a7502bab18b1b6c140434a2760a69e15beafb`
+- Actual directional WATCH favorable 297/854 (34.78%).
+- Matched always-long on the same 854 expert-selected onsets: 313/854
+  (36.65%); matched always-short: 305/854 (35.71%).
+- Failed-breakout reversal onset cohort: 95/224 favorable (42.41%);
+  matched-long 82/224 (36.61%); matched-short 81/224 (36.16%);
+  favorable episode differences +13 and +14 respectively.
+  Across its 14 active BTC dates: >long 10, <long 4, ties 0;
+  >short 8, <short 4, ties 2.
+- Breakout 58/196 favorable vs matched-long 81/196, short 64/196.
+- Participation 63/220 vs long 80/220, short 68/220.
+- Range reversion 18/32 vs long 18/32, short 9/32; just 7 active days.
+- Trend continuation 48/154 vs long 51/154, short 63/154.
+- Volatility transition 123/369 vs long 135/369, short 134/369.
+
+The above are favorable outcome counts from a **fixed 60-minute 10bps
+price-proxy test**, not trade profits, risk-adjusted returns, fill
+simulations or robust out-of-sample model scores. Expert cohorts overlap.
+The 14 BTC days and all expert comparisons have now been repeatedly
+inspected: choosing an expert because it looked better here is
+**post-selection**, not evidence of independent generalization.
+No strategy/weight/threshold changes are authorized by Phase 2G.
+
+### Phase 2H — safe cross-market source readiness before repeating research
+
+Next test predeclared BTC-adjacent heterogeneous markets
+`ETHUSDT, SOLUSDT, XRPUSDT, DOGEUSDT, BNBUSDT` on identical Apr 12–25
+UTC development dates, with every symbol's independent source lineage.
+Start with **presence-only**, network-free inventory of 2026-04
+1m/15m/1h/4h ZIP and matching .manifest.json pairs; do not infer that
+a present pair is authentic. Full-month publisher-checksum verification
+and timeframe reconciliation are mandatory before outcome replay.
+Any missing 1m archive requires a separate operator-reviewed bounded
+acquisition, with checksum validation and no overwrite.
+
+For every admitted symbol/day, run exactly the same unmodified
+T7Sonic WATCH hypothesis and 15/30/60/120-minute price-proxy labels,
+deduplicate coactivated experts, and compare specialist directions with
+matched always-long and always-short baselines **on the same specialist
+onsets**. Preserve complete original output digest chains. No
+automatic expert selection from these already-inspected development dates.
+
+Before independent validation, explicitly freeze the candidate rule
+hypotheses, universe, thresholds, training/calibration split and
+quality gates. Evaluation must assess day/market-grouped uncertainty,
+price path/excursion, liquidity, fees, slippage, stop/target-first
+ordering and realistic quote execution. None of this research
+authorizes production deployment or Telegram publishing.
