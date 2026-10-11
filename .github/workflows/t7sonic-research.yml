@@ -13,6 +13,7 @@ on:
       - packages/contracts/t7sonic-research-v1.json
       - docs/T7SONIC_RESEARCH.md
       - services/t7sonic/Dockerfile.research
+      - services/t7sonic/forward_journal.py
   pull_request:
     branches:
       - main
@@ -23,6 +24,7 @@ on:
       - packages/contracts/t7sonic-research-v1.json
       - docs/T7SONIC_RESEARCH.md
       - services/t7sonic/Dockerfile.research
+      - services/t7sonic/forward_journal.py
   workflow_dispatch:
 
 permissions:
