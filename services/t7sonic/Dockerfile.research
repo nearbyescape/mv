@@ -1,0 +1,17 @@
+# T7Sonic-only offline research container.
+# No MV strategy packages, production app workers, credentials or DB clients.
+# Build from an explicitly reviewed source SHA, never used in production Compose.
+FROM python:3.14-slim-bookworm@sha256:c8137f4c460908c8763f281c8f22c431eb5c538514ba9553fc3a89c06b7cfb88
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/opt/t7sonic
+WORKDIR /opt/t7sonic
+
+RUN groupadd --gid 10001 t7sonic && \
+    useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin t7sonic && \
+    mkdir -p /opt/t7sonic/app/research /opt/t7sonic/contracts
+
+COPY services/api/app/research/t7sonic_*.py /opt/t7sonic/app/research/
+COPY packages/contracts/t7sonic-research-v1.json /opt/t7sonic/contracts/
+
+USER 10001:10001
+CMD ["python", "-m", "app.research.t7sonic_history_cli", "--help"]
