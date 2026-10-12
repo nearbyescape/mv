@@ -88,6 +88,8 @@ def run_private_paper_loop(
     clock_ms=None,
     sleep=None,
     capture=None,
+    durable_sql_sink=None,
+    sql_journal_approved: bool = False,
     stop_requested=None,
     max_cycles: int | None = None,
 ) -> dict:
@@ -103,6 +105,11 @@ def run_private_paper_loop(
         type(max_cycles) is not int or not 1 <= max_cycles <= 288
     ):
         raise ValueError("Invalid bounded operator cycle count")
+    if sql_journal_approved is True:
+        if not callable(durable_sql_sink):
+            raise PermissionError("Approved V7 journal requires an explicit fenced SQL sink")
+    elif durable_sql_sink is not None or sql_journal_approved is not False:
+        raise PermissionError("Database sink forbidden without separate SQL-paper approval")
     folder = _private_directory(state_dir)
     now = clock_ms if clock_ms is not None else _clock_ms
     sleeper = sleep if sleep is not None else time.sleep
@@ -145,6 +152,20 @@ def run_private_paper_loop(
                     receipt.get("telegram_messages_sent") != 0 or
                     receipt.get("orders_submitted") != 0):
                 raise ValueError("Private runner returned unexpected publication or boundary")
+            if sql_journal_approved:
+                sql_result = durable_sql_sink(receipt)
+                if (not isinstance(sql_result, dict) or
+                        sql_result.get("status") not in (
+                            "FENCED_V7_PRIVATE_SQL_CYCLE_NO_CLIENT_SEND",
+                            "FENCED_V7_PRIVATE_SQL_EXACT_REPLAY_NO_CLIENT_SEND",
+                        ) or
+                        sql_result.get("decision_boundary_ms") != upcoming or
+                        sql_result.get("source_sha256") != receipt.get("original_http_sha256") or
+                        sql_result.get("markets_evaluated") != 6 or
+                        sql_result.get("client_publication_authorized") is not False or
+                        sql_result.get("telegram_messages_sent") != 0 or
+                        sql_result.get("orders_submitted") != 0):
+                    raise ValueError("Fenced V7 SQL sink rejected or misreported publication")
             stored += 1
         except Exception as exc:
             # Each failed future boundary is a GAP, not an invented
@@ -171,7 +192,8 @@ def run_private_paper_loop(
         "status": "V7_PRIVATE_PAPER_SCHEDULER_STOPPED_NO_SEND",
         "completed_cycles": attempted,
         "durably_stored_cycles": stored,
-        "production_database_writes": False,
+        "production_database_writes": sql_journal_approved and stored > 0,
+        "private_sql_journal_approved": sql_journal_approved,
         "client_publication_authorized": False,
         "telegram_messages_sent": 0,
         "orders_submitted": 0,
