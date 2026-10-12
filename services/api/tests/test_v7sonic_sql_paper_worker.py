@@ -257,12 +257,12 @@ class V7SQLPaperWorkerTests(TestCase):
                 if "version_num" in str(sql):
                     return self.revision
                 return None if params["table"]==self.missing else params["table"]
-        worker._check_private_sql_ready(Fake("0009"))
+        worker._check_private_sql_ready(Fake("0010"))
         with self.assertRaisesRegex(RuntimeError,"exact applied migration"):
-            worker._check_private_sql_ready(Fake("0008"))
+            worker._check_private_sql_ready(Fake("0009"))
         with self.assertRaisesRegex(RuntimeError,"table absent"):
             worker._check_private_sql_ready(
-                Fake("0009",missing="v7_decision_records")
+                Fake("0010",missing="v7_decision_records")
             )
 
 
