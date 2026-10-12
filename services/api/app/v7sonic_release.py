@@ -40,7 +40,7 @@ def _ist_open(ms: int) -> bool:
 
 def _hash_plan(plan: dict) -> str:
     return sha256(json.dumps(
-        {key: value for key, value in plan.items() if key != "candidate_sha256"},
+        {key: value for key, value in plan.items() if key not in ("candidate_sha256", "delivery_status")},
         sort_keys=True, separators=(",", ":"), allow_nan=False,
     ).encode()).hexdigest()
 
