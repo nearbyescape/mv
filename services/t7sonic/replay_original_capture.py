@@ -79,6 +79,64 @@ def replay_original(receipt):
     }
 
 
+def replay_full_original_paper_analysis(receipt):
+    """Re-run the unchanged six-market decision engine on ORIGINAL saved bytes.
+
+    The original HTTP bodies and receipt timestamp are verified, then reused
+    exactly as they were received on the VPS. This is a delayed offline
+    diagnostic, NOT a newly generated live actionable signal. Every field
+    remains fail-closed. No network, trading, accounts or Telegram.
+    """
+    hash_proof=replay_original(receipt)
+    boundary=receipt["decision_boundary_ms"]
+    source={
+        symbol:{
+            frame:_decode(receipt["kline_bodies"][symbol][frame])
+            for frame in FRAMES
+        }
+        for symbol in MARKETS
+    }
+    books={
+        symbol:_decode(receipt["quote_bodies"][symbol])
+        for symbol in MARKETS
+    }
+    metadata=_decode(receipt["exchange_info_body"])
+    receipts=receipt["quote_received_ms_local_clock_claim"]
+    evaluated=receipt.get("recorded_ms_local_clock_claim")
+    if type(evaluated) is not int:
+        raise ValueError("Saved source evaluation receipt time is mandatory")
+    from services.t7sonic.early_live_smoke import analyze
+    decision=analyze(boundary,source,books,metadata,receipts,evaluated)
+    if (decision["market_count"] != len(MARKETS) or
+            decision["client_publication_authorized"] is not False or
+            decision["telegram_enqueued"] is not False or
+            decision["orders_submitted"] is not False):
+        raise ValueError("Unexpected post-replay publication permission")
+    return {
+        "status":"ORIGINAL_SIX_MARKET_OFFLINE_PAPER_REPLAY_DO_NOT_TRADE",
+        "decision_boundary_ms":boundary,
+        "original_http_sha256_verified_count":
+            hash_proof["original_http_responses_hash_checked"],
+        "exact_candle_reconciliation_passed":
+            hash_proof["exact_reconciliation_passed"],
+        "price_field_discrepancies":hash_proof["price_field_discrepancies"],
+        "volume_field_discrepancies":hash_proof["volume_field_discrepancies"],
+        "paper_market_count":decision["market_count"],
+        "paper_candidate_count":decision["paper_candidate_count"],
+        "paper_decisions":decision["decisions"],
+        "per_market_quote_ages_ms":{
+            symbol:decision["source_proofs"][symbol]["quote_age_ms"]
+            for symbol in MARKETS
+        },
+        "historical_offline_replay_only":True,
+        "not_forward_performance_validation":True,
+        "original_exchange_bodies_unmodified":True,
+        "client_publication_authorized":False,
+        "telegram_messages_sent":0,
+        "orders_submitted":0,
+    }
+
+
 def _read_private_file(value):
     path=Path(value)
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
@@ -98,8 +156,12 @@ def main():
     parser=argparse.ArgumentParser(
         description="Replay original captured Binance OHLCV; NO NETWORK")
     parser.add_argument("--original-evidence",required=True)
+    parser.add_argument("--paper-decisions",action="store_true",
+                        help="OFFLINE replay six-market paper logic; never publish")
     args=parser.parse_args()
-    proof=replay_original(_read_private_file(args.original_evidence))
+    receipt=_read_private_file(args.original_evidence)
+    proof=(replay_full_original_paper_analysis(receipt)
+           if args.paper_decisions else replay_original(receipt))
     print(json.dumps(proof,sort_keys=True,indent=2))
 
 
