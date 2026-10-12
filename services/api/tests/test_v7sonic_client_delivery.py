@@ -294,6 +294,73 @@ class V7ClientOutboxTests(TestCase):
                 models.V7ClientDelivery,self.identity
             ).status,"unknown")
 
+
+    def test_existing_legacy_held_slot_blocks_client_release(self):
+        self.authorize()
+        marker = "e"*64
+        with self.sessions.begin() as session:
+            session.add(models.SignalDecision(
+                id=marker,symbol=self.candidate["symbol"],strategy="LEGACY-V4",
+                source_open_time=BOUNDARY-3_600_000,
+                outcome="PUBLISHED",reason="fixture",
+                updated_at=BOUNDARY,expires_at=BOUNDARY+60_000,
+                attempts=0,evidence_json={},
+            ))
+            session.flush()
+            session.add(models.SignalPlan(
+                id=marker,symbol=self.candidate["symbol"],strategy="LEGACY-V4",
+                created_at=BOUNDARY,expires_at=BOUNDARY+60_000,
+                plan_json={},evidence_json={},evidence_hash="a"*64,
+            ))
+            session.flush()
+            session.add(models.SignalSlot(
+                symbol=self.candidate["symbol"],
+                strategy="LEGACY-V4",signal_id=marker,state="held",
+            ))
+        with self.assertRaisesRegex(PermissionError,"Legacy held"):
+            self.stage()
+        with self.sessions() as session:
+            self.assertIsNone(session.get(models.V7ClientDelivery,self.identity))
+
+    def test_unknown_other_delivery_halts_client_dispatch_fence(self):
+        self.authorize()
+        self.stage()
+        other=next(x for x in self.packet["sealed_internal_paper_batch"][
+            "indicative_candidates"] if x["candidate_id"]!=self.identity)
+        other_id=other["candidate_id"]
+        with self.sessions() as session:
+            base_packet=dict(session.get(models.V7ClientApproval,self.identity).approval_json)
+        second={**base_packet,"candidate_id":other_id}
+        signature=hmac.new(SIGN_KEY,outbox._canonical(second),"sha256").hexdigest()
+        with self.sessions.begin() as session:
+            session.add(models.V7ClientApproval(
+                candidate_id=other_id,
+                decision_boundary_ms=BOUNDARY,
+                batch_sha256=self.packet["source_batch_sha256"],
+                destination_chat_id=CHAT_ID,approved_at_ms=BOUNDARY+500,
+                expires_at_ms=other["expires_at_ms"],
+                approval_json=second,signature_hmac=signature,state="APPROVED",
+            ))
+            session.add(models.V7ClientDelivery(
+                candidate_id=other_id,destination_chat_id=CHAT_ID,
+                status="unknown",attempts=1,
+                expires_at_ms=other["expires_at_ms"],
+                payload_json={"chat_id":CHAT_ID,"text":"other"},
+                payload_sha256="a"*64,claimed_at_ms=self.now,
+            ))
+        with patch.object(outbox,"_ist_open",return_value=True):
+            with self.sessions.begin() as session:
+                self.assertIsNone(outbox.claim_one(
+                    session,self.identity,now_ms=self.now,
+                    chat_id=CHAT_ID,signing_key=SIGN_KEY,
+                    client_release_enabled=True,
+                ))
+        with self.sessions() as session:
+            self.assertEqual(session.get(
+                models.V7ClientDelivery,self.identity
+            ).status,"pending")
+
+
     def test_staging_transaction_rollback_does_not_create_delivery(self):
         self.authorize()
         with patch.object(outbox,"_ist_open",return_value=True):
