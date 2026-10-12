@@ -114,6 +114,61 @@ def test_postgres_real_migration_up_down_and_reupgrade(pg):
         assert connection.scalar(text("SELECT count(*) FROM watchlist"))==2
 
 
+
+def test_postgres_v7_fenced_private_original_cycle_and_atomic_six_market_journal(pg, tmp_path, monkeypatch):
+    """PostgreSQL service-lease ownership and all six V7 rows, without client send."""
+    from pathlib import Path
+    from app import v7sonic_release as v7_release
+    from app.v7sonic_sql_bridge import (
+        stage_private_original_sql_cycle, JOURNAL_LEASE_NAME,
+    )
+    from app.models import (
+        V7DecisionCycle, V7DecisionRecord, V7DeliveryDraft,
+        SignalPlan, TelegramDelivery,
+    )
+    from services.t7sonic.early_live_smoke import _save_original_responses
+    from test_t7sonic_early_live_smoke import data
+    from test_t7sonic_forward_release_bridge import BOUNDARY as V7_BOUNDARY
+
+    tmp_path.chmod(0o700)
+    candles, books, info, book_receipts = data()
+    path, source_sha = _save_original_responses(
+        Path(tmp_path), V7_BOUNDARY,
+        candles, books, info, book_receipts, V7_BOUNDARY + 1500,
+    )
+    monkeypatch.setattr(v7_release, "_ist_open", lambda _: True)
+
+    with lease.singleton(JOURNAL_LEASE_NAME):
+        with lease.worker_transaction(JOURNAL_LEASE_NAME, pg.sessions) as session:
+            result = stage_private_original_sql_cycle(
+                session, original_path=path,
+                original_http_sha256=source_sha,
+                observed_now_ms=V7_BOUNDARY + 2000,
+            )
+            assert result["markets_evaluated"] == 6
+            assert result["telegram_messages_sent"] == 0
+            assert result["client_publication_authorized"] is False
+        with lease.worker_transaction(JOURNAL_LEASE_NAME, pg.sessions) as session:
+            again = stage_private_original_sql_cycle(
+                session, original_path=path,
+                original_http_sha256=source_sha,
+                observed_now_ms=V7_BOUNDARY + 2000,
+            )
+            assert again["status"] == "FENCED_V7_PRIVATE_SQL_EXACT_REPLAY_NO_CLIENT_SEND"
+
+    with pg.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(V7DecisionCycle)) == 1
+        assert session.scalar(select(func.count()).select_from(V7DecisionRecord)) == 6
+        assert session.scalar(select(func.count()).select_from(SignalPlan)) == 0
+        assert session.scalar(select(func.count()).select_from(TelegramDelivery)) == 0
+        assert session.scalar(select(func.count()).select_from(V7DeliveryDraft)) >= 0
+
+    with pytest.raises(lease.LeaseLost):
+        with lease.worker_transaction(JOURNAL_LEASE_NAME, pg.sessions):
+            raise AssertionError("Must fail before caller body without lease owner")
+
+
+
 def test_postgres_ai_request_budget_and_stale_owner_cannot_commit_commentary(pg):
     from app.ai.worker import prepare, finish
     from app.models import AIRequest, AIReview
