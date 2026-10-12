@@ -94,7 +94,9 @@ class PrivatePaperSchedulerTests(TestCase):
             stop[0]+=1
             return stop[0]>2
         with TemporaryDirectory(prefix="v7-schedule-pause-") as tmp:
-            Path(tmp,scheduler.PAUSE_NAME).write_text("paused\n")
+            marker = Path(tmp, scheduler.PAUSE_NAME)
+            marker.write_text("paused\n")
+            marker.chmod(0o600)
             with patch.object(release,"_ist_open",return_value=True):
                 result=scheduler.run_private_paper_loop(
                     tmp,public_network_approved=True,
