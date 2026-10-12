@@ -53,6 +53,8 @@ jobs:
       - run: docker run --rm mv-api-check python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
       - run: docker run --rm mv-api-check python -m services.t7sonic.release_scheduler
       - run: docker run --rm --network none mv-api-check python -m app.v7sonic_sql_paper_worker
+      - name: Syntax-check SHA-pinned VPS staging verification script
+        run: bash -n deploy/v7sonic-verify-isolated.sh
       - name: Validate V7 isolated Compose and reject any production/V4 service
         run: |
           V7_PREFLIGHT_IMAGE=mv-api-check docker compose --profile v7-private-diagnostics -f compose.v7sonic-isolated.yml config --format json > v7sonic-compose-normalized.json
