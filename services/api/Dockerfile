@@ -7,9 +7,11 @@ COPY packages/strategy /app/packages/strategy
 RUN pip install --no-cache-dir /app/packages/strategy
 COPY packages/contracts /app/packages/contracts
 COPY services/api /app/services/api
-# Bundle only the V7 source-verification dependencies used by the release adapter.
-# Do not install research archives, private Telegram-test tools or collectors.
+# Bundle the explicit V7 release and synthetic-test fixture dependency closure.
+# Do not install research archives or Telegram-test senders.
 COPY services/t7sonic/early_live_smoke.py /app/services/t7sonic/early_live_smoke.py
+COPY services/t7sonic/forward_acquisition.py /app/services/t7sonic/forward_acquisition.py
+COPY services/t7sonic/forward_release_bridge.py /app/services/t7sonic/forward_release_bridge.py
 COPY services/t7sonic/forensic_cross_resolution.py /app/services/t7sonic/forensic_cross_resolution.py
 COPY services/t7sonic/forward_live_quote.py /app/services/t7sonic/forward_live_quote.py
 COPY services/t7sonic/replay_original_capture.py /app/services/t7sonic/replay_original_capture.py
