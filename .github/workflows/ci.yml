@@ -52,6 +52,7 @@ jobs:
       - run: docker build -f services/api/Dockerfile -t mv-api-check .
       - run: docker run --rm mv-api-check python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
       - run: docker run --rm mv-api-check python -m services.t7sonic.release_scheduler
+      - run: docker run --rm --network none mv-api-check python -m app.v7sonic_sql_paper_worker
       - run: docker build -f services/api/Dockerfile.daily-report -t mv-report-check .
       - run: |
           docker run --rm mv-report-check python -c \
