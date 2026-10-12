@@ -12,6 +12,8 @@ COPY services/api /app/services/api
 COPY services/t7sonic/early_live_smoke.py /app/services/t7sonic/early_live_smoke.py
 COPY services/t7sonic/forward_acquisition.py /app/services/t7sonic/forward_acquisition.py
 COPY services/t7sonic/forward_release_bridge.py /app/services/t7sonic/forward_release_bridge.py
+COPY services/t7sonic/forward_paper_ledger.py /app/services/t7sonic/forward_paper_ledger.py
+COPY services/t7sonic/release_capture_worker.py /app/services/t7sonic/release_capture_worker.py
 COPY services/t7sonic/forensic_cross_resolution.py /app/services/t7sonic/forensic_cross_resolution.py
 COPY services/t7sonic/forward_live_quote.py /app/services/t7sonic/forward_live_quote.py
 COPY services/t7sonic/replay_original_capture.py /app/services/t7sonic/replay_original_capture.py
