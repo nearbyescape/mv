@@ -67,7 +67,7 @@ def build_offline_preview(
     digest = sha256(json.dumps({
         "policy": POLICY,
         "decision_boundary_ms": snapshots[0]["as_of_ms"],
-        "source_hashes": [p["source_sha256"] for p in plans],
+        "decision_records": plans,
         "candidate_ids": [p["candidate_id"] for p in proposals],
     }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return {
@@ -80,6 +80,7 @@ def build_offline_preview(
         "no_candidate": absent,
         "indicative_candidates": proposals,
         "candidate_count": len(proposals),
+        "decision_records": plans,
         "batch_sha256": digest,
         "market_data_source_authenticated": False,
         "external_receipt_timestamp_verified": False,
