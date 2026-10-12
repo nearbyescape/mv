@@ -21,6 +21,7 @@ on:
       - services/t7sonic/forward_tsa_handoff.py
       - services/t7sonic/forward_retention.py
       - services/t7sonic/forward_remote_retention.py
+      - services/t7sonic/forward_release_bridge.py
   pull_request:
     branches:
       - main
@@ -39,6 +40,7 @@ on:
       - services/t7sonic/forward_tsa_handoff.py
       - services/t7sonic/forward_retention.py
       - services/t7sonic/forward_remote_retention.py
+      - services/t7sonic/forward_release_bridge.py
   workflow_dispatch:
 
 permissions:
