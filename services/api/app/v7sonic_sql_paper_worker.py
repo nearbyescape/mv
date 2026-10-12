@@ -108,14 +108,16 @@ def _stage_final_capture(summary: dict, *, clock_ms=_now_ms) -> dict:
             original_http_sha256=source_digest,
             observed_now_ms=clock_ms(),
         )
-    if (
-        stored["decision_boundary_ms"] != summary["decision_boundary_ms"]
-        or stored["batch_sha256"] != summary["paper_batch_sha256"]
-        or stored["client_publication_authorized"] is not False
-        or stored["telegram_messages_sent"] != 0
-        or stored["orders_submitted"] != 0
-    ):
-        raise ValueError("Fenced SQL/private capture batch mismatch")
+        # Check the independent SQLite-cycle fingerprint BEFORE the DB
+        # transaction commits, otherwise a forged summary could leave rows.
+        if (
+            stored["decision_boundary_ms"] != summary["decision_boundary_ms"]
+            or stored["batch_sha256"] != summary["paper_batch_sha256"]
+            or stored["client_publication_authorized"] is not False
+            or stored["telegram_messages_sent"] != 0
+            or stored["orders_submitted"] != 0
+        ):
+            raise ValueError("Fenced SQL/private capture batch mismatch")
     return stored
 
 
