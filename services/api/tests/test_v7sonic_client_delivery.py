@@ -487,6 +487,38 @@ class V7ClientOutboxTests(TestCase):
         with self.assertRaisesRegex(PermissionError, "quantity, cost or geometry"):
             self.stage()
 
+    def test_signed_two_percent_aggregate_risk_ceiling_enforced(self):
+        # Existing 2% risk consumes the entire portfolio before a new idea.
+        review = {**self.risk_snapshot(), "reserved_loss_usdt": "20000000"}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "Portfolio or venue"):
+            self.stage()
+
+    def test_signed_gross_notional_two_times_equity_cap_enforced(self):
+        review = {**self.risk_snapshot(),
+                  "gross_open_notional_usdt": "2000000000"}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "Portfolio or venue"):
+            self.stage()
+
+    def test_four_open_slots_exhaust_portfolio_allowance(self):
+        review = {**self.risk_snapshot(), "open_positions": 4,
+                  "active_symbols": [
+                      "BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT",
+                  ]}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "portfolio slots"):
+            self.stage()
+
     def test_staging_transaction_rollback_does_not_create_delivery(self):
         self.authorize()
         with patch.object(outbox,"_ist_open",return_value=True):
