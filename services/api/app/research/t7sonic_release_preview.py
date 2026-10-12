@@ -105,7 +105,7 @@ def format_explicit_test_message(candidate: dict) -> str:
         f"Stop (estimated): {candidate['stop_loss']}\n"
         f"TP1 / TP2: {candidate['take_profit_1']} / "
         f"{candidate['take_profit_2']}\n"
-        f"Assumed-cost net R at TP2: {candidate['estimated_net_rr_tp2']}\n"
+        f"Modeled net R if both 50/50 TPs fill: {candidate['estimated_net_rr_50_50_if_both_tps_filled']}\n"
         "UNVALIDATED research signal. No actual fill or profitable edge "
         "demonstrated. Not authorized for client publication."
     )
