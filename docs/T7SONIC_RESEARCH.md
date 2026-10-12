@@ -1510,3 +1510,70 @@ or enable trading, Telegram or production restart.
 The proposed October 15 start remains conditional
 and must move forward if real prospective controls
 are not certified before observation begins.
+
+## Phase 2Y — VPS verification evidence
+
+The operator ran pinned revision
+`85e7efdad2c2b563f593a6628f34b3d100fb3c3b`
+on the VPS. All **140** offline research tests passed in
+6.941s, then two synthetic portable evidence bundles
+passed integrity verification: WATCH with **24** raw source
+records, and explicit DATA GAP with **0** source records.
+The original production engine remained stopped and
+restart=no; no orders or Telegram signals were sent.
+
+The deliberate duplicate-ZIP-member rejection fixture
+printed a Python `zipfile` UserWarning when constructing
+an intentionally malformed archive. This is not a failed
+read verification. Phase 2Z narrows suppression solely to
+that expected warning in the negative test fixture.
+
+Operator evidence artifacts (all stored on the VPS):
+- `/var/tmp/t7sonic-phase2y-report-CBz0pU9W.json`
+  SHA256 `9be0ac869010536521b9bf3972440442a7ce7f644d0df32a17a7214de0284cf7`
+- `/var/tmp/t7sonic-phase2y-watch-cfdlMthg.zip`
+  SHA256 `394f90cb8b8c51b6f3c5e38da649bfd9c59409dcf4fb20d73af5abd685871584`
+- `/var/tmp/t7sonic-phase2y-gap-II6V8qz4.zip`
+  SHA256 `88156129b48bbd8939f288aedbff2c189bc8a4a440e756c9039613dceeec179c`
+
+### Phase 2Z — offline versioned remote-retention protocol
+
+The research-only module
+`services/t7sonic/forward_remote_retention.py` computes
+a canonical SHA256-derived object key from a previously
+fully validated Phase2Y evidence ZIP, and defines an
+external-storage contract requiring create-if-absent
+(no overwrite/delete), provider object version IDs,
+provider-enforced COMPLIANCE retention through at least
+2027-04-01T00:00:00Z, server-side SHA256 checksums,
+and an independently obtained exact-version read-back.
+It also binds the decision digest and the unsigned TSA
+witness imprint into the plan. The independent remote
+storage account and provider are **NOT SELECTED**.
+
+The verification seam accepts only an explicit
+`OFFLINE_FAKE_PROVIDER_ONLY` metadata receipt and the
+corresponding locally supplied byte-for-byte read-back.
+It rechecks each embedded raw source digest and the
+associated decision/witness bundle using Phase2Y. It
+rejects missing/corrupted/truncated/swapped bytes, a
+version mismatch in the fake test backend, wrong object
+keys or lengths, forged claim of a real provider, unsafe
+or expired retention settings, and false claims of
+independent read-back, signed provider evidence, external
+timing or trading authorization.
+
+**This is not off-VPS replication.** Its fake backend
+exists only in synthetic unit tests. Self-reported object
+locks/version IDs are not independently trustworthy.
+There is no selected real provider, account, egress rule,
+SDK, remote write/read API, immutable off-server audit
+trail or independently witnessed upload. No real exchange
+candle bytes were uploaded, and no honest claim of
+forward paper observation or profitability can be made.
+A separate operator-owned off-server account,
+provider-specific conditional-write/versioning API,
+independently approved cryptographic trust policy, remote
+retention configuration and verified source delivery
+are required before live certification. Research remains
+isolated; trading and Telegram publication stay disabled.
