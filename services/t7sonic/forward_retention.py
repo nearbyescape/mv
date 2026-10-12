@@ -15,7 +15,7 @@ from hashlib import sha256
 from io import BytesIO
 import json
 import re
-from zipfile import ZipFile, ZipInfo, ZIP_STORED
+from zipfile import BadZipFile, ZipFile, ZipInfo, ZIP_STORED
 
 from app.research.t7sonic_forward_coverage import (
     GAP_STATUS, WATCH_STATUS, validate_synthetic_packet,
@@ -146,9 +146,10 @@ def inspect_offline_bundle(blob: bytes) -> dict:
                 raise ValueError("Noncanonical evidence manifest order")
             if any(
                 i.compress_type != ZIP_STORED or
-                i.file_size > MAX_BLOB_BYTES if i.filename not in (
-                    PACKET_FILE, WITNESS_FILE,
-                ) else i.file_size > 65_536
+                i.file_size > (
+                    65_536 if i.filename in (PACKET_FILE, WITNESS_FILE)
+                    else MAX_BLOB_BYTES
+                ) or (i.flag_bits & 0x1)
                 for i in members
             ):
                 raise ValueError("Unsafe compression or oversized source member")
@@ -174,7 +175,7 @@ def inspect_offline_bundle(blob: bytes) -> dict:
                 sym, frame = entry["symbol"], entry["frame"]
                 raw[sym][frame] = archive.read(f"source/{sym}/{frame}.bin")
             _payloads(packet, witness, raw)
-    except (OSError, EOFError, KeyError, json.JSONDecodeError) as exc:
+    except (OSError, EOFError, KeyError, BadZipFile, RuntimeError, json.JSONDecodeError) as exc:
         raise ValueError("Corrupt offline evidence archive") from exc
     return {
         "status": "OFFLINE_BUNDLE_INTEGRITY_PASS_NOT_REMOTE_EVIDENCE",
