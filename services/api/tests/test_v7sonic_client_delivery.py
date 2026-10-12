@@ -48,8 +48,32 @@ class V7ClientOutboxTests(TestCase):
     def tearDown(self):
         self.engine.dispose()
 
+    def risk_snapshot(self):
+        return {
+            "schema": 1,
+            "candidate_id": self.identity,
+            "original_http_sha256": ORIGINAL,
+            "observed_at_ms": BOUNDARY + 500,
+            "snapshot_origin": "OPERATOR_RECONCILED_UNATTESTED",
+            "equity_usdt": "1000000000",
+            "reserved_loss_usdt": "0",
+            "gross_open_notional_usdt": "0",
+            "open_positions": 0,
+            "active_symbols": [],
+            "candidate_quantity": "1",
+            "market_min_quantity": "0.001",
+            "market_max_quantity": "100",
+            "market_step": "0.001",
+            "minimum_notional_usdt": "1",
+            "fee_bps_per_side": "4",
+            "slippage_bps_per_side": "4",
+            "funding_buffer_bps": "2",
+            "contract_source_sha256": "c" * 64,
+        }
+
     def authorize(self, *, certified=True, changed=None):
         candidate=self.candidate
+        review = self.risk_snapshot()
         packet={
             "schema":1,"status":"V7_RELEASE_ELIGIBLE_REVIEWED",
             "candidate_id":self.identity,
@@ -59,7 +83,8 @@ class V7ClientOutboxTests(TestCase):
             "approved_at_ms":BOUNDARY+500,
             "expires_at_ms":candidate["expires_at_ms"],
             "release_operator_id":"test-human-reviewer",
-            "risk_review_sha256":"d"*64,
+            "risk_review_sha256":outbox._digest(review),
+            "risk_review":review,
             "portfolio_positions_independently_reviewed":True,
             "source_quality_reviewed":True,
             "client_publication_authorized":True,
@@ -416,6 +441,51 @@ class V7ClientOutboxTests(TestCase):
                 models.V7ClientDelivery,self.identity
             ).status,"pending")
 
+
+
+    def test_signed_operator_portfolio_math_rejects_excess_risk(self):
+        review = {**self.risk_snapshot(), "equity_usdt": "1"}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "Portfolio or venue"):
+            self.stage()
+        with self.sessions() as session:
+            self.assertIsNone(session.get(models.V7ClientDelivery, self.identity))
+
+    def test_signed_risk_snapshot_cannot_be_old_or_change_source(self):
+        review = {**self.risk_snapshot(), "observed_at_ms": BOUNDARY - 12_000}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "Stale operator"):
+            self.stage()
+        with self.sessions.begin() as session:
+            approval = session.get(models.V7ClientApproval, self.identity)
+            review = {**review, "observed_at_ms": BOUNDARY + 500,
+                      "original_http_sha256": "f" * 64}
+            approval.approval_json = {
+                **approval.approval_json,
+                "risk_review": review,
+                "risk_review_sha256": outbox._digest(review),
+            }
+            approval.signature_hmac = hmac.new(
+                SIGN_KEY, outbox._canonical(approval.approval_json),
+                "sha256"
+            ).hexdigest()
+        with self.assertRaisesRegex(PermissionError, "candidate or source"):
+            self.stage()
+
+    def test_signed_venue_quantity_increment_and_fee_buffers_mandatory(self):
+        review = {**self.risk_snapshot(), "candidate_quantity": "0.00015"}
+        self.authorize(changed={
+            "risk_review": review,
+            "risk_review_sha256": outbox._digest(review),
+        })
+        with self.assertRaisesRegex(PermissionError, "quantity, cost or geometry"):
+            self.stage()
 
     def test_staging_transaction_rollback_does_not_create_delivery(self):
         self.authorize()
