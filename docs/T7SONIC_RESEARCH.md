@@ -1404,3 +1404,53 @@ The 2026-10-15 scheduled forward start remains
 **provisional**; a later genuinely prospective, predeclared
 window is mandatory if operational integrity controls are
 not externally approved before it starts.
+
+## Phase 2W — exact-revision VPS certification, offline only
+
+The operator completed the VPS check at
+`a67e6e1789511990f26567746bce8b849b9a2c12`
+under `umask 077`, using installed
+`OpenSSL 3.0.13 30 Jan 2024`.
+The complete synthetic/offline test suite passed:
+**126 tests**, 6.837 seconds, `OK`.
+
+Evidence `/var/tmp/t7sonic-phase2w-dxcvX79W.json`,
+SHA256
+`f4c87aca29e161c0366beb14e5658be0952e3c39e6256b96cac0ac0c5d7b1e0e`.
+
+Mock signer tests did NOT select an independent outside TSA;
+the VPS remained network-denied by default and the original
+MV production engine was stopped with restart=no.
+There was no real signed outside timestamp, live market
+collection, paper study, order or Telegram publication.
+
+### Phase 2X — offline provider-neutral timestamp HTTP handoff
+
+An additional `services/t7sonic/forward_tsa_handoff.py`
+provides an RFC3161-over-HTTPS *request plan* based on the
+full-six-market Phase2V witness manifest and Phase2W
+nonce-bearing SHA256 query. RFC3161 HTTP uses
+`application/timestamp-query` for the POST body
+and `application/timestamp-reply` for the DER response;
+see RFC3161 section 3.4 and RFC editor erratum 1879.
+
+The offline contract rejects ambiguous URLs, non-HTTPS,
+credentials, fragments, local/IP destinations, unknown
+policy OIDs, absent preapproved CA fingerprints,
+queries mismatching the witness imprint, redirects,
+non-200 or malformed/oversized response envelopes.
+The response-envelope inspector NEVER elevates an
+HTTP success to a verified independent signed timestamp.
+
+The planned transport intentionally provides **no actual
+HTTP client** and no default TSA selection, no real CA
+pin and no certificate attestation. The proposed provider
+host/policy/root must be independently identified and
+documented, and signed responses independently checked
+by Phase2W. Network egress DNS/IP restrictions, off-server
+append-only raw response retention, outage coverage and
+complete simultaneous live sampling remain unimplemented.
+The October 15 prospective start remains provisional,
+and expired observation boundaries must never be backfilled
+from later price outcomes or unsigned local journals.
+No research PR code is merged into production.
