@@ -81,6 +81,75 @@ class ContractAndQuoteTests(unittest.TestCase):
         self.assertEqual(proof["book_ticker_sha256"],
                          sha256(raw).hexdigest())
 
+    def test_actual_binance_seven_field_book_schema_all_six_markets(self):
+        # All six operator-observed real Binance USD-M books had this
+        # additional field. No prices/quantities/timestamps are normalized.
+        observed_ids = (
+            11797344941317, 11797344957232, 11797344958594,
+            11797344926985, 11797344934803, 11797344908667,
+        )
+        original_contract = contract_data()
+        for symbol, last_id in zip(MARKETS, observed_ids):
+            with self.subTest(symbol=symbol):
+                book = json.loads(book_data(symbol, event_ms=BOUNDARY+500))
+                book["lastUpdateId"] = last_id
+                raw = json.dumps(book, separators=(",", ":")).encode()
+                q, proof = parse_book_ticker(
+                    symbol, BOUNDARY, raw,
+                    extract_contract_rule(original_contract, symbol),
+                    received_ms=BOUNDARY+750,
+                    evaluated_ms=BOUNDARY+1200,
+                )
+                self.assertEqual(q["observed_at_ms"],BOUNDARY+500)
+                self.assertEqual(proof["book_last_update_id_unattested"],last_id)
+                self.assertEqual(proof["book_schema_variant"],
+                                 "BINANCE_USDM_7_FIELDS_WITH_LAST_UPDATE_ID")
+                self.assertFalse(proof["trading_authorized"])
+                self.assertFalse(proof["independent_receipt_witness_verified"])
+                self.assertEqual(proof["book_ticker_sha256"],
+                                 sha256(raw).hexdigest())
+
+    def test_bad_last_update_id_or_unapproved_eighth_field_refused(self):
+        venue = extract_contract_rule(contract_data(), SYMBOL)
+        for value in (0, -1, "11797344941317", True, None, 0.5, []):
+            book = json.loads(book_data())
+            book["lastUpdateId"] = value
+            with self.subTest(value=value),self.assertRaisesRegex(
+                    ValueError, "schema mismatch"):
+                parse_book_ticker(
+                    SYMBOL, BOUNDARY, json.dumps(book).encode(), venue,
+                    received_ms=BOUNDARY+1000, evaluated_ms=BOUNDARY+1500,
+                )
+        for extra in ("debug", "timestamp", "E", "lastUpdateID"):
+            book=json.loads(book_data())
+            book["lastUpdateId"]=11797344941317
+            book[extra]=123
+            with self.subTest(extra=extra),self.assertRaisesRegex(
+                    ValueError,"schema mismatch"):
+                parse_book_ticker(
+                    SYMBOL, BOUNDARY, json.dumps(book).encode(), venue,
+                    received_ms=BOUNDARY+1000,evaluated_ms=BOUNDARY+1500,
+                )
+
+    def test_seven_field_schema_keeps_timestamp_and_price_vetoes(self):
+        venue=extract_contract_rule(contract_data(), SYMBOL)
+        for key, bad in (
+            ("time", BOUNDARY-1),
+            ("time", BOUNDARY+2000),
+            ("bidPrice", "100.02"),
+            ("askPrice", "100.005"),
+            ("bidQty", "0"),
+            ("symbol", "SOLUSDT"),
+        ):
+            book=json.loads(book_data())
+            book["lastUpdateId"]=11797344941317
+            book[key]=bad
+            with self.subTest(key=key),self.assertRaises(ValueError):
+                parse_book_ticker(
+                    SYMBOL,BOUNDARY,json.dumps(book).encode(),venue,
+                    received_ms=BOUNDARY+1000,evaluated_ms=BOUNDARY+1500,
+                )
+
     def test_nontrading_quarterly_wrong_quote_market_and_missing_filters_refused(self):
         for field, value in (
             ("status", "BREAK"),
