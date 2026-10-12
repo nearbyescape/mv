@@ -5,6 +5,7 @@ from copy import deepcopy
 from hashlib import sha256
 from io import BytesIO
 from zipfile import ZipFile, ZipInfo, ZIP_STORED
+import warnings
 import unittest
 
 from test_t7sonic_forward_witness import sample
@@ -56,9 +57,15 @@ def modified_zip(original, transform):
         items = [(i.filename, z.read(i.filename)) for i in z.infolist()]
     items = transform(items)
     dst = BytesIO()
-    with ZipFile(dst, "w", compression=ZIP_STORED) as z:
-        for name, raw in items:
-            z.writestr(name, raw)
+    # Duplicate ZIP entries are created intentionally to test that the
+    # reader refuses them; avoid confusing operators with a writer warning.
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", message=r"Duplicate name:.*", category=UserWarning
+        )
+        with ZipFile(dst, "w", compression=ZIP_STORED) as z:
+            for name, raw in items:
+                z.writestr(name, raw)
     return dst.getvalue()
 
 
