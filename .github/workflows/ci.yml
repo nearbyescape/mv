@@ -55,9 +55,14 @@ jobs:
       - run: docker run --rm --network none mv-api-check python -m app.v7sonic_sql_paper_worker
       - name: Syntax-check SHA-pinned VPS staging verification script
         run: bash -n deploy/v7sonic-verify-isolated.sh
-      - name: Validate V7 isolated Compose and reject any production/V4 service
+      - name: Validate V7 isolated Compose under operator umask 077
         run: |
+          umask 077
           V7_PREFLIGHT_IMAGE=mv-api-check docker compose --profile v7-private-diagnostics -f compose.v7sonic-isolated.yml config --format json > v7sonic-compose-normalized.json
+          test "$(stat -c %a v7sonic-compose-normalized.json)" = 600
+          # Only this uncredentialed preflight JSON is readable to the non-root container.
+          chmod 0644 v7sonic-compose-normalized.json
+          test "$(stat -c %a v7sonic-compose-normalized.json)" = 644
           docker run --rm --network none --read-only \
             -v "$PWD/v7sonic-compose-normalized.json:/tmp/v7sonic-compose-normalized.json:ro" \
             mv-api-check python -m app.v7sonic_compose_guard /tmp/v7sonic-compose-normalized.json
