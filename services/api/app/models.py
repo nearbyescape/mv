@@ -297,3 +297,49 @@ class TelegramDelivery(Base):
     payload_hash: Mapped[str] = mapped_column(String(64))
     evidence_hash: Mapped[str] = mapped_column(String(64))
     plan_hash: Mapped[str] = mapped_column(String(64))
+
+
+# V7Sonic has separate persistence from the legacy hourly strategy.
+# These rows describe INTERNAL, UNPUBLISHABLE five-minute paper decisions.
+# No legacy Telegram worker scans these tables.
+class V7DecisionCycle(Base):
+    __tablename__ = "v7_decision_cycles"
+    boundary_ms: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    strategy: Mapped[str] = mapped_column(String(80), nullable=False)
+    batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    original_http_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    receipt_recorded_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    batch_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class V7DecisionRecord(Base):
+    __tablename__ = "v7_decision_records"
+    __table_args__ = (
+        UniqueConstraint("boundary_ms", "symbol", name="uq_v7_decision_boundary_market"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    boundary_ms: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("v7_decision_cycles.boundary_ms"), nullable=False
+    )
+    symbol: Mapped[str] = mapped_column(String(30), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    candidate_id: Mapped[str | None] = mapped_column(String(64), unique=True)
+    expires_at_ms: Mapped[int | None] = mapped_column(BigInteger)
+    decision_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    source_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class V7DeliveryDraft(Base):
+    __tablename__ = "v7_delivery_drafts"
+    candidate_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("v7_decision_records.candidate_id"), primary_key=True
+    )
+    boundary_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    symbol: Mapped[str] = mapped_column(String(30), nullable=False)
+    destination_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    state: Mapped[str] = mapped_column(String(32), nullable=False)
+    text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
