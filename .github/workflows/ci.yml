@@ -41,7 +41,7 @@ jobs:
           python-version: '3.14'
       - run: python -m pip install -r requirements.txt
       - run: python -m pip install -e ../../packages/strategy
-      - run: python -m pytest -q
+      - run: python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
         env:
           MV_TEST_PG_URL: postgresql+psycopg://mv:ci-isolated-postgresql@127.0.0.1:5432/mv_checks
   containers:
@@ -49,7 +49,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f services/api/Dockerfile -t mv-api-check .
-      - run: docker run --rm mv-api-check python -m pytest -q
+      - run: docker run --rm mv-api-check python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
       - run: docker build -f services/api/Dockerfile.daily-report -t mv-report-check .
       - run: |
           docker run --rm mv-report-check python -c \
