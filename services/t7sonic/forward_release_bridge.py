@@ -15,6 +15,9 @@ from services.t7sonic.forward_acquisition import (
     ROWS_BY_FRAME, parse_response_bytes, request_plan,
     assemble_offline_snapshot,
 )
+from services.t7sonic.forward_live_quote import (
+    extract_contract_rule, parse_book_ticker,
+)
 
 
 def preview_from_raw_market_responses(
@@ -64,6 +67,62 @@ def preview_from_raw_market_responses(
         "real_https_performed": False,
         "actual_exchange_source_authenticated": False,
         "external_clock_receipt_verified": False,
+        "telegram_enqueued": False,
+        "client_publication_authorized": False,
+        "real_money_orders_authorized": False,
+    }
+
+
+def preview_from_raw_candles_and_books(
+    boundary_ms: int, source_responses: dict,
+    raw_books_by_symbol: dict, exchange_info_body: bytes,
+    *, received_ms_by_symbol: dict,
+    evaluated_ms_by_symbol: dict,
+    active_symbols: tuple[str, ...] = (),
+    previously_seen_candidate_ids: tuple[str, ...] = (),
+) -> dict:
+    """Exact six-symbol Binance-shaped OHLCV + top-of-book offline preview.
+
+    Rejects missing/extra markets; local source receipt and contract filter
+    validity do not certify exchange authenticity or make a publishable signal.
+    No network, real Binance requests, database or Telegram calls.
+    """
+    expected = set(MARKETS)
+    if (not isinstance(raw_books_by_symbol, dict) or
+            set(raw_books_by_symbol) != expected or
+            not isinstance(received_ms_by_symbol, dict) or
+            set(received_ms_by_symbol) != expected or
+            not isinstance(evaluated_ms_by_symbol, dict) or
+            set(evaluated_ms_by_symbol) != expected):
+        raise ValueError("All six top-of-book responses and timestamps required")
+    quotes, quote_proofs, contract_rules = [], {}, {}
+    for symbol in MARKETS:
+        contract = extract_contract_rule(exchange_info_body, symbol)
+        quote, proof = parse_book_ticker(
+            symbol, boundary_ms, raw_books_by_symbol[symbol],
+            contract,
+            received_ms=received_ms_by_symbol[symbol],
+            evaluated_ms=evaluated_ms_by_symbol[symbol],
+        )
+        quotes.append(quote)
+        quote_proofs[symbol] = proof
+        contract_rules[symbol] = contract
+
+    result = preview_from_raw_market_responses(
+        boundary_ms, source_responses, quotes,
+        active_symbols=active_symbols,
+        previously_seen_candidate_ids=previously_seen_candidate_ids,
+    )
+    if result["markets_evaluated"] != len(MARKETS):
+        raise ValueError("Incomplete six-market paper decision")
+    return {
+        **result,
+        "status": "OFFLINE_24_CANDLE_SOURCES_PLUS_6_BOOK_QUOTES_UNATTESTED",
+        "quote_proofs": quote_proofs,
+        "venue_contracts": contract_rules,
+        "top_of_book_responses_validated": 6,
+        "exchange_origin_independently_authenticated": False,
+        "real_network_used": False,
         "telegram_enqueued": False,
         "client_publication_authorized": False,
         "real_money_orders_authorized": False,
