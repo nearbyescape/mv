@@ -30,6 +30,7 @@ on:
       - services/t7sonic/forward_private_telegram.py
       - services/t7sonic/private_telegram_cli.py
       - services/t7sonic/forward_risk_gate.py
+      - services/t7sonic/forward_portfolio_risk.py
   pull_request:
     branches:
       - main
@@ -57,6 +58,7 @@ on:
       - services/t7sonic/forward_private_telegram.py
       - services/t7sonic/private_telegram_cli.py
       - services/t7sonic/forward_risk_gate.py
+      - services/t7sonic/forward_portfolio_risk.py
   workflow_dispatch:
 
 permissions:
