@@ -53,6 +53,15 @@ jobs:
       - run: docker run --rm mv-api-check python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
       - run: docker run --rm mv-api-check python -m services.t7sonic.release_scheduler
       - run: docker run --rm --network none mv-api-check python -m app.v7sonic_sql_paper_worker
+      - name: Validate V7 isolated Compose and reject any production/V4 service
+        run: |
+          V7_PREFLIGHT_IMAGE=mv-api-check docker compose --profile v7-private-diagnostics -f compose.v7sonic-isolated.yml config --format json > v7sonic-compose-normalized.json
+          docker run --rm --network none --read-only \
+            -v "$PWD/v7sonic-compose-normalized.json:/tmp/v7sonic-compose-normalized.json:ro" \
+            mv-api-check python -m app.v7sonic_compose_guard /tmp/v7sonic-compose-normalized.json
+      - name: V7 isolated preflight with no network, DB, Telegram or V4 runtime
+        run: |
+          V7_PREFLIGHT_IMAGE=mv-api-check docker compose --profile v7-private-diagnostics -f compose.v7sonic-isolated.yml run --rm --no-deps v7-preflight
       - run: docker build -f services/api/Dockerfile.daily-report -t mv-report-check .
       - run: |
           docker run --rm mv-report-check python -c \
