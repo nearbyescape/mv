@@ -145,41 +145,46 @@ def optional_public_paper_capture(
     now_ms = time.time_ns()//1_000_000
     if not boundary_ms <= now_ms <= boundary_ms+MAX_START_LAG_MS:
         raise ValueError("Missed or future decision boundary; cannot backfill")
+    # Phase 1: fetch all completed-candle windows plus venue metadata.
+    # Quotes must be captured as close as practical to analysis, not
+    # alongside slow historical klines (which can make books stale).
     with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_READS) as pool:
-        jobs = {}
+        historical = {}
         for symbol in MARKETS:
             for frame in ROWS_BY_FRAME:
-                p = request_plan(symbol, frame, boundary_ms)
+                request = request_plan(symbol, frame, boundary_ms)
                 future = pool.submit(
-                    optional_https_get, p,
-                    network_approved=True, timeout_seconds=KLINE_TIMEOUT_SECONDS,
+                    optional_https_get, request,
+                    network_approved=True,
+                    timeout_seconds=KLINE_TIMEOUT_SECONDS,
                 )
-                jobs[future] = ("kline", symbol, frame)
+                historical[future] = (symbol, frame)
+        info_job = pool.submit(
+            optional_public_http_get, "exchangeInfo",
+            network_approved=True,
+            timeout_seconds=PUBLIC_TIMEOUT_SECONDS,
+        )
+
+        sources = {symbol: {} for symbol in MARKETS}
+        for future in as_completed(historical):
+            symbol, frame = historical[future]
+            sources[symbol][frame] = future.result()
+        info = info_job.result()
+
+        # Phase 2: collect all six live best-bid/ask quotes only after all
+        # prior source downloads have completed. No signal is returned on
+        # ANY missing quote or late/failed source, and there are no retries.
+        quote_jobs = {}
+        for symbol in MARKETS:
             future = pool.submit(
                 optional_public_http_get, "bookTicker",
                 symbol=symbol, network_approved=True,
                 timeout_seconds=PUBLIC_TIMEOUT_SECONDS,
             )
-            jobs[future] = ("book", symbol, None)
-        info_job = pool.submit(
-            optional_public_http_get, "exchangeInfo",
-            network_approved=True, timeout_seconds=PUBLIC_TIMEOUT_SECONDS,
-        )
-        jobs[info_job] = ("info", None, None)
-
-        sources = {symbol: {} for symbol in MARKETS}
+            quote_jobs[future] = symbol
         books = {}
-        info = None
-        # Failure will abort the whole cycle; we never publish partials.
-        for future in as_completed(jobs):
-            kind, symbol, frame = jobs[future]
-            response = future.result()
-            if kind == "kline":
-                sources[symbol][frame] = response
-            elif kind == "book":
-                books[symbol] = response
-            else:
-                info = response
+        for future in as_completed(quote_jobs):
+            books[quote_jobs[future]] = future.result()
 
     if info is None:
         raise ValueError("No venue metadata received")
