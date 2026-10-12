@@ -1962,3 +1962,58 @@ API. Independent observed paper outcomes, private
 real-provider test delivery, risk monitoring, rollback,
 and explicit operator sign-off are still mandatory
 release gates.
+
+## Manual one-shot real public market capture (operator gate)
+
+On 2026-10-12 the operator independently verified exact revision
+`fae8b180c6dfe03ec70d27723500740cac731d9f` on their VPS.
+The 238 research-only tests passed in 8.409 seconds, the production
+MV engine was stopped/restart=no, and zero external market requests
+or Telegram messages were performed. Both research and application
+CI subsequently passed at that revision.
+
+The separate `services/t7sonic/manual_live_capture_cli.py`
+provides an executable **read-only single-cycle operator gate**.
+With no flags it emits only an offline UTC clock preflight: current
+local time claim, next five-minute boundary, frozen six symbols,
+October 15–December 29 window eligibility and zero network contacts.
+It NEVER schedules multiple captures.
+
+The explicit live mode requires all three arguments
+`--capture-next-boundary`, `--network-approved` and
+`--paper-only-acknowledged`, plus `--output-dir` referencing
+an existing owner-owned 0700 absolute directory. It accepts only
+the **next** UTC 5-minute boundary in the frozen October 15
+00:00 UTC – December 29 00:00 UTC (exclusive) observation
+window, never past, future arbitrary dates or synthetic backfills.
+It waits until that boundary, performs exactly one bounded
+31-request Binance public market-data intake, and refuses late,
+partial, expired or stale results. It makes no Telegram requests,
+orders, account requests or production writes.
+
+Only a complete, fresh, six-market nonpublishable paper result
+is atomically written as owner-only 0600 local JSON without
+overwriting an existing boundary. The output is ONE local
+summary and does not yet retain source response bodies or
+provide independent timestamp witness, external replication,
+or real transaction/fill evidence. An exception indicates a
+failed/gapped observation; never reinterpret it as no setup.
+
+The new Python tests simulate approvals, clock cutoff, source
+responses and file operations entirely OFFLINE. Passing tests
+does NOT prove real Binance latency or a valid signal. No actual
+real-market capture has yet been executed.
+
+**Operator preflight:** from the pinned isolated checkout with
+PYTHONPATH including repository root and services/api,
+`python3 -B -m services.t7sonic.manual_live_capture_cli`
+reports eligibility and performs NO HTTP.
+
+**Actual operator capture is separately authorized and must
+not be run before Oct 15**. Once explicitly approved by the
+operator, use the CLI's capture switches and a unique private
+directory; inspect the returned summary and receipt carefully.
+Never run it from production engine/cron or connect output to
+client Telegram. Source-body retention, risk economics,
+outcome analysis and real private Telegram certification
+remain separate release blockers.
