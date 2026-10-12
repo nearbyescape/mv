@@ -45,6 +45,19 @@ assert_production_frozen() {
   test -z "$(docker ps -q --filter label=com.docker.compose.project=mv-v7sonic-isolated)"
 }
 assert_production_frozen
+# Check the frozen production worker set on BOTH success and failure.
+# A capture timeout or source-reconciliation reject is not a reason
+# to resume V4 or silently interpret a gap as NO_SETUP.
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  if ! assert_production_frozen; then
+    echo "CRITICAL: Production suspension check failed" >&2
+    exit 1
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
 
 if [[ "${V7_PUBLIC_MARKET_CAPTURE_APPROVED:-}" != "YES" ]]; then
   echo "STOP: This command requires an explicit public-data live-capture approval." >&2
