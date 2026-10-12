@@ -8,8 +8,10 @@ from app.research.t7sonic_validation_plan import MARKETS
 from app.research.t7sonic_forward_protocol import START_MS, STEP_MS
 from services.t7sonic.forward_release_bridge import (
     preview_from_raw_market_responses,
+    preview_from_raw_candles_and_books,
 )
 from test_t7sonic_forward_acquisition import fake_response, as_bytes
+from test_t7sonic_forward_live_quote import contract_data, book_data
 
 
 BOUNDARY = START_MS + STEP_MS
@@ -78,6 +80,55 @@ class RawReleaseBridgeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             preview_from_raw_market_responses(
                 BOUNDARY + STEP_MS, sources, quotes
+            )
+
+    def test_six_market_kline_plus_realistic_book_ticker_contract_integrates(self):
+        sources, _ = source_bundle()
+        ticks = {
+            symbol: book_data(symbol=symbol, event_ms=BOUNDARY+500)
+            for symbol in MARKETS
+        }
+        received = {symbol: BOUNDARY+1000 for symbol in MARKETS}
+        evaluated = {symbol: BOUNDARY+2000 for symbol in MARKETS}
+        out = preview_from_raw_candles_and_books(
+            BOUNDARY, sources, ticks, contract_data(),
+            received_ms_by_symbol=received,
+            evaluated_ms_by_symbol=evaluated,
+        )
+        self.assertEqual(out["markets_evaluated"], 6)
+        self.assertEqual(out["raw_source_response_count"], 24)
+        self.assertEqual(out["top_of_book_responses_validated"], 6)
+        self.assertEqual(len(out["quote_proofs"]), 6)
+        self.assertEqual(len(out["venue_contracts"]), 6)
+        self.assertFalse(out["real_network_used"])
+        self.assertFalse(out["telegram_enqueued"])
+        self.assertFalse(out["client_publication_authorized"])
+
+    def test_missing_book_or_stale_quote_blocks_whole_market_batch(self):
+        sources, _ = source_bundle()
+        ticks = {
+            symbol: book_data(symbol=symbol, event_ms=BOUNDARY+500)
+            for symbol in MARKETS
+        }
+        received = {symbol: BOUNDARY+1000 for symbol in MARKETS}
+        evaluated = {symbol: BOUNDARY+2000 for symbol in MARKETS}
+        bad = dict(ticks)
+        bad.pop("SOLUSDT")
+        with self.assertRaises(ValueError):
+            preview_from_raw_candles_and_books(
+                BOUNDARY, sources, bad, contract_data(),
+                received_ms_by_symbol=received,
+                evaluated_ms_by_symbol=evaluated
+            )
+        bad = dict(ticks)
+        bad["XRPUSDT"] = book_data(
+            symbol="XRPUSDT", event_ms=BOUNDARY-6000
+        )
+        with self.assertRaises(ValueError):
+            preview_from_raw_candles_and_books(
+                BOUNDARY, sources, bad, contract_data(),
+                received_ms_by_symbol=received,
+                evaluated_ms_by_symbol=evaluated,
             )
 
     def test_market_quote_mismatch_aborts_without_partial_publication(self):
