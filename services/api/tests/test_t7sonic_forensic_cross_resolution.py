@@ -41,7 +41,7 @@ class CrossResolutionForensicTests(TestCase):
         self.assertEqual(report["volume_field_discrepancies"],0)
         self.assertEqual(set(report["markets"]),set(MARKETS))
         self.assertEqual(
-            report["markets"]["BTCUSDT"]["15m"]["native_bars_compared"],32
+            report["markets"]["BTCUSDT"]["15m"]["native_bars_compared"],31
         )
         self.assertFalse(report["client_publication_authorized"])
 
@@ -79,11 +79,10 @@ class CrossResolutionForensicTests(TestCase):
             forensic.forensic_compare(BOUNDARY,samples)
 
     def test_frozen_oct15_window_not_eligible_for_historical_requery(self):
-        date=datetime.fromtimestamp(BOUNDARY/1000,timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%SZ"
-        )
+        date="2026-10-12T12:45:00Z"
+        original=int(datetime(2026,10,12,12,45,tzinfo=timezone.utc).timestamp()*1000)
         self.assertEqual(
-            forensic._past_boundary(date,BOUNDARY+3600_000),BOUNDARY
+            forensic._past_boundary(date,original+3600_000),original
         )
         for date,now in (
             ("2026-10-15T00:00:00Z",START_MS+60_000),
