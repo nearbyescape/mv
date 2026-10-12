@@ -1756,3 +1756,59 @@ Telegram delivery flow, model performance comparison against V4,
 controlled release authorization, server backup and rollback.
 Production must remain stopped and restart=no until operator
 explicitly authorizes the controlled switchover.
+ 
+## V7Sonic simulated private delivery milestone — 2026-10-12
+
+The operator tested exact research SHA
+`359dd30171b23546659e4bca0a5fecec6c5dd6a0` on
+the VPS. **194 offline tests passed** (8.289 seconds);
+the synthetic 31-response cycle was transactionally
+stored, six-market completeness passed, candidate
+duplicate suppression passed, and reopening the
+private SQLite ledger showed an intact six-market
+audit. Original V4 engine remained stopped with
+restart=no. No client Telegram traffic was sent.
+
+### Phase: durable PRIVATE test outbox, entirely simulated
+
+`services/t7sonic/forward_private_outbox.py` attaches an
+additional table exclusively to the explicit opt-in
+`PrivatePaperLedger` database. It has **no HTTP client**,
+Telegram API/token, background worker or production DB
+connection. An operator must supply syntactically valid,
+**different** private-test and production chat identifiers,
+which are not inserted as raw recipient IDs; the local
+outbox only stores the SHA256 of the test destination.
+
+A complete six-market paper decision must already be
+stored and byte-for-byte validated before any candidate
+can enter the simulated delivery outbox. Only unexpired
+candidate plans with explicit `DO NOT TRADE` and
+`Not authorized for client publication` text are
+eligible. Duplicate preparation is idempotent and any
+same-candidate destination/content conflict fails closed.
+A simulated attempt is recorded BEFORE the mocked send;
+a mock acknowledgment is permanently labeled
+`SIMULATED_ACK_NOT_SENT`, while a missing/ambiguous
+acknowledgment becomes
+`AMBIGUOUS_BLOCKED_NO_RETRY`. On restart, orphaned
+attempts become ambiguous and are not automatically retried.
+Expired candidates cannot be sent. No production channel
+or external API receives anything.
+
+The test and service distinction is strict: a mocked
+`SIMULATED_ACK_NOT_SENT` is NOT proof of a Telegram
+send. No real Telegram token is configured, no account
+was contacted, no chat message ID can be certified,
+no production source integration has been deployed, and
+the statistical value of model signals remains unproven.
+Do not describe test results as live client delivery.
+
+**Still blocking actionable rollout:** real-market
+provider and clock validation on the VPS, isolated
+private chat actual-send certification with independently
+reviewed recipient access controls, durable external
+delivery reconciliation, position/slot risk accounting,
+fee/slippage/funding calibration, paper/economic
+acceptance, rollback and explicitly approved versioned
+production switchover.
