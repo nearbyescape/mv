@@ -105,9 +105,9 @@ def test_postgres_real_migration_up_down_and_reupgrade(pg):
         p=subprocess.run([sys.executable,"-m","alembic",action,target],cwd=Path(__file__).resolve().parents[1],env=environment,capture_output=True,text=True)
         assert p.returncode==0,p.stderr
     with pg.engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version"))=="0009"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version"))=="0010"
         # Separate V7 tables survive a clean PostgreSQL upgrade/downgrade/reupgrade.
-        for table in ("v7_decision_cycles", "v7_decision_records", "v7_delivery_drafts"):
+        for table in ("v7_decision_cycles", "v7_decision_records", "v7_delivery_drafts", "v7_client_approvals", "v7_client_deliveries"):
             assert connection.scalar(
                 text("SELECT to_regclass(:table)"), {"table": table}
             ) is not None
