@@ -1812,3 +1812,53 @@ delivery reconciliation, position/slot risk accounting,
 fee/slippage/funding calibration, paper/economic
 acceptance, rollback and explicitly approved versioned
 production switchover.
+
+## VPS operator proof: simulated private outbox, and new private-bot probe
+
+The operator verified Git revision
+`f56fc03d7c8b549adfafef4ddf944db92b51573e`
+on their VPS: **203** offline tests passed in 8.934s;
+six simulated test messages were atomically prepared,
+the "DO NOT TRADE" label and FAKE acknowledgment were
+checked, zero actual Telegram messages were sent, and
+the MV production engine remained stopped/restart=no.
+
+### Manual-only private Telegram connectivity adapter
+
+`services/t7sonic/forward_private_telegram.py`
+adds a narrow, manually invokable, real HTTPS transport
+**disabled by default**. Its only permissible operation,
+if explicitly and separately authorized by the operator
+in a later session, is: verify `getChat` is an exact
+positive-ID private 1:1 chat, then send **one fixed** text
+message using a dedicated **different test bot**. It
+does not accept a model signal or numerical price levels.
+The fixed test text states "DO NOT TRADE" and clearly
+disclaims any signal/publication.
+
+The private chat must be different from the existing
+production client channel and the test bot token must
+differ from the production token. Invocation requires
+two explicit boolean gates, a frozen approval phrase and
+a short-lived <=5-minute consent deadline. These are
+software safeguards, not two independently verified
+human approvals. No token or chat ID is logged or
+included in the returned success object. Fixed API origin,
+verified TLS hostname/CA, no proxies, no redirects,
+bounded response body and timeouts are enforced.
+Any uncertain send outcome is marked ambiguous and
+MUST NOT be retried automatically.
+
+Test suites use mock provider responses only. Real
+Telegram destination ownership is not established until
+a test bot/contact pair is independently verified;
+no user has yet approved a genuine private Telegram
+message. This module **does not** access the simulated
+SQLite outbox, create a background sender, integrate
+with clients, record real exchange outcomes, or claim
+real-time trading readiness. It must not be invoked from
+production model code. Operator authorization remains
+necessary before ANY live Telegram contact, even to
+the private test bot. No signal/client publication is
+authorized. The broader application CI and VPS gates
+must be separately reviewed.
