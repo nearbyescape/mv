@@ -23,6 +23,7 @@ on:
       - services/t7sonic/forward_remote_retention.py
       - services/t7sonic/forward_release_bridge.py
       - services/t7sonic/forward_live_quote.py
+      - services/t7sonic/forward_public_http.py
   pull_request:
     branches:
       - main
@@ -43,6 +44,7 @@ on:
       - services/t7sonic/forward_remote_retention.py
       - services/t7sonic/forward_release_bridge.py
       - services/t7sonic/forward_live_quote.py
+      - services/t7sonic/forward_public_http.py
   workflow_dispatch:
 
 permissions:
