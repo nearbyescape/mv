@@ -14,6 +14,7 @@ import unittest
 from app.research.t7sonic_isolation import (
     PROTECTED_PRODUCTION_FILES, validate_change_scope,
     validate_dedicated_image, validate_import_boundary,
+    validate_production_pytest_separation,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -54,6 +55,7 @@ class T7SonicIsolationTests(unittest.TestCase):
             "services/api/tests/test_t7sonic_isolation.py",
             "services/t7sonic/Dockerfile.research",
             ".github/workflows/t7sonic-research.yml",
+            ".github/workflows/ci.yml",
             "packages/contracts/t7sonic-research-v1.json",
             "docs/T7SONIC_RESEARCH.md",
         }
@@ -65,11 +67,34 @@ class T7SonicIsolationTests(unittest.TestCase):
     def test_invalid_non_research_file_change_rejected(self):
         for name in (
             "services/api/app/models.py", "packages/strategy/mv_strategy/signals.py",
-            "compose.production.yml", ".github/workflows/ci.yml",
+            "compose.production.yml",
             "services/api/app/research/v6hbr_chronological_probability.py",
         ):
             with self.assertRaises(ValueError):
                 validate_change_scope({name})
+
+    def test_regular_application_ci_excludes_research_only_tests(self):
+        workflow = REPO_ROOT / ".github/workflows/ci.yml"
+        result = validate_production_pytest_separation(workflow)
+        self.assertTrue(result["production_application_suite_still_runs"])
+        self.assertTrue(result["production_container_suite_still_runs"])
+        self.assertTrue(result["production_image_must_not_bundle_research_modules"])
+
+    def test_cannot_casually_disable_research_test_separation(self):
+        with tempfile.TemporaryDirectory(prefix="t7sonic-ci-split-") as temp:
+            workflow = Path(temp)/"ci.yml"
+            current = (REPO_ROOT/".github/workflows/ci.yml").read_text()
+            workflow.write_text(current.replace(
+                "--ignore-glob='tests/test_t7sonic_*.py'", "", 1
+            ))
+            with self.assertRaisesRegex(ValueError,"exclude only"):
+                validate_production_pytest_separation(workflow)
+            workflow.write_text(current.replace(
+                "--ignore-glob='tests/test_t7sonic_*.py'",
+                "--ignore-glob='tests/test_*.py'"
+            ))
+            with self.assertRaisesRegex(ValueError,"exclude only"):
+                validate_production_pytest_separation(workflow)
 
     def _edited_tree(self, path, replacement):
         temp=tempfile.TemporaryDirectory(prefix="t7sonic-isolation-test-")
