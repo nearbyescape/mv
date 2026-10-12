@@ -213,6 +213,9 @@ def rehearse_original_capture(
         "no_candidate": result["no_candidate"],
         "candidate_count": result["candidate_count"],
         "new_rehearsals": rehearsal,
+        # Entire validated preview for the isolated PRIVATE paper ledger only.
+        # No code consumes this as a client-authorized publication event.
+        "sealed_internal_paper_batch": result,
         "client_publication_authorized": False,
         "telegram_enqueued": False,
         "orders_authorized": False,
