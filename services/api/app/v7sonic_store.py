@@ -97,10 +97,10 @@ def store_private_cycle(
         if c["delivery_status"] == "PREVIEW_ONLY_NEVER_QUEUED"
     }
     if (len(drafts) != len(expected) or
-            any(not isinstance(d, dict) or set(d) != set(expected[d.get("candidate_id")])
-                or d != expected[d["candidate_id"]]
-                for d in drafts if isinstance(d, dict)) or
-            any(not isinstance(d, dict) for d in drafts)):
+            any(not isinstance(d, dict) or
+                d.get("candidate_id") not in expected or
+                d != expected[d["candidate_id"]]
+                for d in drafts)):
         raise ValueError("Private V7 release drafts do not match sealed six-market batch")
 
     exists = session.get(V7DecisionCycle, boundary)
