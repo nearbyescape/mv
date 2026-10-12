@@ -143,6 +143,43 @@ class ReleaseRunnerTests(TestCase):
             )),1)
             self.assertFalse(result["client_publication_authorized"])
 
+    def test_incomplete_public_http_batch_retains_gap_without_false_no_setup(self):
+        def denied(url, maximum):
+            raise TimeoutError("simulated-public-source-timeout")
+        with TemporaryDirectory(prefix="v7-private-acquire-gap-") as tmp:
+            with patch.object(handoff, "_ist_open", return_value=True):
+                with self.assertRaisesRegex(TimeoutError, "simulated"):
+                    runner.capture_one_private_cycle(
+                        tmp,
+                        public_network_approved=True,
+                        paper_only_acknowledged=True,
+                        clock_ms=self.fake_clock(),
+                        sleeper=lambda _seconds: None,
+                        getter=denied,
+                    )
+            files = list(Path(tmp).glob(
+                "v7sonic-private-acquisition-gap-*.json"
+            ))
+            self.assertEqual(len(files), 1)
+            failure=json.loads(files[0].read_text())
+            self.assertEqual(
+                failure["status"],
+                "PRIVATE_PAPER_ACQUISITION_FAILED_NO_SETUP_NOT_INFERRED",
+            )
+            self.assertFalse(failure["original_http_responses_complete"])
+            self.assertFalse(failure["client_publication_authorized"])
+            self.assertEqual(failure["telegram_messages_sent"], 0)
+            self.assertEqual(failure["orders_submitted"], 0)
+            self.assertEqual(
+                len(list(Path(tmp).glob("v7sonic-private-claim-*.json"))), 1
+            )
+            self.assertEqual(
+                list(Path(tmp).glob("v7sonic-private-paper-cycle-*.json")), []
+            )
+            self.assertFalse(
+                (Path(tmp) / "v7sonic-paper-release.sqlite3").exists()
+            )
+
     def test_source_corruption_never_creates_false_no_setup(self):
         rows=json.loads(self.candles["BTCUSDT"]["15m"])
         from decimal import Decimal
