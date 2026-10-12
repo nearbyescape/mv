@@ -30,6 +30,12 @@ from services.t7sonic.forward_live_quote import extract_contract_rule, parse_boo
 FRAMES = {"1m":480,"15m":64,"1h":64,"4h":64}
 STEP = 300_000
 LIMIT_MS = 30_000
+MAX_CAPTURE_ATTEMPTS = 3
+RETRY_PAUSE_SECONDS = 1.5
+RETRY_MIN_BUDGET_MS = 4_500
+RECONCILIATION_FAILURE_PREFIX = (
+    "Native timeframe contradicts independently verified minute OHLCV: "
+)
 
 
 class _RejectRedirect(HTTPRedirectHandler):
@@ -153,7 +159,7 @@ def analyze(boundary,candles,books,info,book_receipts,evaluated):
 
 def _save_original_responses(folder, boundary, candle_bodies,
                              book_bodies, exchange_info, book_receipts,
-                             observed_ms):
+                             observed_ms, *, attempt=1):
     """Persist exact bytes BEFORE interpreting OHLCV or deciding a signal.
 
     This receipt records locally observed data, not independently verified
@@ -168,7 +174,8 @@ def _save_original_responses(folder, boundary, candle_bodies,
             not isinstance(book_receipts, dict) or
             set(book_receipts) != set(MARKETS) or
             not isinstance(exchange_info, bytes) or
-            type(observed_ms) is not int):
+            type(observed_ms) is not int or
+            type(attempt) is not int or not 1 <= attempt <= MAX_CAPTURE_ATTEMPTS):
         raise ValueError("Exact complete observation required before journal write")
     for symbol in MARKETS:
         if set(candle_bodies[symbol]) != set(FRAMES):
@@ -187,6 +194,7 @@ def _save_original_responses(folder, boundary, candle_bodies,
         "schema":1,
         "status":"ORIGINAL_PUBLIC_REST_INPUTS_LOCAL_UNATTESTED",
         "decision_boundary_ms":boundary,
+        "capture_attempt_number":attempt,
         "recorded_ms_local_clock_claim":observed_ms,
         "markets":list(MARKETS),
         "kline_bodies":{
@@ -207,7 +215,8 @@ def _save_original_responses(folder, boundary, candle_bodies,
     raw=(json.dumps(receipt,sort_keys=True,separators=(",",":"))+"\n").encode()
     if not 31 <= len(raw) <= 8_000_000:
         raise ValueError("Original-source evidence is oversized")
-    target=folder/("v7sonic-original-http-"+str(boundary)+".json")
+    attempt_suffix = "" if attempt == 1 else "-attempt-"+str(attempt)
+    target=folder/("v7sonic-original-http-"+str(boundary)+attempt_suffix+".json")
     _write_immutable_file(folder,target,raw)
     return str(target),sha256(raw).hexdigest()
 
@@ -236,6 +245,13 @@ def _write_immutable_file(folder, destination, payload):
 
 
 def capture_one(directory):
+    """Capture at most three complete, immutable source batches at one boundary.
+
+    A short-lived native/1m mismatch may arise while a candle is closing.
+    Only that exact reconciliation rejection permits a full fresh capture.
+    Every attempt is preserved before parsing, with no blending of attempts,
+    no tolerance of price/volume discrepancies and no late-paper decision.
+    """
     target=Path(directory)
     if not target.is_absolute() or target.is_symlink() or not target.is_dir():
         raise PermissionError("Existing absolute private directory required")
@@ -253,90 +269,119 @@ def capture_one(directory):
     began=time.time_ns()//1_000_000
     if not boundary<=began<=boundary+4_000:
         raise ValueError("Missed boundary; cannot backfill")
-    candles={s:{} for s in MARKETS}
-    with ThreadPoolExecutor(max_workers=8) as pool:
-        jobs={
-            pool.submit(_get,url_for(s,frame,boundary),256_000):(s,frame)
-            for s in MARKETS for frame in FRAMES
-        }
-        exchange_url="https://fapi.binance.com/fapi/v1/exchangeInfo"
-        info_job=pool.submit(_get,exchange_url,2_000_000)
-        for future in as_completed(jobs):
-            s,frame=jobs[future]
-            candles[s][frame]=future.result()[0]
-        info=info_job.result()[0]
-        books={};received={}
-        quote_jobs={
-            pool.submit(
-                _get,"https://fapi.binance.com/fapi/v1/ticker/bookTicker?"
-                +urlencode({"symbol":s}),8192):s
-            for s in MARKETS
-        }
-        for future in as_completed(quote_jobs):
-            s=quote_jobs[future]
-            raw,ts,latency=future.result()
-            books[s]=raw;received[s]=ts
-    completed=time.time_ns()//1_000_000
-    # Important: preserve actual response bytes BEFORE the parser, clock,
-    # cross-frame reconciliation or hypothesis engine can raise. The first
-    # real-data discrepancy was not diagnosable because inputs were lost.
-    raw_path,raw_sha=_save_original_responses(
-        target,boundary,candles,books,info,received,completed
-    )
-    try:
-        outcome=analyze(boundary,candles,books,info,received,completed)
-    except Exception as exc:
-        failure={
-            "status":"INTERNAL_LIVE_DIAGNOSTIC_REJECTED_UNPUBLISHED",
-            "decision_boundary_ms":boundary,
-            "raw_source_evidence_path":raw_path,
-            "raw_source_evidence_sha256":raw_sha,
-            "stage":"six_market_strict_analysis",
-            "failure_class":type(exc).__name__,
-            "failure_reason":str(exc)[:450],
-            "raw_sources_preserved":True,
-            "client_publication_authorized":False,
-            "telegram_enqueued":False,
-            "orders_submitted":False,
-        }
-        try:
-            _write_immutable_file(
-                target,
-                target/("v7sonic-rejected-"+str(boundary)+".json"),
-                (json.dumps(failure,sort_keys=True,indent=2)+"\n").encode(),
-            )
-        except OSError:
-            # The exception from the original strict analysis must remain
-            # visible; raw sources were already persisted separately.
-            pass
-        raise
-    finished=time.time_ns()//1_000_000
-    if finished>boundary+LIMIT_MS:
-        raise ValueError("Paper analysis exceeded decision deadline")
-    if any(finished-p["book_event_ms_local_unattested"]>5_000
-           for p in outcome["source_proofs"].values()):
-        raise ValueError("Book quotes became stale while processing")
-    serialized=(json.dumps(outcome,sort_keys=True,indent=2)+"\n").encode()
-    fd,tmp=tempfile.mkstemp(prefix=".v7sonic-",dir=target)
-    try:
-        os.fchmod(fd,0o600)
-        with os.fdopen(fd,"wb") as stream:
-            stream.write(serialized); stream.flush(); os.fsync(stream.fileno())
-        os.link(tmp,dest,follow_symlinks=False)
-    finally:
-        os.unlink(tmp)
-    return {
-        "status":outcome["status"],"report_path":str(dest),
-        "report_sha256":sha256(serialized).hexdigest(),
-        "original_raw_evidence_path":raw_path,
-        "original_raw_evidence_sha256":raw_sha,
-        "original_raw_responses_retained":31,
-        "markets":6,"public_gets":31,
-        "paper_candidates":outcome["paper_candidate_count"],
-        "telegram_messages":0,"orders":0,
-        "client_publication_authorized":False,
-    }
 
+    evidence=[]
+    for attempt in range(1,MAX_CAPTURE_ATTEMPTS+1):
+        # Fetch every source afresh. Do not mix completed candle responses
+        # from different attempts or re-use a previous potentially stale book.
+        candles={s:{} for s in MARKETS}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            jobs={
+                pool.submit(_get,url_for(s,frame,boundary),256_000):(s,frame)
+                for s in MARKETS for frame in FRAMES
+            }
+            exchange_url="https://fapi.binance.com/fapi/v1/exchangeInfo"
+            info_job=pool.submit(_get,exchange_url,2_000_000)
+            for future in as_completed(jobs):
+                s,frame=jobs[future]
+                candles[s][frame]=future.result()[0]
+            info=info_job.result()[0]
+            books={};received={}
+            quote_jobs={
+                pool.submit(
+                    _get,"https://fapi.binance.com/fapi/v1/ticker/bookTicker?"
+                    +urlencode({"symbol":s}),8192):s
+                for s in MARKETS
+            }
+            for future in as_completed(quote_jobs):
+                s=quote_jobs[future]
+                raw,ts,latency=future.result()
+                books[s]=raw;received[s]=ts
+        completed=time.time_ns()//1_000_000
+
+        # Immutable, original 31-body receipt per attempt, BEFORE any parse.
+        raw_path,raw_sha=_save_original_responses(
+            target,boundary,candles,books,info,received,completed,
+            attempt=attempt
+        )
+        evidence.append({
+            "attempt":attempt,
+            "original_raw_evidence_path":raw_path,
+            "original_raw_evidence_sha256":raw_sha,
+        })
+        try:
+            outcome=analyze(boundary,candles,books,info,received,completed)
+        except Exception as exc:
+            retryable=(
+                type(exc) is ValueError and
+                str(exc).startswith(RECONCILIATION_FAILURE_PREFIX)
+            )
+            budget=(
+                completed+int(RETRY_PAUSE_SECONDS*1000)+RETRY_MIN_BUDGET_MS
+                <= boundary+LIMIT_MS
+            )
+            retry=retryable and attempt<MAX_CAPTURE_ATTEMPTS and budget
+            failure={
+                "status":"INTERNAL_LIVE_DIAGNOSTIC_REJECTED_UNPUBLISHED",
+                "decision_boundary_ms":boundary,
+                "capture_attempt_number":attempt,
+                "raw_source_evidence_path":raw_path,
+                "raw_source_evidence_sha256":raw_sha,
+                "stage":"six_market_strict_analysis",
+                "failure_class":type(exc).__name__,
+                "failure_reason":str(exc)[:450],
+                "retryable_cross_resolution_only":retryable,
+                "fresh_full_batch_retry_planned":retry,
+                "raw_sources_preserved":True,
+                "client_publication_authorized":False,
+                "telegram_enqueued":False,
+                "orders_submitted":False,
+            }
+            try:
+                _write_immutable_file(
+                    target,
+                    target/("v7sonic-rejected-"+str(boundary)+
+                            "-attempt-"+str(attempt)+".json"),
+                    (json.dumps(failure,sort_keys=True,indent=2)+"\n").encode(),
+                )
+            except OSError:
+                # The original failure remains primary. All raw bytes were
+                # persisted before analysis, whether or not summary I/O works.
+                pass
+            if retry:
+                time.sleep(RETRY_PAUSE_SECONDS)
+                continue
+            raise
+
+        finished=time.time_ns()//1_000_000
+        if finished>boundary+LIMIT_MS:
+            raise ValueError("Paper analysis exceeded decision deadline")
+        if any(finished-p["book_event_ms_local_unattested"]>5_000
+               for p in outcome["source_proofs"].values()):
+            raise ValueError("Book quotes became stale while processing")
+        serialized=(json.dumps(outcome,sort_keys=True,indent=2)+"\n").encode()
+        fd,tmp=tempfile.mkstemp(prefix=".v7sonic-",dir=target)
+        try:
+            os.fchmod(fd,0o600)
+            with os.fdopen(fd,"wb") as stream:
+                stream.write(serialized); stream.flush(); os.fsync(stream.fileno())
+            os.link(tmp,dest,follow_symlinks=False)
+        finally:
+            os.unlink(tmp)
+        return {
+            "status":outcome["status"],"report_path":str(dest),
+            "report_sha256":sha256(serialized).hexdigest(),
+            "original_raw_evidence_path":raw_path,
+            "original_raw_evidence_sha256":raw_sha,
+            "original_raw_responses_retained":31*attempt,
+            "capture_attempt_count":attempt,
+            "attempt_evidence":evidence,
+            "markets":6,"public_gets":31*attempt,
+            "paper_candidates":outcome["paper_candidate_count"],
+            "telegram_messages":0,"orders":0,
+            "client_publication_authorized":False,
+        }
+    raise AssertionError("Unreachable finalization retry exhaustion")
 
 def main():
     parser=argparse.ArgumentParser(description="Early real-data smoke, no network by default")
