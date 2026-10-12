@@ -25,6 +25,7 @@ on:
       - services/t7sonic/forward_live_quote.py
       - services/t7sonic/forward_public_http.py
       - services/t7sonic/forward_one_shot.py
+      - services/t7sonic/forward_paper_ledger.py
   pull_request:
     branches:
       - main
@@ -47,6 +48,7 @@ on:
       - services/t7sonic/forward_live_quote.py
       - services/t7sonic/forward_public_http.py
       - services/t7sonic/forward_one_shot.py
+      - services/t7sonic/forward_paper_ledger.py
   workflow_dispatch:
 
 permissions:
