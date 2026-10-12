@@ -22,9 +22,9 @@ MAX_ENTRY_DRIFT_ATR = D("0.5")
 MAX_SPREAD_BPS = D("15")
 MIN_STOP_ATR = D("0.9")
 MAX_STOP_ATR = D("3")
-MIN_NET_RR = D("1.5")
-TAKER_BPS_PER_SIDE = D("5")
-SLIPPAGE_BPS_PER_SIDE = D("5")
+MIN_NET_RR = D("1.25")
+TAKER_BPS_PER_SIDE = D("4")
+SLIPPAGE_BPS_PER_SIDE = D("4")
 PRIORITY = (
     "failed_breakout_reversal", "trend_continuation", "breakout",
     "range_reversion", "participation", "volatility_transition",
@@ -137,7 +137,19 @@ def indicative_plan(snapshot: dict, quote: dict, *,
         TAKER_BPS_PER_SIDE+SLIPPAGE_BPS_PER_SIDE
     ) / D("10000")
     net_r = (abs(tp2-entry)-assumed_cost)/(risk+assumed_cost)
-    if net_r < MIN_NET_RR:
+    # The specified 50/50 exit is NOT the TP2-only result. Model both
+    # exits separately, including a two-sided taker/slippage allowance.
+    cost_tp1 = (entry+tp1) * (
+        TAKER_BPS_PER_SIDE+SLIPPAGE_BPS_PER_SIDE
+    ) / D("10000")
+    weighted_cost = (cost_tp1 + assumed_cost) / D(2)
+    weighted_gross = (
+        abs(tp1-entry) + abs(tp2-entry)
+    ) / D(2)
+    weighted_net_r = (
+        weighted_gross-weighted_cost
+    ) / (risk+weighted_cost)
+    if weighted_net_r < MIN_NET_RR:
         return {**common, "reason": "INSUFFICIENT_AFTER_COST_REWARD"}
     plan = {
         **common,
@@ -149,9 +161,13 @@ def indicative_plan(snapshot: dict, quote: dict, *,
         "entry_type": "BID_ASK_INDICATIVE_NOT_FILLED",
         "entry": _fmt(entry), "stop_loss": _fmt(stop),
         "take_profit_1": _fmt(tp1), "take_profit_2": _fmt(tp2),
-        "estimated_gross_rr_tp2": _fmt(abs(tp2-entry)/risk),
-        "estimated_net_rr_tp2": _fmt(net_r),
-        "estimated_round_trip_cost_per_unit": _fmt(assumed_cost),
+        "estimated_gross_rr_tp2_if_filled": _fmt(abs(tp2-entry)/risk),
+        "estimated_net_rr_tp2_if_filled": _fmt(net_r),
+        "estimated_net_rr_50_50_if_both_tps_filled": _fmt(weighted_net_r),
+        "exit_fraction_tp1": "0.5", "exit_fraction_tp2": "0.5",
+        "estimated_round_trip_cost_per_unit_at_tp2": _fmt(assumed_cost),
+        "estimated_weighted_round_trip_cost_per_unit": _fmt(weighted_cost),
+        "funding_and_execution_impact_not_verified": True,
         "assumed_fee_bps_per_side": _fmt(TAKER_BPS_PER_SIDE),
         "assumed_slippage_bps_per_side": _fmt(SLIPPAGE_BPS_PER_SIDE),
         "observed_spread_bps": _fmt(spread),
