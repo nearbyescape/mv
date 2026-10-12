@@ -115,6 +115,38 @@ def test_postgres_real_migration_up_down_and_reupgrade(pg):
 
 
 
+
+def test_postgres_v7_client_outbox_requires_real_fenced_singleton(pg):
+    """No send, even with release boolean true, absent a PostgreSQL lease."""
+    from app.v7sonic_client_delivery import (
+        DELIVERY_LEASE_NAME, enqueue_approved, claim_one,
+        finish, recover_interrupted,
+    )
+    from app.models import V7ClientDelivery
+    candidate = "a" * 64
+    settings = {"candidate_id": candidate, "now_ms": pg.clock[0],
+                "chat_id": "-1003987000001", "signing_key": b"s" * 40,
+                "client_release_enabled": True}
+    with pytest.raises(lease.LeaseLost):
+        with pg.sessions.begin() as session:
+            enqueue_approved(session, **settings)
+    with lease.singleton(DELIVERY_LEASE_NAME):
+        with lease.worker_transaction(DELIVERY_LEASE_NAME, pg.sessions) as session:
+            with pytest.raises(PermissionError, match="No separate"):
+                enqueue_approved(session, **settings)
+            assert claim_one(session, **settings) is None
+            finish(session, candidate, now_ms=pg.clock[0], error_code="NO_SEND")
+            assert recover_interrupted(session) == 0
+        with pg.sessions.begin() as session:
+            session.get(ServiceLease, DELIVERY_LEASE_NAME).owner = str(uuid4())
+        with pytest.raises(lease.LeaseLost):
+            with lease.worker_transaction(DELIVERY_LEASE_NAME, pg.sessions) as session:
+                enqueue_approved(session, **settings)
+    with pg.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(V7ClientDelivery)) == 0
+
+
+
 def test_postgres_v7_fenced_private_original_cycle_and_atomic_six_market_journal(pg, tmp_path, monkeypatch):
     """PostgreSQL service-lease ownership and all six V7 rows, without client send."""
     from pathlib import Path
