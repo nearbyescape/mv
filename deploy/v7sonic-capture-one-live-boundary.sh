@@ -88,8 +88,14 @@ test ! -L "$STATE"
 test "$(stat -c '%u:%g' "$STATE")" = "10001:10001"
 test "$(stat -c '%a' "$STATE")" = 700
 # Journal + saved 31-response original HTTP batches require free space.
-FREE_BYTES="$(stat -f -c '%a %S' "$STATE" | awk '{print $1*$2}')"
-test "${FREE_BYTES%.*}" -ge 2147483648 || {
+FREE_BYTES="$(python3 - "$STATE" <<'PY'
+import os
+import sys
+space = os.statvfs(sys.argv[1])
+print(space.f_bavail * space.f_frsize)
+PY
+)"
+test "$FREE_BYTES" -ge 2147483648 || {
   echo "STOP: <2 GiB free evidence disk" >&2
   exit 1
 }
