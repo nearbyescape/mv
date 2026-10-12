@@ -21,7 +21,7 @@ import stat
 
 from sqlalchemy import select
 
-from app.models import SignalSlot, V7DecisionRecord
+from app.models import SignalSlot, V7DecisionRecord, V7DecisionCycle
 from app.operations.lease import assert_fence
 from app.research.t7sonic_validation_plan import MARKETS
 from app.v7sonic_release import rehearse_original_capture
@@ -89,6 +89,30 @@ def stage_private_original_sql_cycle(
 
     if type(observed_now_ms) is not int:
         raise ValueError("Exact observation clock required")
+
+    existing = session.get(V7DecisionCycle, receipt["decision_boundary_ms"])
+    if existing is not None:
+        if existing.original_http_sha256 != original_http_sha256:
+            raise ValueError("Conflicting original HTTP receipt for stored V7 boundary")
+        prior_audit = inspect_private_cycle(session, receipt["decision_boundary_ms"])
+        return {
+            "schema": 1,
+            "status": "FENCED_V7_PRIVATE_SQL_EXACT_REPLAY_NO_CLIENT_SEND",
+            "decision_boundary_ms": receipt["decision_boundary_ms"],
+            "source_sha256": original_http_sha256,
+            "batch_sha256": existing.batch_sha256,
+            "legacy_locked_markets": [],
+            "markets_evaluated": prior_audit["market_records"],
+            "candidate_count": len([
+                x for x in existing.batch_json["indicative_candidates"]
+            ]),
+            "private_drafts_blocked": prior_audit["drafts_blocked"],
+            "sql_journal_result": "EXACT_V7_CYCLE_REPLAY_UNMODIFIED",
+            "production_strategy_switched": False,
+            "client_publication_authorized": False,
+            "telegram_messages_sent": 0,
+            "orders_submitted": 0,
+        }
 
     # Within the same transaction, fence against reserved or held V4
     # positions. A stale/uncertain legacy slot still blocks publication.
