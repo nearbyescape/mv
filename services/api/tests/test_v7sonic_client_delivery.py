@@ -317,10 +317,66 @@ class V7ClientOutboxTests(TestCase):
                 symbol=self.candidate["symbol"],
                 strategy="LEGACY-V4",signal_id=marker,state="held",
             ))
-        with self.assertRaisesRegex(PermissionError,"Legacy held"):
+        with self.assertRaisesRegex(PermissionError,"Unreconciled legacy"):
             self.stage()
         with self.sessions() as session:
             self.assertIsNone(session.get(models.V7ClientDelivery,self.identity))
+
+
+    def test_other_market_legacy_reservation_blocks_aggregate_v7_portfolio(self):
+        """BTC V7 must not ignore an ETH legacy reserved/held slot."""
+        self.authorize()
+        other_symbol = next(
+            name for name in (
+                "BTCUSDT","ETHUSDT","SOLUSDT","XRPUSDT","DOGEUSDT","BNBUSDT"
+            ) if name != self.candidate["symbol"]
+        )
+        marker="f"*64
+        with self.sessions.begin() as session:
+            session.add(models.SignalDecision(
+                id=marker,symbol=other_symbol,strategy="LEGACY-V4",
+                source_open_time=BOUNDARY-3_600_000,
+                outcome="PUBLISHED",reason="fixture",
+                updated_at=BOUNDARY,expires_at=BOUNDARY+60_000,
+                attempts=0,evidence_json={},
+            ))
+            session.flush()
+            session.add(models.SignalPlan(
+                id=marker,symbol=other_symbol,strategy="LEGACY-V4",
+                created_at=BOUNDARY,expires_at=BOUNDARY+60_000,
+                plan_json={},evidence_json={},evidence_hash="a"*64,
+            ))
+            session.flush()
+            session.add(models.SignalSlot(
+                symbol=other_symbol,
+                strategy="LEGACY-V4",signal_id=marker,state="reserved",
+            ))
+        with self.assertRaisesRegex(PermissionError,"Unreconciled legacy"):
+            self.stage()
+        with self.sessions() as session:
+            self.assertEqual(session.scalar(select(func.count()).select_from(
+                models.V7ClientDelivery)),0)
+
+    def test_postgres_fence_injected_failure_blocks_every_v7_outbox_writer(self):
+        from app import v7sonic_client_delivery as module
+        self.authorize()
+        with patch.object(module,"assert_fence",
+                          side_effect=RuntimeError("V7_LEASE_LOST")):
+            with self.assertRaisesRegex(RuntimeError,"V7_LEASE_LOST"):
+                self.stage()
+            with self.sessions.begin() as session:
+                with self.assertRaisesRegex(RuntimeError,"V7_LEASE_LOST"):
+                    outbox.claim_one(session,self.identity,now_ms=self.now,
+                        chat_id=CHAT_ID,signing_key=SIGN_KEY,
+                        client_release_enabled=True)
+                with self.assertRaisesRegex(RuntimeError,"V7_LEASE_LOST"):
+                    outbox.finish(session,self.identity,now_ms=self.now,
+                                  error_code="CRASH")
+                with self.assertRaisesRegex(RuntimeError,"V7_LEASE_LOST"):
+                    outbox.recover_interrupted(session)
+        with self.sessions() as session:
+            self.assertEqual(session.scalar(select(func.count()).select_from(
+                models.V7ClientDelivery)),0)
 
     def test_unknown_other_delivery_halts_client_dispatch_fence(self):
         self.authorize()
