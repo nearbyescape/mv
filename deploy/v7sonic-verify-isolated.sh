@@ -67,6 +67,13 @@ V7_PREFLIGHT_IMAGE="$IMAGE" docker compose \
   -f "$ROOT/compose.v7sonic-isolated.yml" \
   config --format json > "$WORK/compose.json"
 
+# The script uses umask 077: normalized JSON starts as root-owned 0600.
+# The read-only test container runs as UID 10001 and cannot read 0600.
+# This JSON is an uncredentialed, standalone *preflight* configuration;
+# the containing host directory remains 0700 and the container mount is :ro.
+chmod 0644 "$WORK/compose.json"
+test "$(stat -c %a "$WORK/compose.json")" = 644
+
 echo "=== 3. VERIFY EXACT ISOLATED RUN CONTRACT ==="
 docker run --rm --network none --read-only \
   -v "$WORK/compose.json:/tmp/compose.json:ro" \
