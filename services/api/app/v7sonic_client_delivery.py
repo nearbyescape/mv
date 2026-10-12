@@ -28,6 +28,7 @@ from app.models import (
     V7DecisionRecord, V7DeliveryDraft, SignalSlot,
 )
 from app.operations.lease import assert_fence
+from app.v7sonic_risk_attestation import audit_operator_risk_review
 from app.v7sonic_release import STRATEGY_ID, format_private_rehearsal, _ist_open
 from app.telegram.provider import send, DeliveryError
 
@@ -77,7 +78,7 @@ def _validate_release(session, approval, *, now_ms: int, chat_id: str,
         "batch_sha256", "destination_chat_id", "approved_at_ms",
         "expires_at_ms", "release_operator_id", "risk_review_sha256",
         "portfolio_positions_independently_reviewed", "source_quality_reviewed",
-        "client_publication_authorized", "orders_authorized",
+        "risk_review", "client_publication_authorized", "orders_authorized",
     }
     if (set(packet) != keys or
             packet["schema"] != 1 or packet["status"] != _RELEASE_STATUS or
@@ -94,7 +95,9 @@ def _validate_release(session, approval, *, now_ms: int, chat_id: str,
             packet["portfolio_positions_independently_reviewed"] is not True or
             packet["source_quality_reviewed"] is not True or
             packet["client_publication_authorized"] is not True or
-            packet["orders_authorized"] is not False):
+            packet["orders_authorized"] is not False or
+            not isinstance(packet["risk_review"], dict) or
+            packet["risk_review_sha256"] != _digest(packet["risk_review"])):
         raise PermissionError("Complete signed V7 release authority required")
     cycle = session.get(V7DecisionCycle, approval.decision_boundary_ms)
     decision = session.scalar(select(V7DecisionRecord).where(
@@ -125,6 +128,14 @@ def _validate_release(session, approval, *, now_ms: int, chat_id: str,
     underlying = items[0]
     if underlying.get("expires_at_ms") != approval.expires_at_ms:
         raise PermissionError("Release time differs from underlying candidate")
+    # The approval HMAC seals the COMPLETE risk packet. Verify both its
+    # canonical digest and conservative numerical risk/venue constraints.
+    # This remains operator-attested, not exchange-account authentication.
+    audit_operator_risk_review(
+        packet["risk_review"], underlying,
+        now_ms=now_ms,
+        expected_original_http_sha256=cycle.original_http_sha256,
+    )
     draft = session.get(V7DeliveryDraft, approval.candidate_id)
     if (draft is None or draft.state != "BLOCKED_NOT_FOR_CLIENTS" or
             draft.destination_type != "INTERNAL_PRIVATE_ONLY" or
