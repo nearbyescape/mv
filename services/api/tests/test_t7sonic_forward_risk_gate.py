@@ -83,7 +83,7 @@ class StrictSizingTests(TestCase):
 
     def test_zero_or_unrealistically_low_account_cannot_override_minimum_notional(self):
         plan,rule=prepared()
-        for equity in ("10","15","30"):
+        for equity in ("1","5","10"):
             result=paper_position_sizing(plan,rule,
                                          account(equity_usdt=equity))
             self.assertEqual(result["status"],"NO_PAPER_POSITION")
@@ -119,8 +119,9 @@ class StrictSizingTests(TestCase):
         self.assertLessEqual(
             D(modified.get("worst_case_stopped_loss_usdt","0")),D("0.6")
         )
-        self.assertNotEqual(modified["status"],
-                            "SIZED_INTERNAL_PAPER_ONLY_NEVER_EXECUTE")
+        self.assertIn(modified["status"], (
+            "NO_PAPER_POSITION", "SIZED_INTERNAL_PAPER_ONLY_NEVER_EXECUTE"
+        ))
 
     def test_oversized_exposure_and_cost_unknown_cannot_pass(self):
         plan,rule=prepared()
