@@ -143,6 +143,65 @@ class OneShotPublicCycleTests(TestCase):
         verify.assert_called_once()
         return result
 
+    def test_books_are_collected_only_after_all_historical_sources(self):
+        # An early top-of-book snapshot can expire during the long kline
+        # intake. The live one-shot path must fetch books LAST.
+        from threading import Lock
+        mutex = Lock()
+        state = {"klines_done": 0, "info_done": False, "books": []}
+
+        def get_kline(*args, **kwargs):
+            with mutex:
+                state["klines_done"] += 1
+            return object()
+
+        def get_public(kind, **kwargs):
+            with mutex:
+                if kind == "exchangeInfo":
+                    state["info_done"] = True
+                elif kind == "bookTicker":
+                    state["books"].append((
+                        state["klines_done"], state["info_done"]
+                    ))
+                else:
+                    raise AssertionError("Unapproved public endpoint")
+            return object()
+
+        mocked_report = {
+            "quote_proofs": {
+                symbol: {
+                    "exchange_event_ms_unattested": BOUNDARY+2_500,
+                } for symbol in MARKETS
+            },
+            "indicative_candidates": [],
+            "client_publication_authorized": False,
+            "telegram_enqueued": False,
+        }
+        with patch("services.t7sonic.forward_one_shot.optional_https_get",
+                   side_effect=get_kline) as hist:
+            with patch("services.t7sonic.forward_one_shot.optional_public_http_get",
+                       side_effect=get_public) as public:
+                with patch("services.t7sonic.forward_one_shot.checked_live_cycle",
+                           return_value=mocked_report) as inspection:
+                    with patch("services.t7sonic.forward_one_shot.time.time_ns",
+                               side_effect=[
+                                   (BOUNDARY+1_000)*1_000_000,
+                                   (BOUNDARY+2_800)*1_000_000,
+                                   (BOUNDARY+3_000)*1_000_000,
+                               ]):
+                        report = optional_public_paper_capture(
+                            BOUNDARY, network_approved=True,
+                        )
+        self.assertEqual(hist.call_count, 24)
+        self.assertEqual(public.call_count, 7)
+        self.assertEqual(len(state["books"]), 6)
+        self.assertEqual(state["books"], [(24, True)]*6)
+        inspection.assert_called_once()
+        self.assertTrue(report[
+            "quotes_fresh_at_return_local_clock_claim"
+        ])
+        self.assertFalse(report["telegram_enqueued"])
+
     def test_candidate_after_parse_remains_fresh_and_before_deadline(self):
         result=self._mock_complete_network_cycle(
             before_ms=BOUNDARY+2000,
