@@ -148,8 +148,37 @@ def validate_change_scope(paths: set[str]) -> dict:
         "packages/contracts/t7sonic-research-v1.json",
         "docs/T7SONIC_RESEARCH.md",
         ".github/workflows/t7sonic-research.yml",
+        ".github/workflows/ci.yml",  # only checked separation of research pytest suite
         "services/t7sonic/",
     )
     if any(not any(p.startswith(prefix) for prefix in allowed_roots) for p in paths):
         raise ValueError("T7Sonic PR modifies an unrelated file; explicit review required")
     return {"status":"RESEARCH_ONLY_CHANGED_PATHS","changed_file_count":len(paths)}
+
+
+def validate_production_pytest_separation(ci_file: Path) -> dict:
+    """CI-only acceptance: research tests must never run in the MV API image.
+
+    The dedicated research workflow still exercises ALL test_t7sonic_*.py
+    modules. The ordinary API image intentionally has no services.t7sonic
+    source tree, so collecting those modules is a packaging error.
+    """
+    if not ci_file.is_file() or ci_file.is_symlink():
+        raise ValueError("Actual application CI workflow required")
+    lines=[line.strip() for line in ci_file.read_text(encoding="utf-8").splitlines()]
+    executions=[
+        line for line in lines if " -m pytest" in line
+    ]
+    required=[
+        "- run: python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'",
+        "- run: docker run --rm mv-api-check python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'",
+    ]
+    if executions != required:
+        raise ValueError("Application and container pytest must each exclude only the isolated research test glob")
+    return {
+        "status":"PRODUCTION_PYTEST_EXCLUDES_T7SONIC_ONLY",
+        "production_application_suite_still_runs":True,
+        "production_container_suite_still_runs":True,
+        "research_suite_runs_only_in_ISOLATED_CI":True,
+        "production_image_must_not_bundle_research_modules":True,
+    }
