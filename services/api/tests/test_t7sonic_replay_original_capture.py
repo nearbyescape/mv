@@ -61,6 +61,51 @@ class OriginalLiveEvidenceTests(TestCase):
             self.assertFalse(result["exact_reconciliation_passed"])
             self.assertFalse(result["client_publication_authorized"])
 
+    def test_full_original_seven_field_binance_books_feed_paper_decisions(self):
+        candles,books,info,times=self.fixture()
+        # Reproduces the seven-field format actually captured by VPS.
+        for symbol in MARKETS:
+            original=json.loads(books[symbol])
+            original["lastUpdateId"]=11797344941317
+            books[symbol]=json.dumps(original,separators=(",",":")).encode()
+        with TemporaryDirectory(prefix="v7sonic-real-book-replay-") as tmp:
+            filename,_=smoke._save_original_responses(
+                Path(tmp),START_MS+STEP_MS,candles,books,info,times,
+                START_MS+STEP_MS+2_000
+            )
+            with patch.object(smoke,"_get") as get:
+                observed=replay.replay_full_original_paper_analysis(
+                    replay._read_private_file(filename)
+                )
+                get.assert_not_called()
+        self.assertEqual(observed["original_http_sha256_verified_count"],31)
+        self.assertTrue(observed["exact_candle_reconciliation_passed"])
+        self.assertEqual(observed["paper_market_count"],6)
+        self.assertEqual(len(observed["paper_decisions"]),6)
+        self.assertEqual(set(observed["per_market_quote_ages_ms"]),set(MARKETS))
+        self.assertFalse(observed["client_publication_authorized"])
+        self.assertEqual(observed["telegram_messages_sent"],0)
+        self.assertEqual(observed["orders_submitted"],0)
+        self.assertTrue(observed["historical_offline_replay_only"])
+
+    def test_seven_field_original_stale_time_is_not_accepted_in_paper_replay(self):
+        candles,books,info,times=self.fixture()
+        for symbol in MARKETS:
+            original=json.loads(books[symbol])
+            original["lastUpdateId"]=11797344941317
+            if symbol=="BTCUSDT":
+                original["time"]=START_MS-1
+            books[symbol]=json.dumps(original,separators=(",",":")).encode()
+        with TemporaryDirectory(prefix="v7sonic-stale-real-book-") as tmp:
+            filename,_=smoke._save_original_responses(
+                Path(tmp),START_MS+STEP_MS,candles,books,info,times,
+                START_MS+STEP_MS+2_000
+            )
+            with self.assertRaisesRegex(ValueError,"timestamp stale"):
+                replay.replay_full_original_paper_analysis(
+                    replay._read_private_file(filename)
+                )
+
     def test_any_tampered_original_body_hash_causes_replay_rejection(self):
         candles,books,info,times=self.fixture()
         with TemporaryDirectory(prefix="v7sonic-corrupt-original-") as tmp:
