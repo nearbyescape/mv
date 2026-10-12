@@ -1657,3 +1657,58 @@ operational milestones.** The production engine is deliberately
 stopped and restart=no, V4 is not automatically resurrected,
 and no release code has been merged or deployed. No real-money
 or real-client signals are authorized by this research branch.
+
+## Client release: VPS 174-test milestone and one-shot public API probe
+
+The operator verified T7Sonic source revision
+`c1be306860a18052c74ce9981e415178d2d6711f`
+on the VPS using `umask 077`. **174** offline research and
+release tests passed (8.199s). The 24-source six-market
+raw candle plus Binance-format top-of-book geometry
+integration passed. MV V4's original production engine
+was explicitly verified stopped/restart=no; no client
+signals or orders were sent.
+
+### Read-only public market HTTPS
+
+`services/t7sonic/forward_public_http.py` implements an
+**explicitly opt-in** OS-CA-verifying HTTPS GET to only
+the public Binance USD-M `/fapi/v1/exchangeInfo` or
+`/fapi/v1/ticker/bookTicker?symbol=SYMBOL` for one of
+six frozen markets. It includes strict origin/URL allowlist,
+no proxy inheritance or redirects, bounded timeout/response,
+HTTP 200 and JSON media requirements and a local
+unverified receipt clock claim. No credentials or
+account/order endpoints are present. Network is
+OFF by default.
+
+`services/t7sonic/forward_one_shot.py` assembles exactly
+31 **public** reads: 24 OHLCV responses (four timeframes
+on six markets), six bookTicker responses and one
+exchangeInfo metadata response. It executes only on
+explicit `network_approved=True`, within a 5-second
+boundary start window and a 30-second full decision
+deadline, and validates all six markets as one
+complete-or-fail paper decision. No daemon, cron,
+Telegram sending, persistence or order API exists in
+this module. Tests use injected fake HTTP envelopes
+only: no live Binance requests.
+
+**The one-shot pilot is still bounded to the separate
+provisional 2026-10-15--2026-12-29 freeze window.**
+It cannot issue immediate pre-October-15 public reads
+under the frozen Phase2T contract. A separately reviewed,
+versioned general-purpose real-time intake contract
+would be needed for current-date client production.
+Even inside the allowed window, source REST bodies
+are unsigned, wall-clock claims unattested, execution
+and fills unverified, and model profitability unknown.
+
+This is not a client launch or live engine handoff.
+Production MV engine remains stopped. No Telegram
+channel was contacted, trading authorized or code
+merged. Any client-facing recommendation requires
+a separate reviewed deployment, ongoing position and
+signal lifecycle controls, realistic execution/fee
+calibration, validation, monitoring and explicit
+operator signoff.
