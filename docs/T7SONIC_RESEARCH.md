@@ -1903,3 +1903,62 @@ production engine, changes production schema, connects
 the signal outbox to the Telegram sender, nor certifies
 profitability or live client readiness. Broader application
 CI and VPS runtime certification remain independent gates.
+
+## V7Sonic mandatory paper risk sizing — 2026-10-12
+
+User VPS evidence at exact source commit
+`83c4729ec980339018e942da3ce903e5f484e7ba`:
+**218 offline tests passed** in 8.480s. The manual
+private-bot preflight returned
+`PRIVATE_TEST_CONFIG_VALIDATED_NO_NETWORK` using
+**artificial credentials**; network_contacted=false,
+test_message_delivery_verified=false, no Telegram sends,
+and production engine stopped/restart=no. This is
+configuration validation, NOT Telegram provider proof.
+
+To address release-blocking missing quantity/risk enforcement,
+the new purely offline
+`services/t7sonic/forward_risk_gate.py` requires both
+a sealed paper candidate and the venue's mandatory
+`PRICE_FILTER`, `LOT_SIZE`, `MARKET_LOT_SIZE`,
+and Binance USD-M `MIN_NOTIONAL.notional` filters.
+Missing/conflicting tick, quantity steps, minimum-notional
+and contract rules cause a refusal. It NEVER infers
+limits from a decimal precision or invents a minimum
+order value. The separate `forward_portfolio_risk.py`
+reviews exactly six frozen markets and accounts for
+illustrative cumulative risk reservation.
+
+Frozen PAPER caps are 0.5% equity stop-loss risk per
+candidate, 2% equity total stop-loss risk, four total
+concurrent slots and 2x equity gross notional, including
+already reserved risk and open notional from a supplied
+paper-account snapshot. The per-unit stop-loss exposure
+includes explicitly supplied taker fee, slippage, and
+funding buffers; it floors quantities to the proper
+venue step and refuses uneconomic below-minimum orders.
+No legitimate order or real account risk has been checked;
+all input account holdings and venue bodies remain
+synthetic/unauthenticated. The derived quantity has
+status `SIZED_INTERNAL_PAPER_ONLY_NEVER_EXECUTE`.
+
+These heuristic screening caps are engineering defaults
+for a controlled PAPER evaluation, not evidence of a
+profitable strategy, liquidation protection, leverage
+configuration, execution certainty, or client readiness.
+STOP orders can slip or fail and realized losses can
+exceed their target exposure. Venue rules may change,
+and an exchange `MIN_NOTIONAL`/MARKET_LOT_SIZE filter
+might be absent or incompatible. In that case this
+review rejects the candidate until new behavior is
+separately reviewed; it does not silently bypass rules.
+Actual order filtering and account authentication need
+their own approved production implementation.
+
+All production V4 workers remain stopped/restart=no.
+The research changes do NOT modify any production
+schema, enabled collector, Telegram service, or order
+API. Independent observed paper outcomes, private
+real-provider test delivery, risk monitoring, rollback,
+and explicit operator sign-off are still mandatory
+release gates.
