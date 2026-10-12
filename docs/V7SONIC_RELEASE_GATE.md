@@ -15,7 +15,9 @@ An application or CI pass alone is not proof of profitable signals.
   `v7_delivery_drafts` store **blocked paper only**. They NEVER generate
   Telegram sends. Only a separately reviewed certification workflow can
   authorize the isolated `v7_client_approvals` and `v7_client_deliveries`
-  lane. **That certification producer does not exist yet.**
+  lane. **That certification producer does not exist yet.** V7 client writes
+  now require a real PostgreSQL singleton fence; unresolved V4 held/reserved
+  slots in any market block new V7 release until reconciled.
 - No production Compose service enables the private paper SQL worker or
   client sender. These are explicitly opt-in modules, not startup jobs.
 - `v7_client_approvals` requires an independently signed, exact-source,
@@ -44,7 +46,12 @@ An application or CI pass alone is not proof of profitable signals.
    verify the source and venue rules, obtain fresh authoritative portfolio
    exposure and 0.5%-per-trade/2%-aggregate risk, four-slot limits, margin,
    funding and cost allowances, and record named operator approval with
-   tamper-evident signing and exact target chat. **Not implemented yet.**
+   tamper-evident signing and exact target chat. The new signed operator
+   risk packet is bound to a canonical hash and checked for 0.5% risk,
+   2% aggregate risk, 2x gross notional, four slots, venue quantity/step,
+   fee/slippage/funding buffer and 5-second freshness. It remains marked
+   `OPERATOR_RECONCILED_UNATTESTED`, not real exchange authentication.
+   **Independent account/venue certification is not implemented yet.**
 6. Before publishing any clients: test signed authorization failure,
    stale or corrupted plans, cross-V4 and V7 active-slot conflicts,
    concurrent DB claims, interruption immediately before/after HTTP,
