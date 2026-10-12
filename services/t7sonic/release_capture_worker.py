@@ -133,7 +133,30 @@ def capture_one_private_cycle(
 
     attempts = []
     for attempt in range(1, _MAX_ATTEMPTS + 1):
-        candles, books, info, receipts = _capture_all_31(boundary, getter=fetch)
+        try:
+            candles, books, info, receipts = _capture_all_31(
+                boundary, getter=fetch
+            )
+        except Exception as exc:
+            # No complete 31-body batch exists. Preserve a distinct GAP,
+            # not a synthetic NO_CANDIDATE or partially inferred source.
+            # Never retry an unknown/incomplete HTTP batch in this lane.
+            _write_immutable_file(
+                folder,
+                folder / f"v7sonic-private-acquisition-gap-{boundary}-{attempt}.json",
+                (json.dumps({
+                    "schema": 1,
+                    "status": "PRIVATE_PAPER_ACQUISITION_FAILED_NO_SETUP_NOT_INFERRED",
+                    "decision_boundary_ms": boundary,
+                    "attempt": attempt,
+                    "exception_class": type(exc).__name__,
+                    "original_http_responses_complete": False,
+                    "client_publication_authorized": False,
+                    "telegram_messages_sent": 0,
+                    "orders_submitted": 0,
+                }, sort_keys=True) + "\\n").encode(),
+            )
+            raise
         completed = clock()
 
         # Capture ORIGINAL 31 bodies before any analysis, even if all plans
