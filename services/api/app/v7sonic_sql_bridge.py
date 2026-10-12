@@ -15,6 +15,7 @@ contracts and explicit release acceptance.
 from __future__ import annotations
 
 from hashlib import sha256
+import json
 from pathlib import Path
 import os
 import stat
@@ -26,7 +27,6 @@ from app.operations.lease import assert_fence
 from app.research.t7sonic_validation_plan import MARKETS
 from app.v7sonic_release import rehearse_original_capture
 from app.v7sonic_store import store_private_cycle, inspect_private_cycle
-from services.t7sonic.replay_original_capture import _read_private_file
 
 
 JOURNAL_LEASE_NAME = "v7-paper-journal"
@@ -68,7 +68,8 @@ def _original_source(path: str | Path, expected_sha256: str):
         raw = source.read(_MAX_ORIGINAL_FILE_BYTES + 1)
     if sha256(raw).hexdigest() != expected_sha256:
         raise ValueError("Original 31-body receipt digest mismatch")
-    return _read_private_file(str(item))
+    # Decode the exact pinned bytes already read; no second-path TOCTOU read.
+    return json.loads(raw)
 
 
 def stage_private_original_sql_cycle(
