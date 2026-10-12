@@ -27,7 +27,7 @@ from app.models import (
     V7ClientApproval, V7ClientDelivery, V7DecisionCycle,
     V7DecisionRecord, V7DeliveryDraft, SignalSlot,
 )
-from app.v7sonic_store import inspect_private_cycle
+from app.operations.lease import assert_fence
 from app.v7sonic_release import STRATEGY_ID, format_private_rehearsal, _ist_open
 from app.telegram.provider import send, DeliveryError
 
@@ -36,6 +36,7 @@ _CHAT = re.compile(r"-?[1-9][0-9]{0,15}\Z")
 _HEX = re.compile(r"[0-9a-f]{64}\Z")
 RELEASE_WINDOW_MS = 30_000
 CLAIM_GAP_MS = 4_000
+DELIVERY_LEASE_NAME = "v7-client-delivery"
 
 
 def _canonical(obj) -> bytes:
@@ -140,14 +141,16 @@ def _cross_strategy_lock_check(session, *, candidate_id: str, symbol: str) -> No
     account inventory. Future release requires an authoritative position
     feed or equally explicit operator review attestation.
     """
+    # The legacy strategy's held/reserved exposure has no authoritative
+    # remaining-equity/risk mapping to V7. A position in ANY market can
+    # consume the aggregate 2%/four-slot allowance. Never count it as zero.
     legacy = list(session.scalars(
         select(SignalSlot).where(
-            SignalSlot.symbol == symbol,
             SignalSlot.state.in_(("reserved", "held")),
         ).with_for_update()
     ))
     if legacy:
-        raise PermissionError("Legacy held/reserved symbol lock blocks V7 release")
+        raise PermissionError("Unreconciled legacy held/reserved portfolio blocks V7 release")
     occupied = list(session.scalars(
         select(V7ClientDelivery)
         .where(V7ClientDelivery.status.in_((
@@ -200,6 +203,9 @@ def enqueue_approved(
     """
     if client_release_enabled is not True:
         raise PermissionError("V7 client publication global switch is OFF")
+    # On PostgreSQL the sender MUST own the dedicated advisory singleton.
+    # This blocks concurrent candidate claims against one portfolio budget.
+    assert_fence(session, DELIVERY_LEASE_NAME)
     approval = session.get(V7ClientApproval, candidate_id, with_for_update=True)
     if approval is None:
         raise PermissionError("No separate V7 publication approval")
@@ -239,6 +245,7 @@ def claim_one(
     """Reserve before the irreversible network call. Caller commits FIRST."""
     if client_release_enabled is not True:
         raise PermissionError("V7 client release remains disabled")
+    assert_fence(session, DELIVERY_LEASE_NAME)
     row = session.get(V7ClientDelivery, candidate_id, with_for_update=True)
     if row is None or row.status != "pending":
         return None
@@ -279,6 +286,7 @@ def claim_one(
 
 def finish(session, candidate_id: str, *, now_ms: int,
            message_id: int | None = None, error_code: str | None = None):
+    assert_fence(session, DELIVERY_LEASE_NAME)
     row = session.get(V7ClientDelivery, candidate_id, with_for_update=True)
     if row is None or row.status != "inflight":
         return
@@ -295,6 +303,7 @@ def finish(session, candidate_id: str, *, now_ms: int,
 
 def recover_interrupted(session):
     """At-least-once HTTP is NOT safe; failed acknowledgement is UNKNOWN."""
+    assert_fence(session, DELIVERY_LEASE_NAME)
     rows = list(session.scalars(select(V7ClientDelivery).where(
         V7ClientDelivery.status == "inflight"
     ).with_for_update()))
