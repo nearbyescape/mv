@@ -1577,3 +1577,83 @@ independently approved cryptographic trust policy, remote
 retention configuration and verified source delivery
 are required before live certification. Research remains
 isolated; trading and Telegram publication stay disabled.
+
+## V7Sonic client-release workstream — 2026-10-12
+
+**Correction in priorities:** operator requires a functioning V7Sonic
+replacement for the stopped V4 system for waiting clients. Extended
+source-evidence development is not equivalent to delivering a working
+entry/stop/exit decision pipeline. A full release remains blocked
+until real-market integration, execution-aware validation and end-to-end
+delivery checks are achieved. Research results from existing April/May
+heuristics do NOT demonstrate a positive net expectancy.
+
+The development branch now contains two independently audited
+research-only modules:
+
+- `t7sonic_release_candidate.py`: deterministic, exact-closed-frame
+  and fresh-quote conditional paper trade-plan calculator based on the
+  original six unchanged heuristic experts. It returns indicative
+  LONG/SHORT, entry at quoted bid or ask, protective ATR/last-candle
+  stop, TP1/TP2, 50/50 illustrative exit policy, precise tick rounding,
+  quote window and spread checks, ATR drift and maximum stop width,
+  direction-conflict veto, active-symbol lock, exact six-market
+  symbol restriction, fee/slippage allowances and unambiguous rejection
+  reasons. Cost-adjusted modeled risk/reward is now evaluated over the
+  **actual 50/50 exit schedule**, not just the optimistic final target.
+  There is NO inferred win probability, simulated fill, funding source,
+  position-size enforcement against contract lot/notional minima,
+  order placement or client-publication authorization.
+- `t7sonic_release_preview.py`: complete **six-market, same-boundary**
+  batch compiler and strict JSON input CLI. A dropped, reordered,
+  duplicated, stale or mismatched market is a hard error, never an
+  implied no-signal. It reports all candidate/no-candidate decisions,
+  deterministic batch identifiers, duplicate candidate suppression
+  and internal-only paper messages labeled **DO NOT TRADE**.
+  `python -m app.research.t7sonic_release_preview --input INPUT.json`
+  accepts explicit keys `schema=1`, `snapshots` (6 exact symbols),
+  `quotes` (matching 6 exact symbols), `active_symbols` list and
+  `previously_seen_candidate_ids` list. This is intentionally
+  **offline only**, not a live collector or Telegram sender.
+
+Frozen candidate policy is `V7SONIC_PAPER_CANDIDATE_V1`.
+Cost inputs are assumed 4 bps taker plus 4 bps slippage
+per side, as *paper screening assumptions*, NOT measured
+exchange execution expenses. Revalidate these before any
+client release, including funding, minimum notional, tick,
+fees by tier, realized slippage and local spread/latency.
+V7Sonic remains heuristic; it is not a calibrated trained
+forecast model.
+
+### Actual blockers to client-facing replacement
+
+1. **Independent quantitative evidence:** per-signal net performance,
+   direction accuracy, stop/TP ordering, drawdown, realistic funding,
+   transaction costs, missed opportunities and V4-side baseline on
+   truly unseen or forward data. No 80% hit rate, profitable
+   expectancy, deterministic daily signal volume or superiority
+   to V4 is supported yet.
+2. **Real six-market source and quote integration:** wire the frozen
+   completed-candle adapter and authenticated fresh bid/ask into
+   an operational worker; test on VPS without reviving V4, including
+   end-to-end misalignment/gap/clock/latency recovery.
+3. **Durable production design:** independently review slot ownership,
+   deduplication, stale/withdrawn signals, retries, process leases,
+   stop/risk control, actual contract precision, position caps and
+   emergency kill switch before touching the production schema
+   or authorizing client dispatch.
+4. **Telegram/API release:** integrate independently audited
+   V7Sonic plans with actual outbox/website and client-facing
+   messaging; ensure test/internal messages cannot escape.
+   Confirm Telegram delivery and cancellation using a controlled
+   private test destination, not the production client channel.
+5. **Release authorization:** prepare a versioned migration,
+   backups, rollback and exact pinned deployment package;
+   obtain explicit operator approval before enabling production
+   strategy workers or Telegram publication.
+
+**Do not confuse completion of research unit tests with these
+operational milestones.** The production engine is deliberately
+stopped and restart=no, V4 is not automatically resurrected,
+and no release code has been merged or deployed. No real-money
+or real-client signals are authorized by this research branch.
