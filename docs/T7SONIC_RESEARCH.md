@@ -1712,3 +1712,47 @@ a separate reviewed deployment, ongoing position and
 signal lifecycle controls, realistic execution/fee
 calibration, validation, monitoring and explicit
 operator signoff.
+
+## V7Sonic private paper-ledger release workstream (2026-10-12)
+
+Operator checked exact read-only public-capture development source SHA
+`1b89a7817def980b1f5c1b75eee49eda7d499a7d` on the VPS:
+**185** offline tests passed in 7.968 seconds, exact frozen source
+revision verified, default HTTPS denied, and complete mock 31-response
+six-market decision cycle passed. MV production engine remained
+stopped with restart=no, and no Telegram client signal was sent.
+
+### Atomic durable INTERNAL PAPER decisions (not Telegram delivery)
+
+The next isolated module `services/t7sonic/forward_paper_ledger.py`
+provides an **operator-opt-in standalone SQLite** paper-only journal.
+It must be explicitly opened inside a private owner-only directory
+with a restricted paper DB filename, never the existing MV database.
+Writes default to denied. Each preview includes complete six-market
+decision records; the batch fingerprint binds all six decisions,
+not only its actionable-looking candidates. Exact duplicate cycles
+remain no-ops; same-boundary changed candidates are refused.
+
+The SQL transaction writes an entire validated six-market cycle
+or none. It records unqualified NO_SETUP decisions distinctly
+from truly MISSING observation batches, persists restart-safe
+candidate IDs, rejects fake client publication or order approval,
+records expiry as `EXPIRED_UNSENT`, and permits read-only
+integrity auditing after process reopening. There is **no message
+outbox**, scheduled worker, HTTP, Telegram bot, trading action,
+production schema migration or VPS deployment in this module.
+
+Tests explicitly reject altered candidate price/hash, missing
+markets, illegal receipt time claims, duplicate mutated replays,
+nonprivate or symlink database paths, and simulated on-disk
+tampering. All data in the tests are synthetic, and local SQLite
+storage does **not** provide independent exchange data, outside
+timestamp evidence, real signal expectancy or client readiness.
+
+The live-client delivery gate remains CLOSED pending actual
+fresh input acceptance tests, reviewed exchange filter/risk
+calibration and execution economics, a durable tested private
+Telegram delivery flow, model performance comparison against V4,
+controlled release authorization, server backup and rollback.
+Production must remain stopped and restart=no until operator
+explicitly authorizes the controlled switchover.
