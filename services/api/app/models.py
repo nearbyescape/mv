@@ -343,3 +343,40 @@ class V7DeliveryDraft(Base):
     text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
+# V7 publication lives in a completely separate, separately signed release
+# lane. Paper captures CANNOT create these rows. No producer or sender daemon
+# is started by the currently deployed production Compose stack.
+class V7ClientApproval(Base):
+    __tablename__ = "v7_client_approvals"
+    candidate_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("v7_decision_records.candidate_id"),
+        primary_key=True,
+    )
+    decision_boundary_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    batch_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    destination_chat_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    approved_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    expires_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    approval_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    signature_hmac: Mapped[str] = mapped_column(String(64), nullable=False)
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+
+
+class V7ClientDelivery(Base):
+    __tablename__ = "v7_client_deliveries"
+    candidate_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("v7_client_approvals.candidate_id"),
+        primary_key=True,
+    )
+    destination_chat_id: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    expires_at_ms: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    claimed_at_ms: Mapped[int | None] = mapped_column(BigInteger)
+    sent_at_ms: Mapped[int | None] = mapped_column(BigInteger)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    error_code: Mapped[str | None] = mapped_column(String(60))
+    payload_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
