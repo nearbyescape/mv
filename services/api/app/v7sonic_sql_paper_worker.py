@@ -10,7 +10,7 @@ Operator execution requires FOUR explicit flags and a private owned folder:
 The production database is never accessed in default preflight mode.
 
 On the approved path the worker establishes a distinct PostgreSQL advisory
-singleton, checks Alembic revision 0009 before any market request, and
+singleton, checks Alembic revision 0010 before any market request, and
 retains ownership for every subsequent atomic six-market transaction.
 """
 from __future__ import annotations
@@ -44,11 +44,12 @@ def _check_private_sql_ready(session) -> None:
     if session.get_bind().dialect.name != "postgresql":
         raise RuntimeError("V7 private SQL worker requires an isolated PostgreSQL lease")
     revision = session.scalar(text("SELECT version_num FROM alembic_version"))
-    if revision != "0009":
-        raise RuntimeError("V7 private journal requires exact applied migration 0009")
+    if revision != "0010":
+        raise RuntimeError("V7 private journal requires exact applied migration 0010")
     for table in (
         "v7_decision_cycles", "v7_decision_records", "v7_delivery_drafts",
         "signal_slots", "service_leases",
+        "v7_client_approvals", "v7_client_deliveries",
     ):
         if session.scalar(text("SELECT to_regclass(:table)"), {"table": table}) is None:
             raise RuntimeError("V7 required database table absent: " + table)
