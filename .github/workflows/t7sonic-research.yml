@@ -28,6 +28,7 @@ on:
       - services/t7sonic/forward_paper_ledger.py
       - services/t7sonic/forward_private_outbox.py
       - services/t7sonic/forward_private_telegram.py
+      - services/t7sonic/private_telegram_cli.py
   pull_request:
     branches:
       - main
@@ -53,6 +54,7 @@ on:
       - services/t7sonic/forward_paper_ledger.py
       - services/t7sonic/forward_private_outbox.py
       - services/t7sonic/forward_private_telegram.py
+      - services/t7sonic/private_telegram_cli.py
   workflow_dispatch:
 
 permissions:
