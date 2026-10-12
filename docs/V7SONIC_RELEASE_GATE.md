@@ -90,6 +90,38 @@ A clean preflight verifies packaging/Compose isolation only. To stop, no
 persistent V7 worker has been started; keep production V4 workers stopped.
 No client bot credentials should be placed in this isolated manifest.
 
+## Optional one-boundary *real* Binance evidence rehearsal (NO SEND)
+
+A separate `deploy/v7sonic-capture-one-live-boundary.sh` can capture
+**one future five-minute boundary** during 09:00–23:00 IST, using only public
+Binance Futures REST GETs (24 closed kline histories, six bookTicker quotes,
+one exchangeInfo response). It requires **explicit**
+`V7_PUBLIC_MARKET_CAPTURE_APPROVED=YES` and a pinned exact Git SHA.
+It is not enabled by the preflight and does not start a continuous service.
+
+The container runs as UID `10001` with a read-only image, no production
+secrets, no Telegram credentials, no production DB/Compose mounts, and a
+dedicated persistent `/var/tmp/v7sonic-live-receipts-<sha>` evidence directory.
+It has outbound public-network access *only for the acquisition*, unlike
+the fully offline Compose preflight. Code pins the Binance HTTPS URLs;
+the container's bridge network is **not** a host-firewall egress allowlist.
+
+```bash
+V7_EXPECTED_SHA=<exact reviewed branch SHA> \
+V7_PUBLIC_MARKET_CAPTURE_APPROVED=YES \
+  bash deploy/v7sonic-capture-one-live-boundary.sh
+```
+
+Each completed eligible boundary preserves original HTTP bodies, hashes,
+cross-resolution checks and a six-market private SQLite paper ledger. If a
+request times out or no full batch arrives, the runner retains a dedicated
+`v7sonic-private-acquisition-gap-*.json` rejection: a gap is NOT a
+`NO_CANDIDATE` or a signal. A real valid cycle may still produce **zero**
+candidates, which cannot be treated as trading-performance certification.
+The script refuses off-session runs, non-pinned source trees or a resumed
+V4 engine/Telegram service. No database migration, account access, trading
+orders, or client message publication takes place.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
