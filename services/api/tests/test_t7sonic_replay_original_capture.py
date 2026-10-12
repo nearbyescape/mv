@@ -24,6 +24,123 @@ class OriginalLiveEvidenceTests(TestCase):
         candles,books,info,times=data()
         return candles,books,info,times
 
+    def test_transient_15m_mismatch_retries_whole_batch_and_preserves_evidence(self):
+        candles,books,info,_=self.fixture()
+        boundary=START_MS+STEP_MS
+        old=json.loads(candles["BTCUSDT"]["15m"])
+        from decimal import Decimal
+        old[-1][5]=str(Decimal(old[-1][5])+Decimal("0.00000001"))
+        inconsistent=json.dumps(old).encode()
+        calls=[]
+        btc_fifteen_calls=0
+
+        def mocked_get(url,maximum):
+            nonlocal btc_fifteen_calls
+            calls.append(url)
+            parsed=urlparse(url)
+            args=parse_qs(parsed.query)
+            if parsed.path.endswith("/klines"):
+                symbol,frame=args["symbol"][0],args["interval"][0]
+                if symbol=="BTCUSDT" and frame=="15m":
+                    btc_fifteen_calls+=1
+                    body=inconsistent if btc_fifteen_calls==1 else candles[symbol][frame]
+                else:
+                    body=candles[symbol][frame]
+                return body,boundary+1_000,10.0
+            if parsed.path.endswith("/exchangeInfo"):
+                return info,boundary+1_000,10.0
+            if parsed.path.endswith("/bookTicker"):
+                return books[args["symbol"][0]],boundary+1_000,10.0
+            raise AssertionError("Unexpected endpoint")
+
+        with TemporaryDirectory(prefix="v7sonic-candle-finalization-") as tmp:
+            with patch.object(smoke,"START_MS",boundary+STEP_MS):
+                with patch.object(smoke,"_get",side_effect=mocked_get):
+                    with patch.object(smoke.time,"sleep"):
+                        with patch.object(smoke.time,"time_ns",side_effect=[
+                            (boundary-1_000)*1_000_000,
+                            (boundary+100)*1_000_000,
+                            (boundary+2_000)*1_000_000,
+                            (boundary+3_500)*1_000_000,
+                            (boundary+3_800)*1_000_000,
+                        ]):
+                            result=smoke.capture_one(tmp)
+            self.assertEqual(len(calls),62)
+            self.assertEqual(btc_fifteen_calls,2)
+            self.assertEqual(result["capture_attempt_count"],2)
+            self.assertEqual(result["original_raw_responses_retained"],62)
+            self.assertEqual(result["public_gets"],62)
+            files=list(Path(tmp).glob("v7sonic-original-http-*.json"))
+            rejects=list(Path(tmp).glob("v7sonic-rejected-*.json"))
+            self.assertEqual(len(files),2)
+            self.assertEqual(len(rejects),1)
+            self.assertTrue(Path(result["report_path"]).exists())
+
+            for idx,expected_pass in ((0,False),(1,True)):
+                source=result["attempt_evidence"][idx]
+                proof=replay.replay_original(
+                    replay._read_private_file(source["original_raw_evidence_path"])
+                )
+                self.assertEqual(proof["original_http_responses_hash_checked"],31)
+                self.assertEqual(proof["exact_reconciliation_passed"],expected_pass)
+                self.assertEqual(proof["telegram_messages_sent"],0)
+                self.assertEqual(proof["orders_submitted"],0)
+            rejected=json.loads(rejects[0].read_text())
+            self.assertTrue(rejected["fresh_full_batch_retry_planned"])
+            self.assertTrue(rejected["raw_sources_preserved"])
+            self.assertFalse(rejected["client_publication_authorized"])
+
+    def test_persistent_15m_mismatch_exhausts_retry_without_paper_report(self):
+        candles,books,info,_=self.fixture()
+        boundary=START_MS+STEP_MS
+        bad=json.loads(candles["DOGEUSDT"]["15m"])
+        from decimal import Decimal
+        bad[-1][5]=str(Decimal(bad[-1][5])+Decimal("1"))
+        candles["DOGEUSDT"]["15m"]=json.dumps(bad).encode()
+        calls=[]
+
+        def mocked_get(url,maximum):
+            calls.append(url)
+            parsed=urlparse(url)
+            args=parse_qs(parsed.query)
+            if parsed.path.endswith("/klines"):
+                return candles[args["symbol"][0]][args["interval"][0]],boundary+1_000,10.0
+            if parsed.path.endswith("/exchangeInfo"):
+                return info,boundary+1_000,10.0
+            if parsed.path.endswith("/bookTicker"):
+                return books[args["symbol"][0]],boundary+1_000,10.0
+            raise AssertionError("Unexpected endpoint")
+
+        with TemporaryDirectory(prefix="v7sonic-persistent-mismatch-") as tmp:
+            with patch.object(smoke,"START_MS",boundary+STEP_MS):
+                with patch.object(smoke,"_get",side_effect=mocked_get):
+                    with patch.object(smoke.time,"sleep"):
+                        with patch.object(smoke.time,"time_ns",side_effect=[
+                            (boundary-1_000)*1_000_000,
+                            (boundary+100)*1_000_000,
+                            (boundary+2_000)*1_000_000,
+                            (boundary+4_000)*1_000_000,
+                            (boundary+6_000)*1_000_000,
+                        ]):
+                            with self.assertRaisesRegex(ValueError,
+                                    "Native timeframe contradicts"):
+                                smoke.capture_one(tmp)
+            self.assertEqual(len(calls),93)
+            self.assertEqual(len(list(
+                Path(tmp).glob("v7sonic-original-http-*.json")
+            )),3)
+            self.assertEqual(len(list(
+                Path(tmp).glob("v7sonic-rejected-*.json")
+            )),3)
+            self.assertEqual(list(
+                Path(tmp).glob("v7sonic-early-smoke-*.json")
+            ),[])
+            self.assertFalse(any(
+                replay.replay_original(replay._read_private_file(str(p)))[
+                    "exact_reconciliation_passed"
+                ] for p in Path(tmp).glob("v7sonic-original-http-*.json")
+            ))
+
     def test_exact_31_original_response_bytes_survive_reopen_and_replay(self):
         candles,books,info,times=self.fixture()
         with TemporaryDirectory(prefix="v7sonic-original-http-test-") as tmp:
