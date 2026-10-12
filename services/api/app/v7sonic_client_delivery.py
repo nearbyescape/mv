@@ -21,11 +21,11 @@ import hmac
 import json
 import re
 
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.models import (
     V7ClientApproval, V7ClientDelivery, V7DecisionCycle,
-    V7DecisionRecord, V7DeliveryDraft,
+    V7DecisionRecord, V7DeliveryDraft, SignalSlot,
 )
 from app.v7sonic_store import inspect_private_cycle
 from app.v7sonic_release import STRATEGY_ID, format_private_rehearsal, _ist_open
@@ -133,6 +133,40 @@ def _validate_release(session, approval, *, now_ms: int, chat_id: str,
     return underlying
 
 
+def _cross_strategy_lock_check(session, *, candidate_id: str, symbol: str) -> None:
+    """Block held V4 slots and outstanding/uncertain V7 client ideas.
+
+    This checks operator-reported positions, NOT authenticated Binance
+    account inventory. Future release requires an authoritative position
+    feed or equally explicit operator review attestation.
+    """
+    legacy = list(session.scalars(
+        select(SignalSlot).where(
+            SignalSlot.symbol == symbol,
+            SignalSlot.state.in_(("reserved", "held")),
+        ).with_for_update()
+    ))
+    if legacy:
+        raise PermissionError("Legacy held/reserved symbol lock blocks V7 release")
+    occupied = list(session.scalars(
+        select(V7ClientDelivery)
+        .where(V7ClientDelivery.status.in_((
+            "pending", "inflight", "delivered", "unknown",
+        )))
+        .with_for_update()
+    ))
+    if len([x for x in occupied if x.candidate_id != candidate_id]) >= 4:
+        raise PermissionError("V7 portfolio cap of four unreleased slots reached")
+    for row in occupied:
+        if row.candidate_id == candidate_id:
+            continue
+        decision = session.scalar(select(V7DecisionRecord).where(
+            V7DecisionRecord.candidate_id == row.candidate_id,
+        ))
+        if decision is None or decision.symbol == symbol:
+            raise PermissionError("Existing/unknown V7 client signal locks symbol")
+
+
 def _message(plan: dict, identifier: str) -> str:
     from datetime import datetime, timedelta, timezone
     boundary = plan["decision_boundary_ms"]
@@ -173,6 +207,8 @@ def enqueue_approved(
         session, approval, now_ms=now_ms,
         chat_id=chat_id, signing_key=signing_key,
     )
+    _cross_strategy_lock_check(session, candidate_id=candidate_id,
+                               symbol=decision["symbol"])
     text = _message(decision, candidate_id)
     if len(text) > 4096:
         raise ValueError("V7 Telegram message exceeds limit")
@@ -210,10 +246,12 @@ def claim_one(
     if approval is None:
         raise PermissionError("Missing V7 approval at final send")
     try:
-        _validate_release(
+        plan = _validate_release(
             session, approval, now_ms=now_ms,
             chat_id=chat_id, signing_key=signing_key,
         )
+        _cross_strategy_lock_check(session, candidate_id=candidate_id,
+                                   symbol=plan["symbol"])
         if (row.destination_chat_id != chat_id or
                 row.expires_at_ms <= now_ms or
                 row.payload_json.get("chat_id") != chat_id or
@@ -221,6 +259,15 @@ def claim_one(
             raise PermissionError("Tampered, expired or destination-changed V7 outbox")
     except (PermissionError, ValueError):
         row.status, row.error_code = "skipped", "FINAL_PUBLICATION_GATE_REJECTED"
+        return None
+    # A crashed/unacknowledged send is UNKNOWN and fences all later sends.
+    unknown = session.scalar(select(V7ClientDelivery.candidate_id).where(
+        V7ClientDelivery.status.in_(("inflight", "unknown")),
+        V7ClientDelivery.candidate_id != candidate_id,
+    ).limit(1))
+    last_claim = session.scalar(select(func.max(V7ClientDelivery.claimed_at_ms)))
+    if unknown is not None or (last_claim is not None and
+                               now_ms < last_claim + CLAIM_GAP_MS):
         return None
     # Never automatically retry or send again after a claim.
     row.status = "inflight"
