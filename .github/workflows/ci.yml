@@ -43,6 +43,7 @@ jobs:
       - run: python -m pip install -e ../../packages/strategy
       - run: python -m pytest -q --ignore-glob='tests/test_t7sonic_*.py'
         env:
+          PYTHONPATH: ${{ github.workspace }}:${{ github.workspace }}/services/api
           MV_TEST_PG_URL: postgresql+psycopg://mv:ci-isolated-postgresql@127.0.0.1:5432/mv_checks
   containers:
     runs-on: ubuntu-latest
