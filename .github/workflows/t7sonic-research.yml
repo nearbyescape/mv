@@ -122,7 +122,8 @@ jobs:
           from pathlib import Path
           from subprocess import check_output
           from app.research.t7sonic_isolation import (
-              validate_import_boundary, validate_dedicated_image, validate_change_scope
+              validate_import_boundary, validate_dedicated_image, validate_change_scope,
+              validate_production_pytest_separation,
           )
           repo = Path.cwd()
           base = check_output(["git", "merge-base", "HEAD", "origin/main"], text=True).strip()
@@ -134,6 +135,7 @@ jobs:
           print(validate_change_scope(changed))
           print(validate_import_boundary(repo / "services/api/app/research"))
           print(validate_dedicated_image(repo))
+          print(validate_production_pytest_separation(repo / ".github/workflows/ci.yml"))
           PY
       - name: Run offline, standard-library-only causal research checks
         run: |
