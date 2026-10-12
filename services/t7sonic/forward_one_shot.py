@@ -185,4 +185,34 @@ def optional_public_paper_capture(
         raise ValueError("No venue metadata received")
     if time.time_ns()//1_000_000 > boundary_ms+MAX_DECISION_LAG_MS:
         raise ValueError("Cycle completed too late; discard all data")
-    return checked_live_cycle(boundary_ms, sources, books, info)
+    report = checked_live_cycle(boundary_ms, sources, books, info)
+
+    # A full six-market parse, reconciliation, and strategy evaluation may
+    # consume significant CPU after the 31 HTTP responses arrive. The old
+    # pre-parse time check was insufficient: a paper candidate could escape
+    # AFTER expiry, or when the top-of-book quote was already stale.
+    # Never reinterpret an expired/late observation as NO_SETUP.
+    completed_ms = time.time_ns() // 1_000_000
+    if completed_ms > boundary_ms + MAX_DECISION_LAG_MS:
+        raise ValueError("Paper decision computation exceeded deadline")
+    quote_proofs = report["quote_proofs"]
+    if set(quote_proofs) != set(MARKETS):
+        raise ValueError("Missing quote evidence after paper computation")
+    for symbol in MARKETS:
+        event_ms = quote_proofs[symbol]["exchange_event_ms_unattested"]
+        if (type(event_ms) is not int or
+                not 0 <= completed_ms - event_ms <= 5_000):
+            raise ValueError("Quote aged beyond five seconds while computing paper plan")
+    for candidate in report["indicative_candidates"]:
+        expiry = candidate["expires_at_ms"]
+        if type(expiry) is not int or completed_ms >= expiry:
+            raise ValueError("Computed paper candidate already expired")
+    return {
+        **report,
+        "complete_cycle_returned_before_deadline_local_clock_claim": True,
+        "quotes_fresh_at_return_local_clock_claim": True,
+        "paper_decision_completed_ms_local_claim": completed_ms,
+        "client_publication_authorized": False,
+        "telegram_enqueued": False,
+        "real_money_orders_authorized": False,
+    }
