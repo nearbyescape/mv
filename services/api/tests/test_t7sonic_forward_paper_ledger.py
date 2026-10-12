@@ -176,6 +176,27 @@ class PrivateLedgerTests(unittest.TestCase):
                     local_write_approved=True,
                 )
 
+    def test_complete_31_source_mock_cycle_persists_into_private_ledger(self):
+        from test_t7sonic_forward_one_shot import fixtures, BOUNDARY
+        from services.t7sonic.forward_one_shot import checked_live_cycle
+
+        cycle = checked_live_cycle(BOUNDARY, *fixtures())
+        self.assertEqual(cycle["source_http_responses"], 31)
+        self.assertEqual(cycle["markets_evaluated"], 6)
+        with PrivatePaperLedger(
+            self.dbpath, local_write_approved=True
+        ) as journal:
+            result = journal.record(
+                cycle, observed_at_ms=BOUNDARY+2_000
+            )
+            self.assertEqual(result["six_decisions_accounted_for"], 6)
+            self.assertFalse(result["telegram_or_client_delivery"])
+            audit = journal.audit(BOUNDARY)
+            self.assertTrue(audit["six_decisions_verified"])
+            self.assertEqual(
+                audit["candidate_count"], cycle["candidate_count"]
+            )
+
     def test_audit_detects_mutated_disk_plan_without_republishing(self):
         with PrivatePaperLedger(self.dbpath,local_write_approved=True) as ledger:
             ledger.record(self.preview, observed_at_ms=self.boundary+1000)
