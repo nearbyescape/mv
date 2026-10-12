@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, build_opener, ProxyHandler, HTTPSHandler, HTTPRedirectHandler
 import argparse
+import base64
 import json
 import os
 import ssl
@@ -150,6 +151,90 @@ def analyze(boundary,candles,books,info,book_receipts,evaluated):
     }
 
 
+def _save_original_responses(folder, boundary, candle_bodies,
+                             book_bodies, exchange_info, book_receipts,
+                             observed_ms):
+    """Persist exact bytes BEFORE interpreting OHLCV or deciding a signal.
+
+    This receipt records locally observed data, not independently verified
+    exchange state or an independently witnessed capture timestamp. If later
+    reconciliation fails, the raw evidence survives unchanged for forensics.
+    """
+    if (type(boundary) is not int or boundary % STEP or
+            not isinstance(candle_bodies, dict) or
+            set(candle_bodies) != set(MARKETS) or
+            not isinstance(book_bodies, dict) or
+            set(book_bodies) != set(MARKETS) or
+            not isinstance(book_receipts, dict) or
+            set(book_receipts) != set(MARKETS) or
+            not isinstance(exchange_info, bytes) or
+            type(observed_ms) is not int):
+        raise ValueError("Exact complete observation required before journal write")
+    for symbol in MARKETS:
+        if set(candle_bodies[symbol]) != set(FRAMES):
+            raise ValueError("Incomplete candle geometry; no complete journal")
+        if any(not isinstance(candle_bodies[symbol][frame], bytes)
+               for frame in FRAMES) or not isinstance(book_bodies[symbol], bytes):
+            raise ValueError("Original unmodified raw bytes required")
+        if type(book_receipts[symbol]) is not int:
+            raise ValueError("Quote receipt must be exact integer")
+    def item(raw):
+        return {
+            "body_base64": base64.b64encode(raw).decode("ascii"),
+            "original_body_sha256": sha256(raw).hexdigest(),
+        }
+    receipt={
+        "schema":1,
+        "status":"ORIGINAL_PUBLIC_REST_INPUTS_LOCAL_UNATTESTED",
+        "decision_boundary_ms":boundary,
+        "recorded_ms_local_clock_claim":observed_ms,
+        "markets":list(MARKETS),
+        "kline_bodies":{
+            symbol:{frame:item(candle_bodies[symbol][frame])
+                    for frame in FRAMES}
+            for symbol in MARKETS
+        },
+        "quote_bodies":{symbol:item(book_bodies[symbol]) for symbol in MARKETS},
+        "quote_received_ms_local_clock_claim":book_receipts,
+        "exchange_info_body":item(exchange_info),
+        "original_public_rest_responses_retained":31,
+        "exchange_data_signed":False,
+        "independent_timestamp_verified":False,
+        "client_publication_authorized":False,
+        "telegram_enqueued":False,
+        "orders_submitted":False,
+    }
+    raw=(json.dumps(receipt,sort_keys=True,separators=(",",":"))+"\\n").encode()
+    if not 31 <= len(raw) <= 8_000_000:
+        raise ValueError("Original-source evidence is oversized")
+    target=folder/("v7sonic-original-http-"+str(boundary)+".json")
+    _write_immutable_file(folder,target,raw)
+    return str(target),sha256(raw).hexdigest()
+
+
+def _write_immutable_file(folder, destination, payload):
+    """Atomic owner-private create-only file; no overwrite or silent partial."""
+    if not isinstance(payload,bytes) or not payload:
+        raise ValueError("No empty forensic evidence")
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError("Evidence already exists; do not overwrite it")
+    fd,tmp=tempfile.mkstemp(prefix=".v7sonic-original-",dir=folder)
+    try:
+        os.fchmod(fd,0o600)
+        with os.fdopen(fd,"wb") as stream:
+            stream.write(payload)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.link(tmp,destination,follow_symlinks=False)
+        directory_fd=os.open(str(folder),os.O_RDONLY|getattr(os,"O_DIRECTORY",0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        os.unlink(tmp)
+
+
 def capture_one(directory):
     target=Path(directory)
     if not target.is_absolute() or target.is_symlink() or not target.is_dir():
@@ -192,7 +277,39 @@ def capture_one(directory):
             raw,ts,latency=future.result()
             books[s]=raw;received[s]=ts
     completed=time.time_ns()//1_000_000
-    outcome=analyze(boundary,candles,books,info,received,completed)
+    # Important: preserve actual response bytes BEFORE the parser, clock,
+    # cross-frame reconciliation or hypothesis engine can raise. The first
+    # real-data discrepancy was not diagnosable because inputs were lost.
+    raw_path,raw_sha=_save_original_responses(
+        target,boundary,candles,books,info,received,completed
+    )
+    try:
+        outcome=analyze(boundary,candles,books,info,received,completed)
+    except Exception as exc:
+        failure={
+            "status":"INTERNAL_LIVE_DIAGNOSTIC_REJECTED_UNPUBLISHED",
+            "decision_boundary_ms":boundary,
+            "raw_source_evidence_path":raw_path,
+            "raw_source_evidence_sha256":raw_sha,
+            "stage":"six_market_strict_analysis",
+            "failure_class":type(exc).__name__,
+            "failure_reason":str(exc)[:450],
+            "raw_sources_preserved":True,
+            "client_publication_authorized":False,
+            "telegram_enqueued":False,
+            "orders_submitted":False,
+        }
+        try:
+            _write_immutable_file(
+                target,
+                target/("v7sonic-rejected-"+str(boundary)+".json"),
+                (json.dumps(failure,sort_keys=True,indent=2)+"\\n").encode(),
+            )
+        except OSError:
+            # The exception from the original strict analysis must remain
+            # visible; raw sources were already persisted separately.
+            pass
+        raise
     finished=time.time_ns()//1_000_000
     if finished>boundary+LIMIT_MS:
         raise ValueError("Paper analysis exceeded decision deadline")
@@ -211,6 +328,9 @@ def capture_one(directory):
     return {
         "status":outcome["status"],"report_path":str(dest),
         "report_sha256":sha256(serialized).hexdigest(),
+        "original_raw_evidence_path":raw_path,
+        "original_raw_evidence_sha256":raw_sha,
+        "original_raw_responses_retained":31,
         "markets":6,"public_gets":31,
         "paper_candidates":outcome["paper_candidate_count"],
         "telegram_messages":0,"orders":0,
