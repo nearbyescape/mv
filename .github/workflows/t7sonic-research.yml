@@ -18,6 +18,7 @@ on:
       - services/t7sonic/forward_https.py
       - services/t7sonic/forward_witness.py
       - services/t7sonic/forward_rfc3161.py
+      - services/t7sonic/forward_tsa_handoff.py
   pull_request:
     branches:
       - main
@@ -33,6 +34,7 @@ on:
       - services/t7sonic/forward_https.py
       - services/t7sonic/forward_witness.py
       - services/t7sonic/forward_rfc3161.py
+      - services/t7sonic/forward_tsa_handoff.py
   workflow_dispatch:
 
 permissions:
