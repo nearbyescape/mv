@@ -204,7 +204,7 @@ def _save_original_responses(folder, boundary, candle_bodies,
         "telegram_enqueued":False,
         "orders_submitted":False,
     }
-    raw=(json.dumps(receipt,sort_keys=True,separators=(",",":"))+"\\n").encode()
+    raw=(json.dumps(receipt,sort_keys=True,separators=(",",":"))+"\n").encode()
     if not 31 <= len(raw) <= 8_000_000:
         raise ValueError("Original-source evidence is oversized")
     target=folder/("v7sonic-original-http-"+str(boundary)+".json")
@@ -303,7 +303,7 @@ def capture_one(directory):
             _write_immutable_file(
                 target,
                 target/("v7sonic-rejected-"+str(boundary)+".json"),
-                (json.dumps(failure,sort_keys=True,indent=2)+"\\n").encode(),
+                (json.dumps(failure,sort_keys=True,indent=2)+"\n").encode(),
             )
         except OSError:
             # The exception from the original strict analysis must remain
