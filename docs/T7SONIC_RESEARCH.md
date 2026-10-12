@@ -1862,3 +1862,44 @@ necessary before ANY live Telegram contact, even to
 the private test bot. No signal/client publication is
 authorized. The broader application CI and VPS gates
 must be separately reviewed.
+
+## V7Sonic VPS 212-test confirmation and manual bot preflight
+
+The operator ran exact pinned SHA
+`00b03f4835c98d095448dca02b35ff1c1275bb55`.
+The full 212-test offline research suite passed on the VPS
+(8.212 seconds); the 9 targeted private-Telegram adapter
+tests also passed (0.076 seconds). Production engine
+remained stopped and restart=no; ZERO Telegram messages
+were sent. A successful mock send is NOT live provider proof.
+
+The standalone `services/t7sonic/private_telegram_cli.py`
+now offers a **manual** operational entry point for
+`forward_private_telegram.py`, with no HTTP by default.
+It reads a preexisting 0600 JSON file under an
+operator-owned private directory. The file contains
+exactly `test_bot_token`, `production_bot_token`,
+`private_test_chat_id`, and `production_chat_id`.
+The values are NEVER printed or written into the repo;
+the test/production bot tokens must be different and
+the test destination must be a positive-ID private 1:1
+chat distinct from the production client chat.
+
+**No actual Telegram test has been authorized or executed.**
+A future operator must first create and independently
+verify a dedicated test bot and private test chat and
+explicitly approve sending the fixed non-trading text.
+Without the `--send-fixed-test` switch, the program does
+no HTTPS, even when secret input is present. A real
+send would require all flags `--send-fixed-test`,
+`--network-approved`, `--second-confirmation`
+AND the exact fixed `--approval-phrase`, which is
+rechecked at send-time under a 90-second consent window.
+Those flags are technical gates, not evidence of two
+independent human approvals.
+
+Neither path publishes real model signals, restarts the
+production engine, changes production schema, connects
+the signal outbox to the Telegram sender, nor certifies
+profitability or live client readiness. Broader application
+CI and VPS runtime certification remain independent gates.
