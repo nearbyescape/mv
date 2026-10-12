@@ -7,8 +7,10 @@ presentation explicitly disable real publication.
 """
 from __future__ import annotations
 
+import argparse
 from hashlib import sha256
 import json
+from pathlib import Path
 
 from .t7sonic_release_candidate import indicative_plan, POLICY
 from .t7sonic_validation_plan import MARKETS
@@ -109,3 +111,57 @@ def format_explicit_test_message(candidate: dict) -> str:
         "UNVALIDATED research signal. No actual fill or profitable edge "
         "demonstrated. Not authorized for client publication."
     )
+
+
+MAX_OFFLINE_INPUT_BYTES = 30 * 1024 * 1024
+
+
+def run_offline_release_input(payload: dict) -> dict:
+    """Strict transport-neutral entry point for a complete six-market fixture.
+
+    Does not know if the provider is real or independently verified. Never
+    publishes to Telegram. All output remains a non-client paper preview.
+    """
+    required = {
+        "schema", "snapshots", "quotes",
+        "active_symbols", "previously_seen_candidate_ids",
+    }
+    if not isinstance(payload, dict) or set(payload) != required:
+        raise ValueError("Six-market offline release input schema mismatch")
+    if type(payload["schema"]) is not int or payload["schema"] != 1:
+        raise ValueError("Unsupported offline release schema")
+    if not isinstance(payload["active_symbols"], list) or not isinstance(
+        payload["previously_seen_candidate_ids"], list
+    ):
+        raise ValueError("Expected explicit active symbol/previous-ID arrays")
+    result = build_offline_preview(
+        payload["snapshots"], payload["quotes"],
+        active_symbols=tuple(payload["active_symbols"]),
+        previously_seen_candidate_ids=tuple(
+            payload["previously_seen_candidate_ids"]
+        ),
+    )
+    result["internal_test_messages"] = [
+        format_explicit_test_message(x)
+        for x in result["indicative_candidates"]
+        if x["delivery_status"] == "PREVIEW_ONLY_NEVER_QUEUED"
+    ]
+    return result
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="V7Sonic OFFLINE PAPER previews; never Telegram or orders"
+    )
+    parser.add_argument("--input", required=True, help="Six-market JSON test bundle")
+    args = parser.parse_args()
+    path = Path(args.input)
+    if (path.is_symlink() or not path.is_file() or
+            path.stat().st_size > MAX_OFFLINE_INPUT_BYTES):
+        parser.error("Regular non-symlink input required, <=30MB")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    print(json.dumps(run_offline_release_input(payload), sort_keys=True, indent=2))
+
+
+if __name__ == "__main__":
+    main()
