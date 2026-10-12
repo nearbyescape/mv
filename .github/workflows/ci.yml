@@ -55,6 +55,8 @@ jobs:
       - run: docker run --rm --network none mv-api-check python -m app.v7sonic_sql_paper_worker
       - name: Syntax-check SHA-pinned VPS staging verification script
         run: bash -n deploy/v7sonic-verify-isolated.sh
+      - name: Syntax-check operator-approved isolated real-data capture script
+        run: bash -n deploy/v7sonic-capture-one-live-boundary.sh
       - name: Validate V7 isolated Compose under operator umask 077
         run: |
           umask 077
