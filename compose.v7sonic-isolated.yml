@@ -1,0 +1,26 @@
+# V7Sonic staging preflight — intentionally a SEPARATE Compose project.
+# Invoke ONLY this file. NEVER merge it with compose.production.yml.
+# No application/DB/Telegram workers, no credentials, no network, no ports.
+name: mv-v7sonic-isolated
+services:
+  v7-preflight:
+    profiles: [v7-private-diagnostics]
+    image: ${V7_PREFLIGHT_IMAGE:-mv-v7sonic-preflight:local}
+    command: [python, -m, app.v7sonic_sql_paper_worker]
+    network_mode: none
+    read_only: true
+    init: true
+    user: "10001:10001"
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,noexec,size=32m
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: "0.50"
+    logging:
+      driver: json-file
+      options:
+        max-size: "1m"
+        max-file: "2"
