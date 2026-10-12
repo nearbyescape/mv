@@ -1454,3 +1454,59 @@ The October 15 prospective start remains provisional,
 and expired observation boundaries must never be backfilled
 from later price outcomes or unsigned local journals.
 No research PR code is merged into production.
+
+## Phase 2X — VPS synthetic handoff evidence, preserved
+
+Operator executed exact research commit
+`962d06892a8f84bdcce4902bcad4e6c33ed09b9f`
+on the VPS under `umask 077`. The whole offline
+test suite passed **133/133** (7.451 seconds), and the
+synthetic unsigned RFC3161 request and hypothetical
+provider-neutral HTTPS POST manifest passed with 24
+expected frame receipt entries. There was **no real TSA
+request**, no validated external certificate/policy,
+no paper collector and no trading approval.
+Original MV engine remained stopped (restart=no).
+
+Source evidence:
+`/var/tmp/t7sonic-phase2x-ax5SGtlY.json`,
+SHA256:
+`a5a9b776d05e95d282d4be96a348bd5e49009e5ec0a70c1472f2ec06ea633ff4`.
+
+### Phase 2Y — offline portable raw-evidence bundle
+
+Add `services/t7sonic/forward_retention.py` as a separate,
+non-deployed, standard-library-only portable evidence bundler.
+For every full-six-market WATCH (including a valid no-WATCH
+decision), it requires all **24** actual raw source-response
+byte strings to match the SHA256 digests recorded in the
+existing, unsigned Phase 2V witness manifest. It also
+binds the complete model decision packet and the unsigned
+witness manifest in one deterministic ZIP_STORED archive
+(`decision.json`, `unsigned-witness.json`, 24 typed
+`source/SYMBOL/FRAME.bin` files). For a proper DATA GAP,
+the archive contains only the packet plus the gap witness
+manifest, never invented raw data or NO_WATCH classifications.
+
+The offline verifier checks the expected member ordering,
+no omitted/extra/duplicate entries, no compression or
+encrypted-member acceptance, canonical JSON bytes,
+SHA-256 of each raw byte response and consistency of
+witness/decision digests and deadline-bounded claimed
+receipt records. It never extracts files. Test fixtures
+use tiny artificial raw bytes, not actual Binance candles.
+The offline bundle itself is capped at a bounded size.
+The ZIP is deterministic for identical inputs, suitable
+for future off-server content-addressed delivery after
+a separately approved witness/retention design.
+
+**Critical:** building or verifying a ZIP locally does
+NOT prove the exchange origin, a trusted timestamp,
+off-VPS replication or that an earlier chain pointer
+really exists in a complete journal. This tool does
+not upload evidence, operate a live source, contact a
+real TSA, enforce remote append-only immutability,
+or enable trading, Telegram or production restart.
+The proposed October 15 start remains conditional
+and must move forward if real prospective controls
+are not certified before observation begins.
