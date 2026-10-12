@@ -225,7 +225,6 @@ def paper_position_sizing(plan: dict, rules: dict, account: dict) -> dict:
         return {**common,"reason":"PORTFOLIO_BUDGET_EXHAUSTED"}
     raw_qty=min(
         budget/loss_per_unit,max_new_notional/entry,
-        minimum*D("1000000000000"),
         maximum,market_max,
     )
     # Floor to exact exchange step, never upsize to the minimum.
