@@ -27,6 +27,7 @@ on:
       - services/t7sonic/forward_one_shot.py
       - services/t7sonic/manual_live_capture_cli.py
       - services/t7sonic/early_live_smoke.py
+      - services/t7sonic/forensic_cross_resolution.py
       - services/t7sonic/forward_paper_ledger.py
       - services/t7sonic/forward_private_outbox.py
       - services/t7sonic/forward_private_telegram.py
@@ -57,6 +58,7 @@ on:
       - services/t7sonic/forward_one_shot.py
       - services/t7sonic/manual_live_capture_cli.py
       - services/t7sonic/early_live_smoke.py
+      - services/t7sonic/forensic_cross_resolution.py
       - services/t7sonic/forward_paper_ledger.py
       - services/t7sonic/forward_private_outbox.py
       - services/t7sonic/forward_private_telegram.py
