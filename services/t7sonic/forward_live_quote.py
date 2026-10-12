@@ -110,10 +110,18 @@ def parse_book_ticker(
         book = json.loads(raw)
     except (UnicodeError, ValueError) as exc:
         raise ValueError("Invalid bookTicker JSON") from exc
+    required = {"symbol", "bidPrice", "bidQty",
+                "askPrice", "askQty", "time"}
+    # Real Binance USD-M /fapi/v1/ticker/bookTicker observations can
+    # additionally include lastUpdateId. The first actual VPS capture
+    # returned it for all six markets, despite earlier six-field mocks.
+    # This remains a finite allowlist; never silently accept other keys.
     if (not isinstance(book, dict) or
-            set(book) != {"symbol", "bidPrice", "bidQty",
-                          "askPrice", "askQty", "time"} or
-            book["symbol"] != symbol or type(book["time"]) is not int):
+            set(book) not in (required, required | {"lastUpdateId"}) or
+            book["symbol"] != symbol or type(book["time"]) is not int or
+            ("lastUpdateId" in book and
+             (type(book["lastUpdateId"]) is not int or
+              book["lastUpdateId"] <= 0))):
         raise ValueError("Single-market bookTicker schema mismatch")
     exchange_ms = book["time"]
     if not (boundary_ms <= exchange_ms <= received_ms and
@@ -146,6 +154,12 @@ def parse_book_ticker(
         "venue_rule_sha256": venue["contract_source_sha256"],
         "received_ms_local_clock_claim": received_ms,
         "exchange_event_ms_unattested": exchange_ms,
+        "book_last_update_id_unattested": book.get("lastUpdateId"),
+        "book_schema_variant": (
+            "BINANCE_USDM_7_FIELDS_WITH_LAST_UPDATE_ID"
+            if "lastUpdateId" in book else
+            "BINANCE_USDM_6_FIELDS_LEGACY_TEST_FORMAT"
+        ),
         "displayed_bid_size": str(bid_size),
         "displayed_ask_size": str(ask_size),
         "independent_receipt_witness_verified": False,
