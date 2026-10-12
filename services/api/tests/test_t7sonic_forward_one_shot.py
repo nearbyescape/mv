@@ -106,6 +106,83 @@ class OneShotPublicCycleTests(TestCase):
                 optional_public_paper_capture(BOUNDARY)
             pool.assert_not_called()
 
+    def _mock_complete_network_cycle(self, *, before_ms, after_ms, event_ms,
+                                     candidate_expires_ms=None):
+        # The worker thread pool is real; each HTTP source is a mock stub.
+        # This verifies the outer runtime time gate, not source authenticity.
+        proof = {
+            "quote_proofs": {
+                symbol: {"exchange_event_ms_unattested": event_ms}
+                for symbol in MARKETS
+            },
+            "indicative_candidates": [
+                {"expires_at_ms": (
+                    BOUNDARY+30_000 if candidate_expires_ms is None
+                    else candidate_expires_ms)}
+            ],
+            "client_publication_authorized": False,
+            "telegram_enqueued": False,
+        }
+        with patch("services.t7sonic.forward_one_shot.optional_https_get",
+                   return_value=object()) as klines:
+            with patch("services.t7sonic.forward_one_shot.optional_public_http_get",
+                       return_value=object()) as public:
+                with patch("services.t7sonic.forward_one_shot.checked_live_cycle",
+                           return_value=proof) as verify:
+                    with patch("services.t7sonic.forward_one_shot.time.time_ns",
+                               side_effect=[
+                                   (BOUNDARY+1_000)*1_000_000,
+                                   before_ms*1_000_000,
+                                   after_ms*1_000_000,
+                               ]):
+                        result = optional_public_paper_capture(
+                            BOUNDARY, network_approved=True
+                        )
+        self.assertEqual(klines.call_count, 24)
+        self.assertEqual(public.call_count, 7)
+        verify.assert_called_once()
+        return result
+
+    def test_candidate_after_parse_remains_fresh_and_before_deadline(self):
+        result=self._mock_complete_network_cycle(
+            before_ms=BOUNDARY+2000,
+            after_ms=BOUNDARY+3000,
+            event_ms=BOUNDARY+500,
+        )
+        self.assertTrue(result[
+            "complete_cycle_returned_before_deadline_local_clock_claim"
+        ])
+        self.assertTrue(result[
+            "quotes_fresh_at_return_local_clock_claim"
+        ])
+        self.assertFalse(result["telegram_enqueued"])
+        self.assertFalse(result["client_publication_authorized"])
+
+    def test_long_parse_cannot_return_already_expired_candidate(self):
+        with self.assertRaisesRegex(ValueError,"computation exceeded deadline"):
+            self._mock_complete_network_cycle(
+                before_ms=BOUNDARY+2000,
+                after_ms=BOUNDARY+30_001,
+                event_ms=BOUNDARY+1000,
+            )
+
+    def test_long_parse_makes_book_quote_stale_even_when_before_deadline(self):
+        with self.assertRaisesRegex(ValueError,"Quote aged beyond five seconds"):
+            self._mock_complete_network_cycle(
+                before_ms=BOUNDARY+2000,
+                after_ms=BOUNDARY+7000,
+                event_ms=BOUNDARY+500,
+            )
+
+    def test_expired_candidate_is_vetoed_even_when_book_still_fresh(self):
+        with self.assertRaisesRegex(ValueError,"already expired"):
+            self._mock_complete_network_cycle(
+                before_ms=BOUNDARY+2000,
+                after_ms=BOUNDARY+3000,
+                event_ms=BOUNDARY+1000,
+                candidate_expires_ms=BOUNDARY+3000,
+            )
+
     def test_early_and_old_boundary_refused_without_http(self):
         with patch("services.t7sonic.forward_one_shot.ThreadPoolExecutor") as pool:
             with patch("services.t7sonic.forward_one_shot.time.time_ns",
