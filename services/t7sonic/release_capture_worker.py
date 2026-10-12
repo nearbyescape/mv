@@ -154,7 +154,7 @@ def capture_one_private_cycle(
                     "client_publication_authorized": False,
                     "telegram_messages_sent": 0,
                     "orders_submitted": 0,
-                }, sort_keys=True) + "\\n").encode(),
+                }, sort_keys=True) + "\n").encode(),
             )
             raise
         completed = clock()
