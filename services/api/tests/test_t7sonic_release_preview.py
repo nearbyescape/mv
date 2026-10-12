@@ -6,7 +6,7 @@ import unittest
 
 from app.research.t7sonic_validation_plan import MARKETS
 from app.research.t7sonic_release_preview import (
-    build_offline_preview, format_explicit_test_message,
+    build_offline_preview, format_explicit_test_message, run_offline_release_input,
 )
 from test_t7sonic_release_candidate import breakout, quote
 
@@ -90,6 +90,29 @@ class ReleaseBatchTests(unittest.TestCase):
             for p in repeated["indicative_candidates"]
         ))
         self.assertFalse(repeated["telegram_enqueued"])
+
+    def test_offline_file_payload_runner_contains_internal_only_messages(self):
+        samples, quotes = group()
+        payload = {
+            "schema": 1, "snapshots": samples,
+            "quotes": quotes, "active_symbols": [],
+            "previously_seen_candidate_ids": [],
+        }
+        out = run_offline_release_input(payload)
+        self.assertEqual(out["markets_evaluated"], 6)
+        self.assertEqual(len(out["internal_test_messages"]), 6)
+        self.assertTrue(all("DO NOT TRADE" in x for x in out["internal_test_messages"]))
+        self.assertFalse(out["client_publication_authorized"])
+        self.assertFalse(out["telegram_enqueued"])
+        for field in ("active_symbols", "previously_seen_candidate_ids"):
+            bad = deepcopy(payload)
+            bad[field] = None
+            with self.assertRaises(ValueError):
+                run_offline_release_input(bad)
+        bad = deepcopy(payload)
+        bad["client_publication_authorized"] = True
+        with self.assertRaises(ValueError):
+            run_offline_release_input(bad)
 
     def test_refuse_internal_message_for_nonpaper_or_actionable_fake(self):
         samples, quotes = group()
