@@ -47,6 +47,7 @@ def _module_tree(source_dir: Path) -> dict[str, ast.Module]:
         "t7sonic_validation_loader", "t7sonic_forward_protocol",
         "t7sonic_forward_coverage",
         "t7sonic_release_candidate",  # offline risk plan, no publication
+        "t7sonic_release_preview",  # six-market batch, no Telegram
     }:
         raise ValueError("Unreviewed T7Sonic model/runtime module name; extend allowlist explicitly")
     return {f.stem:ast.parse(f.read_text(encoding="utf8"),filename=str(f))
