@@ -63,6 +63,33 @@ An application or CI pass alone is not proof of profitable signals.
    enablement. Stop the V4 workers and any conflicting old Telegram worker
    first; execute preflight; only then do a reviewed controlled cutover.
 
+## Separate no-send deployment rehearsal (safe to test before V7 is certified)
+
+A dedicated `compose.v7sonic-isolated.yml` uses Compose project
+`mv-v7sonic-isolated`, one `v7-preflight` container, `network_mode: none`,
+a read-only filesystem, no ports, no secrets, no mounted production volumes,
+no Docker socket, no database credentials, and `restart: no`.
+
+From a clean, detached, exact-SHA V7 worktree on the VPS, while the original
+`/opt/mv-signal/app` symlink still points to `mv-signal-0.14.0` and V4's
+engine/Telegram/report/AI workers are stopped:
+
+```bash
+V7_EXPECTED_SHA=<the-reviewed-40-character-branch-head> \
+  bash deploy/v7sonic-verify-isolated.sh
+```
+
+The script builds only a separately tagged local V7 image and executes the
+offline preflight. A separate guard parses normalized Docker Compose JSON
+and rejects merged V4/DB/Telegram services, accidental production project
+names, mounted secrets, networks, root/privileged users, or restart policies.
+
+**This is NOT a production dry run against live market data or PostgreSQL,**
+nor does it constitute approval to apply database migrations `0009/0010`.
+A clean preflight verifies packaging/Compose isolation only. To stop, no
+persistent V7 worker has been started; keep production V4 workers stopped.
+No client bot credentials should be placed in this isolated manifest.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
