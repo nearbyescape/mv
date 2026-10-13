@@ -94,9 +94,22 @@ def audit_one_stored_cycle(
     if (ledger.is_symlink() or not ledger.is_file() or
             not stat.S_ISREG(ledger.stat().st_mode)):
         raise PermissionError("Missing immutable-path paper ledger")
-    # Open existing SQLite WITHOUT create/write rights, including at the
-    # filesystem level when the caller bind-mounts /state :ro.
-    uri = "file:" + quote(str(ledger), safe="/") + "?mode=ro"
+    # A completed one-shot WAL journal has checkpointed on final writer
+    # close, leaving only the main SQLite file. SQLite's ordinary mode=ro
+    # may still attempt to CREATE a -shm file under a read-only bind mount.
+    # immutable=1 avoids shared-memory creation, but deliberately ignores
+    # uncheckpointed WAL changes. Reject ANY WAL/SHM sidecar first, rather
+    # than silently auditing stale/incomplete rows after a writer crash.
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(str(ledger) + suffix)
+        if sidecar.exists() or sidecar.is_symlink():
+            raise PermissionError(
+                "SQLite has WAL/SHM sidecars: do not use immutable audit "
+                "until an independently verified clean checkpoint"
+            )
+    # SOURCE evidence remains mounted :ro; this connection neither creates
+    # shared-memory sidecars nor changes production or private SQLite files.
+    uri = "file:" + quote(str(ledger), safe="/") + "?mode=ro&immutable=1"
     with sqlite3.connect(uri, uri=True, timeout=3.0) as db:
         db.execute("PRAGMA query_only=ON")
         db.execute("PRAGMA foreign_keys=ON")
