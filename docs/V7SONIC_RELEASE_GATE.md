@@ -371,6 +371,59 @@ executions. Production publication still requires separate
 source/account attestations, portfolio risk, sign-off, delivery
 fault-injection tests, migrations and explicit cutover approval.
 
+## 13 Oct 2026, 21:30 IST simultaneous-timeframe close incident
+
+An operator-run, four-future-boundary paper-only pilot using exact SHA
+`c607b59430a2c62a6d001fe0a95a450b3d3ef0b6` generated:
+- 21:20 IST: six-market private paper journal PASS, 0 candidates;
+- 21:25 IST: six-market private paper journal PASS, 0 candidates;
+- 21:30 IST: attempt #1 preserved 31 exact original responses
+  (`ba03a20331da53b4b1c95e529eeffa7b412f2497d7f9ff18a4f5940fcfee0cdc`)
+  but cross-resolution OHLCV check rejected; attempt #2 suffered a
+  Binance public HTTPS `TimeoutError: The read operation timed out`;
+  the scheduler persisted a GAP, halted and did NOT generate a signal;
+- 21:35 IST was never attempted. **Pilot FAILED, 2/4 completed.**
+
+The **offline** replay of the original 21:30 attempt verified all
+31 individual response hashes and reported **9 OHLC price discrepancies
+and 13 volume discrepancies**. Every shown disagreement belongs to a
+higher-timeframe bar that closed at exactly **16:00 UTC / 21:30 IST**:
+15m opened 15:45 UTC; 1h opened 15:00 UTC; 4h opened 12:00 UTC.
+For example, BTC 1h close 83393.00 native vs 83393.10 1m-derived;
+ETH 1h close 2515.39 native vs 2515.38 1m-derived; SOL 15m volume
+295449.47 native vs 295098.20 derived. Independent public REST
+requests can be unsynchronized immediately after the close;
+the saved evidence supports a **closing-boundary synchronization
+hypothesis** but does not establish Binance's internal reason.
+Do NOT relabel these data gaps as NO_CANDIDATE or weaken the
+price/volume equality contract.
+
+An isolated research-only change in `release_capture_worker.py`
+adds a **2,500 ms post-close first-fetch settling window only at
+15-minute boundaries**, which include every simultaneous hourly and
+four-hourly close. Every source body must still pass exact 1m/
+15m/1h/4h OHLCV reconciliation; the existing up-to-30s decision
+expiry, bounded complete-retry rules, quote freshness and fail-closed
+behavior remain unchanged. This is an empirically motivated mitigation,
+**not** proof that future market-source inconsistencies or timeouts
+will disappear. It must pass forward-paper repeatability checks before
+any client publication.
+
+The previous four-cycle wrapper ran as a *foreground SSH child*,
+and Python stdout was pipe-buffered; loss of the SSH connection
+destroyed stderr diagnostics and left a zero-byte console log.
+The corrective `deploy/v7sonic-four-cycle-systemd-launch.sh`
+launches a one-time **transient systemd unit**, bounded with explicit
+no-restart and journal stdout/stderr, carrying operator approval only
+into the isolated four-cycle script. Four fresh future boundaries are
+evaluated in a **new** owner-private state folder for the pinned
+commit, with the pre-existing 21:20/21:25 successes and 21:30 failure
+preserved. The private scheduler also flushes each completed-cycle
+checkpoint to stderr for durable journal progress. The unit is
+not installed or started by CI or deployment; the operator must
+separately opt in after reviewing the exact source. V4 stays stopped;
+no client messages or exchange orders are authorized.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
