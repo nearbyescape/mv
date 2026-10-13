@@ -107,6 +107,10 @@ git -C "$ROOT" archive --format=tar "$SHA" |
   tar -C "$WORK" --no-same-owner --no-same-permissions -xf -
 test -f "$WORK/services/api/app/v7sonic_release.py"
 test -f "$WORK/deploy/v7sonic-four-cycle-systemd-launch.sh"
+if find "$WORK" -type l -print -quit | grep -q .; then
+  echo "STOP: inactive source snapshot must contain no symlinks" >&2
+  exit 5
+fi
 test ! -e "$WORK/.env"
 test ! -e "$WORK/deploy/production.env"
 test ! -e "$WORK/.git"
