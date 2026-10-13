@@ -1,6 +1,7 @@
 """Source-of-truth V7 offline ledger audit (zero real network or client send)."""
 from __future__ import annotations
 
+from contextlib import closing
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -47,7 +48,9 @@ class ReadonlyForensicTests(TestCase):
         self.assertFalse(result["local_source_independently_authenticated"])
         self.assertEqual(result["clients_notified"], 0)
         self.assertEqual(result["orders_submitted"], 0)
-        with sqlite3.connect(self.folder / "v7sonic-paper-release.sqlite3") as db:
+        with closing(sqlite3.connect(
+            self.folder / "v7sonic-paper-release.sqlite3"
+        )) as db:
             stored = db.execute(
                 "SELECT body_json FROM paper_cycles WHERE decision_boundary_ms=?",
                 (BOUNDARY,),
@@ -113,12 +116,16 @@ class ReadonlyForensicTests(TestCase):
 
     def test_corrupted_sql_decision_is_refused(self):
         dbfile = self.folder / "v7sonic-paper-release.sqlite3"
-        with sqlite3.connect(dbfile) as db:
-            db.execute(
-                "UPDATE paper_decisions SET status='WRONG' "
-                "WHERE decision_boundary_ms=? AND symbol='BTCUSDT'",
-                (BOUNDARY,),
-            )
+        # sqlite3's connection context manager commits but does NOT close.
+        # A still-open WAL writer is correctly rejected by the forensic
+        # auditor. Close it first to test tampered *checkpointed* data.
+        with closing(sqlite3.connect(dbfile)) as db:
+            with db:
+                db.execute(
+                    "UPDATE paper_decisions SET status='WRONG' "
+                    "WHERE decision_boundary_ms=? AND symbol='BTCUSDT'",
+                    (BOUNDARY,),
+                )
         with self.assertRaisesRegex(ValueError, "per-market decision tampered"):
             audit_one_stored_cycle(self.folder, **self.kwargs())
 
