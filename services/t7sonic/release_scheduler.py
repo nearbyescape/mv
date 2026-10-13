@@ -24,6 +24,7 @@ import os
 from pathlib import Path
 import signal
 import stat
+import sys
 import time
 
 from app import v7sonic_release as release
@@ -167,6 +168,21 @@ def run_private_paper_loop(
                         sql_result.get("orders_submitted") != 0):
                     raise ValueError("Fenced V7 SQL sink rejected or misreported publication")
             stored += 1
+            # Per-boundary progress on stderr, unbuffered, so a detached
+            # systemd pilot has durable journal evidence even when stdout
+            # holds only the final machine-readable JSON. Never print
+            # candidate levels, credentials, or client messages.
+            print(json.dumps({
+                "status": "V7_PRIVATE_BOUNDARY_COMMITTED_NO_SEND",
+                "decision_boundary_ms": upcoming,
+                "completed_cycles": attempted + 1,
+                "durably_stored_cycles": stored,
+                "market_count": 6,
+                "paper_candidate_count": receipt.get("candidate_count"),
+                "client_publication_authorized": False,
+                "telegram_messages_sent": 0,
+                "orders_submitted": 0,
+            }, sort_keys=True), file=sys.stderr, flush=True)
         except Exception as exc:
             # Each failed future boundary is a GAP, not an invented
             # zero-signal or retryable historic decision. Never suppress it.
