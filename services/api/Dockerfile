@@ -20,6 +20,8 @@ COPY services/t7sonic/forward_live_quote.py /app/services/t7sonic/forward_live_q
 COPY services/t7sonic/replay_original_capture.py /app/services/t7sonic/replay_original_capture.py
 COPY services/t7sonic/outcome_reference.py /app/services/t7sonic/outcome_reference.py
 COPY services/t7sonic/outcome_capture_worker.py /app/services/t7sonic/outcome_capture_worker.py
+COPY services/t7sonic/entry_tape_reference.py /app/services/t7sonic/entry_tape_reference.py
+COPY services/t7sonic/entry_tape_capture_worker.py /app/services/t7sonic/entry_tape_capture_worker.py
 RUN useradd --uid 10001 --create-home mv && chown -R mv:mv /app
 USER mv
 WORKDIR /app/services/api
