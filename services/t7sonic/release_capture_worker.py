@@ -60,17 +60,32 @@ def _private_directory(path: str | Path) -> Path:
     return folder
 
 
+def _public_get_with_label(getter, url, limit: int, label: str):
+    """Retain which *public* REST request timed out, without URL secrets."""
+    try:
+        return getter(url, limit)
+    except TimeoutError as exc:
+        raise TimeoutError(
+            f"PUBLIC_BINANCE_HTTP_TIMEOUT[{label}]: {str(exc)[:120]}"
+        ) from exc
+
+
 def _capture_all_31(boundary: int, *, getter) -> tuple:
     """Full independent REST request batch; quotes collected after candles."""
     candles = {sym: {} for sym in MARKETS}
     with ThreadPoolExecutor(max_workers=8) as pool:
         jobs = {
-            pool.submit(getter, url_for(symbol, frame, boundary), 256_000):
-            (symbol, frame)
+            pool.submit(
+                _public_get_with_label, getter,
+                url_for(symbol, frame, boundary), 256_000,
+                f"{symbol}/{frame}",
+            ): (symbol, frame)
             for symbol in MARKETS for frame in FRAMES
         }
         info_job = pool.submit(
-            getter, "https://fapi.binance.com/fapi/v1/exchangeInfo", 2_000_000
+            _public_get_with_label, getter,
+            "https://fapi.binance.com/fapi/v1/exchangeInfo", 2_000_000,
+            "exchangeInfo",
         )
         for future in as_completed(jobs):
             symbol, frame = jobs[future]
@@ -81,8 +96,10 @@ def _capture_all_31(boundary: int, *, getter) -> tuple:
     with ThreadPoolExecutor(max_workers=6) as pool:
         jobs = {
             pool.submit(
-                getter, "https://fapi.binance.com/fapi/v1/ticker/bookTicker?"
-                + urlencode({"symbol": symbol}), 8192
+                _public_get_with_label, getter,
+                "https://fapi.binance.com/fapi/v1/ticker/bookTicker?"
+                + urlencode({"symbol": symbol}), 8192,
+                f"{symbol}/bookTicker",
             ): symbol
             for symbol in MARKETS
         }
@@ -166,6 +183,7 @@ def capture_one_private_cycle(
                     "decision_boundary_ms": boundary,
                     "attempt": attempt,
                     "exception_class": type(exc).__name__,
+                    "error_code": str(exc)[:220],
                     "original_http_responses_complete": False,
                     "client_publication_authorized": False,
                     "telegram_messages_sent": 0,
