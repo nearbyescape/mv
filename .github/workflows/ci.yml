@@ -70,7 +70,7 @@ jobs:
       - name: Syntax-check disposable-clone-only V7 migrations rehearsal
         run: bash -n deploy/v7sonic-rehearse-clone-migrations.sh
       - name: Private V7 Telegram operator CLI must default NO NETWORK
-        run: python -m app.v7sonic_private_telegram_certification
+        run: docker run --rm --network none mv-api-check python -m app.v7sonic_private_telegram_certification
       - name: Offline historical outcome collector must default to NO NETWORK
         run: docker run --rm --network none mv-api-check python -m services.t7sonic.outcome_capture_worker
       - name: Entry tape collector defaults to NO NETWORK
