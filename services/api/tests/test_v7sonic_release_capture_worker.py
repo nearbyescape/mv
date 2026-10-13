@@ -222,7 +222,7 @@ class ReleaseRunnerTests(TestCase):
         with TemporaryDirectory(prefix="v7-timed-endpoint-") as tmp:
             with patch.object(handoff, "_ist_open", return_value=True):
                 with self.assertRaisesRegex(
-                    TimeoutError, "PUBLIC_BINANCE_HTTP_TIMEOUT\\[SOLUSDT/1h\\]"
+                    TimeoutError, r"PUBLIC_BINANCE_HTTP_TIMEOUT\[SOLUSDT/1h\]"
                 ):
                     runner.capture_one_private_cycle(
                         tmp, public_network_approved=True,
