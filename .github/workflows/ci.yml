@@ -61,6 +61,8 @@ jobs:
         run: bash -n deploy/v7sonic-compare-first-outcomes.sh
       - name: Syntax-check first-30s private aggregate trade print collector
         run: bash -n deploy/v7sonic-entry-tape-30s.sh
+      - name: Syntax-check operator-approved four-boundary forward paper pilot
+        run: bash -n deploy/v7sonic-four-cycle-paper-pilot.sh
       - name: Offline historical outcome collector must default to NO NETWORK
         run: docker run --rm --network none mv-api-check python -m services.t7sonic.outcome_capture_worker
       - name: Entry tape collector defaults to NO NETWORK
