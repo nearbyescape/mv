@@ -63,8 +63,10 @@ async def certify_private_test_chat(settings, *, approval, client_chat_id,
         client = httpx.AsyncClient(trust_env=False, follow_redirects=False)
     try:
         verification = await verify_destination(client, cfg)
-        if verification["chat_id"] != cfg.telegram_chat_id:
-            raise PermissionError("Provider returned wrong test chat")
+        if (verification.get("verified") is not True or
+                verification.get("chat_id") != cfg.telegram_chat_id or
+                verification.get("chat_type") not in ("private", "group", "supergroup", "channel")):
+            raise PermissionError("Provider did not verify expected private test chat")
         message_id = None
         if send_test:
             message_id = await send(client, cfg, {
