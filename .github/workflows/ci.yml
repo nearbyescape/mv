@@ -59,8 +59,12 @@ jobs:
         run: bash -n deploy/v7sonic-capture-one-live-boundary.sh
       - name: Syntax-check opt-in private historical outcome collector
         run: bash -n deploy/v7sonic-compare-first-outcomes.sh
+      - name: Syntax-check first-30s private aggregate trade print collector
+        run: bash -n deploy/v7sonic-entry-tape-30s.sh
       - name: Offline historical outcome collector must default to NO NETWORK
         run: docker run --rm --network none mv-api-check python -m services.t7sonic.outcome_capture_worker
+      - name: Entry tape collector defaults to NO NETWORK
+        run: docker run --rm --network none mv-api-check python -m services.t7sonic.entry_tape_capture_worker
       - name: Validate V7 isolated Compose under operator umask 077
         run: |
           umask 077
