@@ -42,11 +42,25 @@ class EntryTapeForensicAuditTests(TestCase):
                 getter=fixture.getter,
                 clock_ms=lambda:WINDOW_END+60000,
             )
+        self.pinned_original_fingerprints = {
+            (symbol, idx): json.loads((
+                self.folder /
+                f"v7sonic-entry-tape-original-{BOUNDARY}-{symbol}-{idx}.json"
+            ).read_text())["original_body_sha256"]
+            for symbol in ("SOLUSDT", "DOGEUSDT")
+            for idx in range(6)
+        }
 
     def audit(self):
-        with patch(
-            "app.v7sonic_entry_tape_audit.audit_one_stored_cycle",
-            return_value=self.source,
+        with (
+            patch(
+                "app.v7sonic_entry_tape_audit.audit_one_stored_cycle",
+                return_value=self.source,
+            ),
+            patch(
+                "app.v7sonic_entry_tape_audit.PINNED_ORIGINAL_TAPE_BODY_SHA256",
+                self.pinned_original_fingerprints,
+            ),
         ):
             return audit_saved_entry_tape("/unmounted-original", self.folder)
 
@@ -71,6 +85,18 @@ class EntryTapeForensicAuditTests(TestCase):
         data["original_body_sha256"] = "0" * 64
         p.write_text(json.dumps(data))
         with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
+            self.audit()
+
+    def test_tampered_http_bytes_and_forged_matching_envelope_hash_are_rejected(self):
+        """Independent manifest remains authoritative even for a forged pair."""
+        import base64
+        p = self.folder / f"v7sonic-entry-tape-original-{BOUNDARY}-SOLUSDT-0.json"
+        data = json.loads(p.read_text())
+        raw = base64.b64decode(data["original_body_base64"], validate=True) + b" "
+        data["original_body_base64"] = base64.b64encode(raw).decode()
+        data["original_body_sha256"] = sha256(raw).hexdigest()
+        p.write_text(json.dumps(data))
+        with self.assertRaisesRegex(ValueError, "pinned operator manifest"):
             self.audit()
 
     def test_changed_original_url_rejected(self):
