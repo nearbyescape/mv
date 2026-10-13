@@ -145,6 +145,40 @@ The forensic output describes **expired paper-only** candidate entries and
 rejection reasons. It cannot authorize retroactive client messages, prove
 executions, or establish a predictive edge.
 
+## First real candidate outcomes — read-only reference path (not fills)
+
+First real market-source capture at **13 Oct 2026 09:05 IST** yielded
+two historical, expired LONG breakout ideas: SOLUSDT entry 107.69,
+SL 106.80, TP1 108.58, TP2 109.92; DOGEUSDT entry 0.08443,
+SL 0.08381, TP1 0.08505, TP2 0.08598. BTC, ETH, XRP and BNB
+were rejected for `INSUFFICIENT_AFTER_COST_REWARD`. This is an
+**n=2 paper-candidate observation**, not a profitable trading record.
+
+The optional `deploy/v7sonic-compare-first-outcomes.sh` is disabled
+unless `V7_HISTORICAL_PUBLIC_GET_APPROVED=YES` and the exact source
+Git SHA is pinned. It operates **no earlier than 11:06 IST**,
+when 120 entire 1m candles starting at **09:06** have closed. It
+independently reaudits the original 31 Binance response bytes and all
+six SQLite paper decisions, reads the original folder `:ro`, and makes
+two public Binance Futures historical kline GETs for SOL and DOGE. It
+preserves the exact new HTTP bodies and hashes in a *different* owner-only
+evidence folder before calculating post-decision reference excursions.
+There is no Telegram, account, production PostgreSQL, or order API.
+
+The audit reports 15/30/60/120-full-minute closing prices and their
+risk-normalized direction, maximum favorable/adverse one-minute OHLC
+excursions, and first observed SL or TP1 reference touch. If a minute's
+high touches TP1 and low touches SL, **event ordering is ambiguous**.
+It explicitly does not estimate realized trade PnL or count winners:
+the original conditional signal expired at 09:05:30 and the 09:05
+partial candle is excluded to prevent mixing pre-decision prices
+with the decision itself. Therefore **entry/fill status is unproven**;
+an entry cannot be inferred from the later one-minute candles. The
+outcome scoring is observational reference evidence only.
+
+Do not convert these historical results into retrospective live
+signals, certified strategy accuracy, or claims that TP orders filled.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
