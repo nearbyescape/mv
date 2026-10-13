@@ -121,8 +121,17 @@ docker run --rm --pull=never \
 
 echo "=== FOUR FUTURE PRIVATE PAPER CYCLES; NO CLIENT SENDS OR ORDERS ==="
 echo "Preserved paper journal + immutable receipts: $STATE"
+# A prior incomplete attempt must never be silently classified as the
+# current four-cycle pilot. Preserve its original evidence for forensics.
+if find "$STATE" -maxdepth 1 -name 'v7sonic-private-claim-*.json' -print -quit | grep -q .; then
+  echo "STOP: private state already has claimed boundaries; preserve it and review" >&2
+  exit 5
+fi
+RUN_LOG="$(mktemp "/var/tmp/v7sonic-four-cycle-${HEAD:0:12}.XXXXXXXX.log")"
+echo "Owner-private audit log: $RUN_LOG"
 # Strictly foreground and bounded: operator Ctrl+C stops only THIS paper
 # process; timeout also prevents lingering beyond the approved pilot.
+# Capture the FINAL scheduler JSON to prove we actually completed four.
 timeout --foreground --signal=TERM --kill-after=15s 1800s \
   docker run --rm --pull=never \
     --name "$NAME" \
@@ -134,7 +143,51 @@ timeout --foreground --signal=TERM --kill-after=15s 1800s \
     "$IMAGE" python -m services.t7sonic.release_scheduler \
       --run-private-paper-loop \
       --public-network-approved --paper-only-acknowledged \
-      --state-dir /state --max-cycles 4
+      --state-dir /state --max-cycles 4 | tee "$RUN_LOG"
+
+echo "=== REQUIRE EXACTLY FOUR COMPLETE JOURNAL-COMMITTED PAPER CYCLES ==="
+python3 - "$RUN_LOG" "$STATE" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+log, folder = map(Path, sys.argv[1:])
+data = json.loads(log.read_text())
+if not (
+    data.get("status") == "V7_PRIVATE_PAPER_SCHEDULER_STOPPED_NO_SEND"
+    and type(data.get("completed_cycles")) is int
+    and data["completed_cycles"] == 4
+    and type(data.get("durably_stored_cycles")) is int
+    and data["durably_stored_cycles"] == 4
+    and data.get("production_database_writes") is False
+    and data.get("private_sql_journal_approved") is False
+    and data.get("client_publication_authorized") is False
+    and data.get("telegram_messages_sent") == 0
+    and data.get("orders_submitted") == 0
+):
+    raise SystemExit("STOP: paper scheduler did not prove four successful no-send cycles")
+summaries = list(folder.glob("v7sonic-private-paper-cycle-*.json"))
+claims = list(folder.glob("v7sonic-private-claim-*.json"))
+if len(summaries) != 4 or len(claims) != 4:
+    raise SystemExit("STOP: four immutable paper claims/receipts not present")
+boundaries = []
+for path in summaries:
+    item = json.loads(path.read_text())
+    t = item.get("boundary_ms")
+    if not (type(t) is int and
+            item.get("status") == "PRIVATE_PAPER_CYCLE_DURABLY_STORED_NO_SEND" and
+            item.get("market_count") == 6 and
+            item.get("client_publication_authorized") is False and
+            item.get("telegram_messages_sent") == 0 and
+            item.get("orders_submitted") == 0):
+        raise SystemExit("STOP: incomplete or unsafe private paper receipt")
+    boundaries.append(t)
+if len(set(boundaries)) != 4 or any(
+    b - a != 300_000 for a, b in zip(sorted(boundaries), sorted(boundaries)[1:])
+):
+    raise SystemExit("STOP: four private paper boundaries are not consecutive")
+print("FOUR FUTURE SIX-MARKET PAPER DECISIONS: VERIFIED")
+PY
 
 frozen
 echo "V7 FOUR FUTURE PAPER BOUNDARIES: PASS"
