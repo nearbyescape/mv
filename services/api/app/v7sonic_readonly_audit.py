@@ -114,11 +114,15 @@ def audit_one_stored_cycle(
         db.execute("PRAGMA query_only=ON")
         db.execute("PRAGMA foreign_keys=ON")
         cycle = db.execute(
-            "SELECT batch_sha256,body_json FROM paper_cycles WHERE decision_boundary_ms=?",
+            "SELECT batch_sha256,body_json,inserted_ms "
+            "FROM paper_cycles WHERE decision_boundary_ms=?",
             (boundary_ms,),
         ).fetchone()
-        if cycle is None or cycle[0] != batch_sha256 or len(cycle[1]) > _BATCH_BYTES_MAX:
-            raise ValueError("No matching complete persisted paper batch")
+        if (cycle is None or cycle[0] != batch_sha256 or
+                len(cycle[1]) > _BATCH_BYTES_MAX or
+                type(cycle[2]) is not int or
+                not boundary_ms <= cycle[2] <= boundary_ms + 30_000):
+            raise ValueError("No matching timely complete persisted paper batch")
         batch = json.loads(cycle[1])
         proof = validate_internal_batch(batch)
         if (proof["digest"] != batch_sha256 or
@@ -168,6 +172,7 @@ def audit_one_stored_cycle(
         "status": "V7_SIX_MARKET_ORIGINAL_SOURCE_AND_LEDGER_READONLY_AUDIT_PASS",
         "boundary_ms": boundary_ms,
         "original_http_responses_verified": 31,
+        "decision_paper_journal_inserted_ms_local_unattested": cycle[2],
         "markets_verified": len(MARKETS),
         "candidates": candidates,
         "noncandidates": rejected,
