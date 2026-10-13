@@ -25,7 +25,7 @@ class EntryTapeForensicAuditTests(TestCase):
         self.folder = Path(self.temp.name)
         fixture = EntryTapeTests()
         fixture.setUp()
-        self.addCleanup(fixture.tearDown if hasattr(fixture,"tearDown") else lambda: None)
+        self.addCleanup(fixture.doCleanups)
         fixture.out = self.folder
         self.fake = fixture
         fixture.request_urls.clear()
