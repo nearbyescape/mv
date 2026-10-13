@@ -210,6 +210,41 @@ class ReleaseRunnerTests(TestCase):
             )),1)
             self.assertFalse(result["client_publication_authorized"])
 
+    def test_public_rest_timeout_records_failing_symbol_and_timeframe(self):
+        """A network gap's immutable receipt identifies its failed public GET."""
+        def failing_getter(url, maximum):
+            from urllib.parse import parse_qs, urlparse
+            parsed = urlparse(url)
+            q = parse_qs(parsed.query)
+            if q.get("symbol") == ["SOLUSDT"] and q.get("interval") == ["1h"]:
+                raise TimeoutError("synthetic-read-timed-out")
+            return self.getter(url, maximum)
+        with TemporaryDirectory(prefix="v7-timed-endpoint-") as tmp:
+            with patch.object(handoff, "_ist_open", return_value=True):
+                with self.assertRaisesRegex(
+                    TimeoutError, "PUBLIC_BINANCE_HTTP_TIMEOUT\\[SOLUSDT/1h\\]"
+                ):
+                    runner.capture_one_private_cycle(
+                        tmp, public_network_approved=True,
+                        paper_only_acknowledged=True,
+                        clock_ms=self.fake_clock(),
+                        sleeper=lambda _:None,
+                        getter=failing_getter,
+                    )
+            gaps = list(Path(tmp).glob(
+                "v7sonic-private-acquisition-gap-*.json"
+            ))
+            self.assertEqual(len(gaps), 1)
+            failure = json.loads(gaps[0].read_text())
+            self.assertEqual(failure["exception_class"], "TimeoutError")
+            self.assertIn(
+                "PUBLIC_BINANCE_HTTP_TIMEOUT[SOLUSDT/1h]",
+                failure["error_code"],
+            )
+            self.assertEqual(list(Path(tmp).glob(
+                "v7sonic-private-paper-cycle-*.json"
+            )), [])
+
     def test_incomplete_public_http_batch_retains_gap_without_false_no_setup(self):
         def denied(url, maximum):
             raise TimeoutError("simulated-public-source-timeout")
