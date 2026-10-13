@@ -7,6 +7,65 @@ six-market V7 research decision replay, isolated paper SQLite persistence,
 versioned PostgreSQL tables and a *separately sealed* Telegram outbox.
 An application or CI pass alone is not proof of profitable signals.
 
+## Full client production — explicit remaining evidence (13 Oct 2026)
+
+**NOT CERTIFIED / DO NOT ENABLE CLIENT SIGNALS.** The operator's
+request for full deployment is acknowledged, but these independently
+verifiable release conditions must be complete before anyone can claim
+that production client publication is certified:
+
+| Gate | Current verifiable state | Evidence required before enabling |
+|---|---|---|
+| Source integrity | First one-shot and entry-tape replay PASS | More true prospective fresh boundaries, a close-edge (15m/1h/4h) reliability retest, independent source-time provenance, and enforced latency/gap budget |
+| Strategy edge | Two historical paper breakout candidates; correlated TP1 price touches; no fills | Frozen prospective outcome study, costs/slippage, drawdown and correlation-adjusted confidence intervals; no claim of accuracy without samples |
+| Publisher certification producer | **NOT IMPLEMENTED** (reviewed outbox is not an auto-producer) | A separately authenticated production source/risk authority that seals the exact V7 candidate, exposure, operator and target chat within its 30s expiry |
+| Independent account/portfolio | Operator-reconciled and internally checked snapshots are **unattested** | Reconciled read-only exchange account/position/order verification with trusted source, explicit identity, TTL, and unknown-position fail-close |
+| Database migration | Additive 0009 and 0010 code/tests exist | Independent offsite full backup+restore drill, disposable production-shaped PostgreSQL clone upgrade 0008→0010→0008→0010, V4 table/dataset invariants; a successful clone test is NOT permission to migrate live |
+| Telegram non-client verification | Provider, signed outbox and mocked failure tests exist | Different explicit PRIVATE test-chat proof of getMe/getChat/getChatMember and optionally one marked non-trading message; real 429/5xx/timeout and ambiguous receipt dry runs, never in a client channel |
+| Production observability | Four-cycle systemd pilot available, disabled by default | Repeated uninterrupted prospective cycles, gaps/alerts, watchdog, duplicate prevention, restart, clock quality and Telegram reliability evidence |
+| Rollback/cutover | Isolated preflight, versioned inactive snapshot now available | Exact version/digest inventory, reversible service-switch plan, atomic rollback and independent VPS test; separate operator approval with no V4 restart |
+| Market/session | 09:00–23:00 IST; currently after session | Fresh eligible session before any actionable candidate; old ideas never publish retroactively |
+
+A *signed manual claim*, a mock Telegram test, a SHA256 of an
+unattested local market receipt, or a self-reported independent review
+does NOT substitute for a separately authenticated source. Passing
+CI tests alone does not turn a research sample into demonstrated
+trading accuracy. No environment flag or human approval may override
+an unverified source, unknown portfolio state or expired decision.
+
+### What is deliverable tonight without starting clients
+
+The operator can execute
+`deploy/v7sonic-stage-inactive-release.sh` from a **clean, pinned SHA**
+to build and test the isolated `--network none` Compose preflight and
+atomically stage a versioned V7 source snapshot under
+`/opt/mv-signal/v7sonic-inactive-staging`. It leaves
+`/opt/mv-signal/app`, live PostgreSQL, the V4 workers, Telegram and
+exchange accounts untouched; requires no production secrets.
+
+A private Telegram-only test-chat verifier is available as
+`python -m app.v7sonic_private_telegram_certification`. Default is
+**NO NETWORK**. Real verification requires operator-provided separate
+PRIVATE and production-denylist numeric chat IDs, owner-only bot token
+file and `V7_PRIVATE_TELEGRAM_OPERATOR_APPROVED=YES`; only the
+explicit `--send-private-test` option sends a visibly marked,
+non-tradable *private* test message. This tool is **not** a client
+publisher, account verifier or automatic approval authority.
+
+A separate
+`deploy/v7sonic-rehearse-clone-migrations.sh` is available for an
+ALREADY CREATED, disposable `v7clone_*` PostgreSQL database only.
+It checks the actual connected database name, requires original 0008,
+and runs upgrade 0010/downgrade 0008/reupgrade 0010 using a non-root
+isolated container and a separately supplied clone-only DB URL file.
+It does NOT create a backup, restore a production clone, certify the
+data's completeness, or migrate live production. The operator must
+verify the offsite backup+restore and clone ownership separately.
+
+**Until every certification gate above is independently supported,
+V7 cannot be described as fully production-ready, and the old live
+client sender must not be restarted.**
+
 ## Immutable separation
 
 - Production release is still `mv-signal-0.14.0`. Do not restart its V4
