@@ -26,6 +26,24 @@ from services.t7sonic.outcome_capture_worker import (
 MAX_FILE_BYTES = 450_000
 MAX_REPORT_BYTES = 160_000
 
+# OUT-OF-BAND manifest from the 2026-10-13 operator's immutable VPS
+# output. These MUST NOT be inferred from the stored JSON envelopes;
+# doing so would permit tampered raw bytes + matching forged hashes.
+PINNED_ORIGINAL_TAPE_BODY_SHA256 = {
+    ("SOLUSDT", 0): "78f235f007ae49630978acc1f342507c840323e04d92b1b9ecdd44a30b7ecc21",
+    ("SOLUSDT", 1): "def2fafbf72e21a308a335fc85d8f8151ab7820242e9603c738109b59396a702",
+    ("SOLUSDT", 2): "39f84732097629da769510420ba12df3debf4c4c99b62c8dd3f5ffd35f3f10e4",
+    ("SOLUSDT", 3): "143518d1ae023cbb21577d1e2a92a37e98e8f5ce0c892307d129dd3105924a07",
+    ("SOLUSDT", 4): "5a4feab20dbd1d0df60bd070834a96c94e07856835937b06b4b463403b2d22dc",
+    ("SOLUSDT", 5): "bff30e2afe74760b08b980848a893d29eb673e8cfe4434116345f9cc8674fe05",
+    ("DOGEUSDT", 0): "9271719938f3aadb297aa2b0acbe40de0f447ae7de89109ecc8b8e1fb5fd10ab",
+    ("DOGEUSDT", 1): "267842dba9c4c21d05f3360832e9263cd3af30b946b30983840a75670e08b84b",
+    ("DOGEUSDT", 2): "6402d64c9b2154c723e86f6011b0601e1778b4a7c51cf014cf8bdde8838ab186",
+    ("DOGEUSDT", 3): "e601fb0dcb34df1eb112038cdacd967e8e4d302e7b1b41707d4306a2fbf2ba0a",
+    ("DOGEUSDT", 4): "68e56b680235c0513e743bacb0f5c96ab7e256a8fa4c1a85b3153848df8ec312",
+    ("DOGEUSDT", 5): "bd7ac23918a2606c2aae60fee10cc35ab631f43e95fd017f3121545db3519574",
+}
+
 
 def _safe_folder(path):
     folder = Path(path)
@@ -107,8 +125,12 @@ def audit_saved_entry_tape(state_dir, evidence_dir):
             except (ValueError, TypeError):
                 raise ValueError("Original Binance body was not valid base64") from None
             digest = sha256(raw).hexdigest()
-            if digest != packet["original_body_sha256"]:
-                raise ValueError("Original aggregate-trades response SHA256 mismatch")
+            if (digest != packet["original_body_sha256"] or
+                    digest != PINNED_ORIGINAL_TAPE_BODY_SHA256[(symbol, idx)]):
+                raise ValueError(
+                    "Original aggregate-trades response SHA256 mismatch "
+                    "against independently pinned operator manifest"
+                )
             chunks.append(decode_slice(raw, start_ms=start, end_ms=end))
             expected_manifest.append({
                 "symbol": symbol, "slice": idx, "original_body_sha256": digest,
