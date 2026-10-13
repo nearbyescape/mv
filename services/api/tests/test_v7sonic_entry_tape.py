@@ -62,8 +62,10 @@ class EntryTapeTests(TestCase):
         start, end = int(q["startTime"][0]), int(q["endTime"][0])
         self.assertEqual(end - start, 4999)
         self.assertTrue(reference.BOUNDARY <= start < reference.WINDOW_END)
-        return _rows(start+3000, symbol=q["symbol"][0]), (
-            reference.WINDOW_END + 60000, 1.0
+        return (
+            _rows(start+3000, symbol=q["symbol"][0]),
+            reference.WINDOW_END + 60000,
+            1.0,
         )
 
     def invoke(self, *, getter=None, clock=None):
