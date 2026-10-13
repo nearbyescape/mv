@@ -262,6 +262,49 @@ journal was written. It cannot turn either historical paper idea
 into a realized winner or loss. < 2 independently observed price
 references cannot establish statistical model accuracy.
 
+## First real 30-second printed-price evidence — 13 Oct 2026
+
+Operator one-shot paper-only entry-tape study **PASS** at
+`1367afb0e8994d25ea02a6b1fc60af9d05d0c168`.
+Original 09:05:00 IST V7 paper decision journal was inserted at
+`1791862502385` = **09:05:02.385 IST** (local, not independently
+exchange-attested). Twelve Binance Futures `aggTrades` JSON bodies
+were retained under
+`/var/tmp/v7sonic-entry-tape-1367afb0e899`, six disjoint 5-second
+slices for each coin; reported status
+`TWO_HISTORICAL_30S_TRADE_PRINT_CHECKS_NOT_ORDER_FILLS`.
+
+| Historical observation within 09:05:02.385–09:05:29.999 IST | SOLUSDT | DOGEUSDT |
+|---|---:|---:|
+| Conditional entry price | 107.69 | 0.08443 |
+| First executed market print **at/below** entry | 09:05:02.495 | 09:05:02.603 |
+| First executed market print **at/above** entry | 09:05:03.831 | 09:05:03.971 |
+| Minimum trade price in post-journal window | 107.65 | 0.08440 |
+| Maximum trade price in post-journal window | 107.92 | 0.08465 |
+| Aggregate trade prints in full 30 seconds | 446 | 218 |
+| Aggregate trade prints after journal before expiry | 407 | 206 |
+
+Both reference entry levels were observed on both sides shortly
+**after** the model's local paper decision and before the 30-second
+expiry. However, the first actual event times are exchange trade
+timestamps and the local decision journal timestamp is NOT
+independently clock-attested; execution ordering cannot be promoted
+into a client-order claim. These executed trade prints are NOT historical
+bid/ask depth or a verified opportunity to fill a specific type/size of
+conditional order. Neither a client Telegram signal nor an exchange
+order was ever placed. Recorded fills: **zero proven**; returns:
+**no realized PnL verified**. Observed future TP1 touches occur at
+10:53 IST, **not** necessarily any filled trade.
+
+A separate `python -m app.v7sonic_entry_tape_audit` command is provided
+to reproduce the 12 source-body SHA checks, six original source
+decisions, journal time, request URLs/slice boundaries, decoded
+trade-print order, and exact reported results under strictly
+read-only, no-network UID10001 mounts. Missing/corrupted/incomplete
+evidence must fail closed. Historical price observations still do not
+establish statistical edge at n=2, particularly as both candidates
+had highly correlated price development and simultaneous TP1 touches.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
