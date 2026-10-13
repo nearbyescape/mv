@@ -305,6 +305,72 @@ evidence must fail closed. Historical price observations still do not
 establish statistical edge at n=2, particularly as both candidates
 had highly correlated price development and simultaneous TP1 touches.
 
+## First actual 30-second entry-tape independent re-audit — PASS
+
+Operator replay on the VPS of immutable evidence from the first **13 Oct
+2026, 09:05 IST** paper boundary succeeded:
+
+`ORIGINAL_12_RESPONSE_30S_TAPE_REPLAY_AUDIT_PASS_NO_FILLS`
+
+Exact audited code SHA
+`4e54b320ff96e316eb9c4d0c20c4494b6ded6a6d`;
+original paper source hash
+`ecd05a021de07a853157b143d882ac472a42e85bfe72826c87c3cee5520caadb`;
+sealed six-market batch hash
+`0cc8e8c97aaee3caad24269c78918aa7d5c64571cd2ecb3318f42907f44d2e11`;
+source paper journal insertion claim
+`1791862502385` (unattested local clock). A new independent, **zero
+network**, non-root auditor replayed all 12 saved Binance Futures
+aggregate-trade response bytes against the SHA256 digests copied
+out-of-band from the original operator transcript; checked precise
+symbol/5s slice and request URLs, compared all decoded observations
+with the saved report, and cross-checked the original 31-body source
+and 6-record paper ledger. Final tape report SHA256:
+`9a845b48c5c08e557866576cd49b22c37b30a123fc6331cf6fd7d526b1332c10`.
+
+All saved evidence was mounted `:ro`; V4 was checked suspended,
+no client publication was authorized and no orders were submitted.
+**None of this proves executable orders or fills.** Original client
+signals transmitted = zero, verified fills = zero, realized net
+P&L = unverified. This is a technical integrity/reproducibility
+milestone, NOT live production release certification.
+
+## Next standalone operator-approved four-cycle forward pilot
+
+A **separate bounded** operator script
+`deploy/v7sonic-four-cycle-paper-pilot.sh` can evaluate exactly
+four FUTURE five-minute boundaries in the approved 09:00–23:00 IST
+market session, never retrospectively backfilling missed boundaries.
+Run it only from a reviewed/clean/pinned V7 worktree with the explicit
+`V7_FOUR_CYCLE_PUBLIC_PAPER_APPROVED=YES` environment approval.
+It builds a distinct research Docker image and performs a NO NETWORK
+preflight before using public market GETs. It runs in the foreground
+with an upper runtime limit, UID10001, a read-only root, no mounted
+secrets/production volumes, no Telegram client/outbox, and no exchange
+account/order endpoints. It checks that V4 engine and ancillary
+Telegram/AI workers remain stopped, with the engine restart policy
+still `no`, including on error.
+
+Each successful future five-minute boundary must have exactly:
+31 original response bodies (24 native candles, 6 book quotes,
+1 exchangeInfo), one create-only claim, six paper-market decisions
+(including NO_CANDIDATE rows), its own independently retained
+SHA256s and an auditable private SQLite journal. The pilot permits
+**zero or more** actual candidate setups; a zero count is NOT failure
+and cannot be interpreted as a trading win-rate denominator.
+If any capture fails or crosses its freshness deadline, retain an
+explicit GAP, stop the pilot, do not silently backfill or publish.
+
+The pilot must run on a different owner-private evidence path from
+the already-certified 09:05 historical evidence. It is an
+**operational repeatability** test, not an independent strategy
+edge evaluation: results across adjacent boundaries and correlated
+assets are not independent trials, and outcome labels collected
+after the fact must not be used as if they were precommitted
+executions. Production publication still requires separate
+source/account attestations, portfolio risk, sign-off, delivery
+fault-injection tests, migrations and explicit cutover approval.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
