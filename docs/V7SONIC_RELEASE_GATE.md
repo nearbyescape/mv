@@ -179,6 +179,47 @@ outcome scoring is observational reference evidence only.
 Do not convert these historical results into retrospective live
 signals, certified strategy accuracy, or claims that TP orders filled.
 
+## First historical outcome capture — operator VPS evidence, 13 Oct 2026
+
+One-shot original-byte price-outcome study at commit
+`dea04b406a580ddc40731dbf95c952afb5aa5de2` completed **PASS**,
+with zero client messages or exchange orders and V4 engine remaining
+stopped. Original decision capture: 09:05 IST, 6/6 markets, two paper
+LONG breakout candidates. Historical reference source: **two** public
+Binance Futures 1-minute kline responses, 120 fully closed one-minute
+candles per market, starting 09:06 IST. Retained source packet SHA256:
+`728f05349cf2a5bccbbee038e17133166082cf91290c5f045419f45fe211830c`.
+Operator evidence folder:
+`/var/tmp/v7sonic-outcome-evidence-dea04b406a58`.
+This is a local un-attested observational series, not broker executions.
+
+| Market | 15m close (R) | 30m close (R) | 60m close (R) | 120m close (R) | Max favorable | Max adverse | First TP1 reference touch | SL touch | TP2 touch |
+|---|---:|---:|---:|---:|---:|---:|---|---|---|
+| SOLUSDT | -0.382 | -0.034 | +0.528 | +0.461 | +1.225R | 0.640R | Post-decision full minute #108, 10:53 IST | No | No |
+| DOGEUSDT | -0.258 | 0.000 | +0.419 | +0.194 | +1.113R | 0.452R | Post-decision full minute #108, 10:53 IST | No | No |
+
+**Interpretation:** Both price series first touched their respective TP1
+reference levels in the **same minute (#108, 10:53 IST)**, with no stop
+reference touched and neither TP2 touched in the complete 120-minute
+evaluation. Both had negative 15-minute price-relative performance
+and their first TP1 touches came **~108 minutes after decision**.
+This is evidence of eventual directional recovery/continuation in two
+correlated assets, not two statistically independent wins.
+
+The original **09:05:00–09:05:30** conditional entry window is not
+observable in this study; 09:05 partial-candle prices were intentionally
+excluded. Therefore entry touch, order acceptance, executable
+bid/ask, fills, slippage, fees and realized net PnL **remain unproven**.
+Do NOT label the two ideas as winning trades or conclude that V7 has a
+positive forecasting edge from n=2 outcomes.
+
+Next evidence gates: establish conditional-entry executability on
+appropriately timestamped source data without lookahead, validate
+market-wide correlated movement and near-term versus long-horizon
+behavior over additional truly forward paper decisions, then certify
+authoritative account/portfolio limits and private Telegram failure modes
+before any client publication.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
