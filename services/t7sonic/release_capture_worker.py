@@ -35,6 +35,14 @@ _MAX_LAG_MS = 30_000
 _RETRY_DELAY_S = 1.5
 _MIN_RETRY_BUDGET_MS = 4_500
 _LEDGER_NAME = "v7sonic-paper-release.sqlite3"
+# At 15m boundaries, independent 1m/15m/1h/4h REST endpoints can
+# temporarily disagree on the just-closed candle. The 2026-10-13
+# 16:00 UTC real source capture showed 9 OHLC and 13 volume
+# disagreements ONLY in newly closed higher-timeframe bars.
+# A brief delayed first acquisition reduces this closure race without
+# altering ANY exact-validation tolerance or the 30-second deadline.
+_HIGH_TIMEFRAME_BOUNDARY_MS = 15 * 60_000
+_POST_CLOSE_SETTLE_MS = 2_500
 
 
 def _clock_ms() -> int:
@@ -130,6 +138,14 @@ def capture_one_private_cycle(
     began = clock()
     if not boundary <= began <= boundary + 4_000:
         raise ValueError("Missed initial five-minute boundary; not backfilling")
+
+    # Strictly causal first-fetch settle at 15m/1h/4h close edges.
+    # Never fetch before the closed bar's boundary. This adds at most
+    # 2.5 seconds only when the 5m boundary also closes a 15m bar.
+    # A slow source is still a GAP; no interpolation, tolerance,
+    # stale retry, altered expiry, or publication permission.
+    if boundary % _HIGH_TIMEFRAME_BOUNDARY_MS == 0:
+        sleep(max(0.0, (boundary + _POST_CLOSE_SETTLE_MS - began) / 1000.0))
 
     attempts = []
     for attempt in range(1, _MAX_ATTEMPTS + 1):
