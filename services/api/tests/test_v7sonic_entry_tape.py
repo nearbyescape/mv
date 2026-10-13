@@ -118,11 +118,11 @@ class EntryTapeTests(TestCase):
 
     @patch.object(worker, "audit_one_stored_cycle")
     def test_no_credible_post_decision_clock_fail_closed(self, audit):
-        audit.return_value = dict(
-            self.verified,
-            decision_paper_journal_inserted_ms_local_unattested:
+        audit.return_value = {
+            **self.verified,
+            "decision_paper_journal_inserted_ms_local_unattested":
                 reference.WINDOW_END,
-        )
+        }
         with self.assertRaisesRegex(ValueError, "clock"):
             self.invoke()
         self.assertEqual(self.request_urls, [])
