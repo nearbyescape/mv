@@ -57,6 +57,10 @@ jobs:
         run: bash -n deploy/v7sonic-verify-isolated.sh
       - name: Syntax-check operator-approved isolated real-data capture script
         run: bash -n deploy/v7sonic-capture-one-live-boundary.sh
+      - name: Syntax-check opt-in private historical outcome collector
+        run: bash -n deploy/v7sonic-compare-first-outcomes.sh
+      - name: Offline historical outcome collector must default to NO NETWORK
+        run: docker run --rm --network none mv-api-check python -m services.t7sonic.outcome_capture_worker
       - name: Validate V7 isolated Compose under operator umask 077
         run: |
           umask 077
