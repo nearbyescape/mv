@@ -62,6 +62,42 @@ class ReadonlyForensicTests(TestCase):
              for p in plans],
         )
 
+    def test_closed_wal_journal_audits_from_nonwritable_evidence_directory(self):
+        """Regression: VPS mounts /state :ro and runs as UID10001.
+
+        The completed one-shot closes/checkpoints WAL. A mode=ro SQLite
+        connection may try to create SHM and fail even though no writer
+        remains. immutable readonly must succeed without creating a file.
+        """
+        dbfile = self.folder / "v7sonic-paper-release.sqlite3"
+        self.assertFalse(Path(str(dbfile) + "-wal").exists())
+        self.assertFalse(Path(str(dbfile) + "-shm").exists())
+        original_mode = self.folder.stat().st_mode & 0o777
+        before = {x.name for x in self.folder.iterdir()}
+        try:
+            self.folder.chmod(0o500)
+            out = audit_one_stored_cycle(self.folder, **self.kwargs())
+            self.assertEqual(out["markets_verified"], 6)
+            self.assertEqual(out["original_http_responses_verified"], 31)
+            self.assertEqual(out["clients_notified"], 0)
+            self.assertEqual({x.name for x in self.folder.iterdir()}, before)
+        finally:
+            self.folder.chmod(original_mode)
+
+    def test_wal_or_shm_sidecar_prevents_stale_immutable_audit(self):
+        """Immutable reads ignore pending WAL changes: refuse such journals."""
+        dbfile = self.folder / "v7sonic-paper-release.sqlite3"
+        for suffix in ("-wal", "-shm"):
+            with self.subTest(suffix=suffix):
+                sidecar = Path(str(dbfile) + suffix)
+                self.assertFalse(sidecar.exists())
+                sidecar.write_bytes(b"uncheckpointed-sidecar-fixture")
+                try:
+                    with self.assertRaisesRegex(PermissionError, "WAL/SHM"):
+                        audit_one_stored_cycle(self.folder, **self.kwargs())
+                finally:
+                    sidecar.unlink()
+
     def test_changed_summary_sha_is_rejected_before_decisions_displayed(self):
         receipt = self.folder / f"v7sonic-private-paper-cycle-{BOUNDARY}.json"
         receipt.write_bytes(receipt.read_bytes() + b" ")
