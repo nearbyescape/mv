@@ -101,6 +101,28 @@ class ReadonlyForensicTests(TestCase):
                 finally:
                     sidecar.unlink()
 
+    def test_live_uncheckpointed_wal_rejected_before_immutable_read(self):
+        dbfile = self.folder / "v7sonic-paper-release.sqlite3"
+        wal = Path(str(dbfile) + "-wal")
+        with closing(sqlite3.connect(dbfile)) as writer:
+            writer.execute(
+                "CREATE TABLE additional_uncheckpointed_fixture (value INTEGER)"
+            )
+            writer.execute(
+                "INSERT INTO additional_uncheckpointed_fixture VALUES (1)"
+            )
+            writer.commit()
+            self.assertTrue(wal.exists())
+            with self.assertRaisesRegex(PermissionError, "WAL/SHM"):
+                audit_one_stored_cycle(self.folder, **self.kwargs())
+        # Close normally checkpoints journal; next audit can see the six
+        # original rows, ignoring the unrelated test-only extra table.
+        self.assertFalse(wal.exists())
+        self.assertEqual(
+            audit_one_stored_cycle(self.folder, **self.kwargs())["markets_verified"],
+            6,
+        )
+
     def test_changed_summary_sha_is_rejected_before_decisions_displayed(self):
         receipt = self.folder / f"v7sonic-private-paper-cycle-{BOUNDARY}.json"
         receipt.write_bytes(receipt.read_bytes() + b" ")
