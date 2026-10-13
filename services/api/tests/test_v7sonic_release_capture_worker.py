@@ -101,6 +101,73 @@ class ReleaseRunnerTests(TestCase):
             self.assertEqual(self.request_urls,[])
             self.assertEqual(list(Path(tmp).iterdir()),[])
 
+    def test_just_closed_15m_boundary_settles_before_any_rest_get(self):
+        """The 16:00 UTC incident involved 15m/1h/4h simultaneous closes.
+
+        Delaying the FIRST whole-source batch does not relax any candle
+        reconciliation, freshness cutoff or acquisition-failure semantics.
+        """
+        close_edge = (BOUNDARY // 900_000 + 1) * 900_000
+        calls = []
+        clock_values = iter([close_edge - 900, close_edge - 900,
+                             close_edge + 100])
+        def fake_sleep(seconds):
+            calls.append(("sleep", round(seconds, 3)))
+        def failed_acquisition(boundary, *, getter):
+            calls.append(("GET", boundary))
+            raise TimeoutError("diagnostic-retry-timeout")
+        with TemporaryDirectory(prefix="v7-close-edge-") as tmp:
+            with (
+                patch.object(handoff, "_ist_open", return_value=True),
+                patch.object(runner, "_capture_all_31",
+                             side_effect=failed_acquisition),
+            ):
+                with self.assertRaisesRegex(TimeoutError, "diagnostic-retry"):
+                    runner.capture_one_private_cycle(
+                        tmp, public_network_approved=True,
+                        paper_only_acknowledged=True,
+                        clock_ms=lambda: next(clock_values),
+                        sleeper=fake_sleep,
+                        getter=self.getter,
+                    )
+            self.assertEqual(
+                calls,
+                [("sleep", 0.9), ("sleep", 2.4), ("GET", close_edge)],
+            )
+            self.assertEqual(len(list(Path(tmp).glob(
+                "v7sonic-private-acquisition-gap-*.json"
+            ))), 1)
+            self.assertEqual(list(Path(tmp).glob(
+                "v7sonic-private-paper-cycle-*.json"
+            )), [])
+
+    def test_non_15m_boundary_does_not_add_settling_lag(self):
+        ordinary = BOUNDARY
+        self.assertNotEqual(ordinary % 900_000, 0)
+        calls = []
+        clock_values = iter([ordinary - 900, ordinary - 900,
+                             ordinary + 100])
+        def fake_sleep(seconds):
+            calls.append(("sleep", round(seconds, 3)))
+        def failed_acquisition(boundary, *, getter):
+            calls.append(("GET", boundary))
+            raise TimeoutError("paper-market-source-failed")
+        with TemporaryDirectory(prefix="v7-no-close-edge-") as tmp:
+            with (
+                patch.object(handoff, "_ist_open", return_value=True),
+                patch.object(runner, "_capture_all_31",
+                             side_effect=failed_acquisition),
+            ):
+                with self.assertRaisesRegex(TimeoutError, "paper-market"):
+                    runner.capture_one_private_cycle(
+                        tmp, public_network_approved=True,
+                        paper_only_acknowledged=True,
+                        clock_ms=lambda: next(clock_values),
+                        sleeper=fake_sleep,
+                        getter=self.getter,
+                    )
+            self.assertEqual(calls, [("sleep", 0.9), ("GET", ordinary)])
+
     def test_source_inconsistency_retries_all_31_and_retains_both(self):
         original=self.candles["BTCUSDT"]["15m"]
         rows=json.loads(original)
