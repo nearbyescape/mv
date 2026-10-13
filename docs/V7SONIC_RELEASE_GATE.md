@@ -122,6 +122,29 @@ The script refuses off-session runs, non-pinned source trees or a resumed
 V4 engine/Telegram service. No database migration, account access, trading
 orders, or client message publication takes place.
 
+## Completed one-shot source/ledger forensic review
+
+For an already completed, quiescent one-boundary paper capture,
+`python -m app.v7sonic_readonly_audit` validates the original receipt and
+all 31 body hashes, six sealed market decisions, source-reconciliation
+details and ledger row consistency. It must run in a non-root, no-network
+container with the original UID10001 evidence folder mounted `:ro`.
+The three full SHA256 values from the original capture are mandatory.
+
+**SQLite WAL safeguard:** The one-shot writer normally closes and
+checkpoints its WAL before the process exits. A normal SQLite `mode=ro`
+connection may attempt to create a `-shm` file and fail on a strictly
+read-only evidence mount. This historical auditor now uses
+`mode=ro&immutable=1` **only if** both WAL and SHM sidecar paths are
+absent. Immutable SQLite can ignore *uncheckpointed* WAL changes; therefore
+an existing `-wal` or `-shm` is a **hard failure**, not an invitation to
+remove those files or silently report stale results. Do not modify, remove,
+checkpoint, chmod, or replace original evidence merely to pass an audit.
+
+The forensic output describes **expired paper-only** candidate entries and
+rejection reasons. It cannot authorize retroactive client messages, prove
+executions, or establish a predictive edge.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
