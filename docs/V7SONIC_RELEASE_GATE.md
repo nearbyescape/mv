@@ -220,6 +220,48 @@ behavior over additional truly forward paper decisions, then certify
 authoritative account/portfolio limits and private Telegram failure modes
 before any client publication.
 
+## Explicit first 30-second *trade-print* entry diagnostic — NO FILLS
+
+To investigate whether the two historical paper entry prices were at
+least **observed in the market's executed trade prints** during the
+original `09:05:00–09:05:30 IST` expiry interval, the guarded
+`deploy/v7sonic-entry-tape-30s.sh` collects **twelve** public Binance
+USDT-M `GET /fapi/v1/aggTrades` responses — six disjoint 5-second
+slices each for SOLUSDT and DOGEUSDT. Binance caps responses at
+1,000 aggregate trades; any 5-second slice returning the full 1,000
+records is rejected as **possibly truncated**. Historical aggregate
+trade coverage is subject to the exchange's time-retention policy, so
+the operator script refuses attempts more than 40h after the original
+boundary. This is deliberately NOT part of the active V7 worker.
+
+The collector requires clean exact-SHA source, an explicit
+`V7_PUBLIC_ENTRY_TAPE_APPROVED=YES`, suspended V4 + Telegram
+workers, the original audited 31-response/6-market source `:ro`,
+nonroot UID10001, a separate private immutable evidence directory,
+and no trading/API/Telegram secrets. Each HTTP response's raw bytes
+and SHA256 are preserved **before** parsing. Bad timestamps, duplicate
+IDs, malformed prices, incomplete/limited response slices, timeout, or
+changed original journal source lead to an incomplete, **no conclusion**
+record. This lane must not signal or create an order.
+
+The causal lower bound is the original **private paper journal's local
+`inserted_ms` timestamp**, rather than the 09:05:00 boundary: price
+prints occurring before the original decision was at least persisted
+cannot count as evidence for an actionable post-decision entry. That
+clock is explicitly **not** independently exchange-attested or proof
+of when a real client received a signal.
+
+**Critical non-equivalence:** A public executed market trade at,
+above or below the model entry does NOT prove an executable
+limit/stop-market price, available bid/ask liquidity, order acceptance,
+latency, fees/slippage, or that a nonexistent client order filled.
+`aggTrades` are compressed executed market prints, not full-depth
+historical order-book quotes. The result can only say whether market
+prints occurred around the original reference entry after the paper
+journal was written. It cannot turn either historical paper idea
+into a realized winner or loss. < 2 independently observed price
+references cannot establish statistical model accuracy.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
