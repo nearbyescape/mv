@@ -42,6 +42,16 @@ PY
 
 # We cannot infer that the operator-created clone reflects live schema,
 # data or a verified offsite backup. Capture evidence for manual review.
+# Transfer only a temporary *clone-only* credential into non-root
+# container ownership; original operator keyfile stays unchanged.
+# Docker runs UID10001 and cannot read a root-owned 0600 source bind.
+TEMP_SECRET="$(mktemp "/var/tmp/.v7clone-db-url-${SHA:0:12}.XXXXXXXX")"
+cleanup() {
+  rm -f -- "$TEMP_SECRET"
+}
+trap cleanup EXIT
+install -o 10001 -g 10001 -m 0400 "$CLONE_FILE" "$TEMP_SECRET"
+
 IMAGE="mv-v7sonic-clone-migration:${SHA:0:12}"
 echo "=== BUILD SEPARATE MIGRATION REHEARSAL IMAGE ==="
 docker build --pull=false -f "$ROOT/services/api/Dockerfile" -t "$IMAGE" "$ROOT"
@@ -49,13 +59,13 @@ REPORT="$(mktemp "/var/tmp/v7sonic-migration-clone-${SHA:0:12}.XXXXXXXX.log")"
 echo "Private persistent CI-equivalent rehearsal report: $REPORT"
 
 run_cloned() {
-  docker run --rm --pull=never \
+  docker run --rm --pull=never -i \
     --network host --read-only \
     --user 10001:10001 --cap-drop ALL \
     --security-opt no-new-privileges:true \
     --memory 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m,uid=10001,gid=10001 \
-    --mount "type=bind,source=$CLONE_FILE,target=/run/secrets/v7-clone-url,readonly" \
+    --mount "type=bind,source=$TEMP_SECRET,target=/run/secrets/v7-clone-url,readonly" \
     -e MV_DATABASE_URL_FILE=/run/secrets/v7-clone-url \
     -e MV_ENVIRONMENT=local \
     -e MV_TELEGRAM_ENABLED=false \
