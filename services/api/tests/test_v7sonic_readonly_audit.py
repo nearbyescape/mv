@@ -47,12 +47,19 @@ class ReadonlyForensicTests(TestCase):
         self.assertFalse(result["local_source_independently_authenticated"])
         self.assertEqual(result["clients_notified"], 0)
         self.assertEqual(result["orders_submitted"], 0)
+        with sqlite3.connect(self.folder / "v7sonic-paper-release.sqlite3") as db:
+            stored = db.execute(
+                "SELECT body_json FROM paper_cycles WHERE decision_boundary_ms=?",
+                (BOUNDARY,),
+            ).fetchone()
+        plans = json.loads(stored[0])["indicative_candidates"]
         self.assertEqual(
-            {tuple((p["entry"], p["stop_loss"], p["take_profit_1"],
-                    p["take_profit_2"])) for p in result["candidates"]}
-            == {tuple((x["entry"], x["stop_loss"], x["take_profit_1"],
-                       x["take_profit_2"])) for x in result["candidates"]},
-            True,
+            [(p["symbol"], p["entry"], p["stop_loss"],
+              p["take_profit_1"], p["take_profit_2"])
+             for p in result["candidates"]],
+            [(p["symbol"], p["entry"], p["stop_loss"],
+              p["take_profit_1"], p["take_profit_2"])
+             for p in plans],
         )
 
     def test_changed_summary_sha_is_rejected_before_decisions_displayed(self):
