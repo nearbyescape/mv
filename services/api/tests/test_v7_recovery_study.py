@@ -50,6 +50,7 @@ class RecoveryEngineTests(unittest.TestCase):
         self.assertEqual(POLICY, "V7_RECOVERY_HOURLY_TREND_15M_REENTRY_PAPER_V1")
         self.assertEqual(len(POLICY_SHA256), 64)
         self.assertEqual(sum(reasons.values()), len(rows)-221)
+        self.assertGreater(len(events), 0, "Synthetic aligned trend must generate research references")
         for e in events:
             self.assertEqual(e["policy"], POLICY)
             self.assertFalse(e["client_publication_authorized"])
@@ -61,9 +62,9 @@ class RecoveryEngineTests(unittest.TestCase):
         rows=synthetic(520)
         a,_=generate_decisions(rows[:400], symbol="BTCUSDT")
         extra=list(rows)
-        last=extra[-1]
-        extra[-1]=Bar(last.open_ms,last.opening,last.high+D("50"),
-                      last.low,last.close,last.volume)
+        last=extra[450]
+        extra[450]=Bar(last.open_ms,last.opening,last.high+D("50"),
+                       last.low,last.close,last.volume)
         b,_=generate_decisions(extra, symbol="BTCUSDT")
         early=[x for x in b if x["entry_bar_index"] < 400]
         self.assertEqual(a, early)
