@@ -82,8 +82,19 @@ python3 - "$TOKEN" <<'PY'
 import os,stat,sys
 p=sys.argv[1]
 s=os.stat(p,follow_symlinks=False)
-if not stat.S_ISREG(s.st_mode) or s.st_uid!=0 or stat.S_IMODE(s.st_mode)&0o077:
-    raise SystemExit("STOP: root-owned non-world/group-readable token file required")
+mode=stat.S_IMODE(s.st_mode)
+# Production secrets may belong to a dedicated deploy user rather than
+# root. The exact stopped container's secret bind is the trust anchor.
+# Require a regular, non-world-accessible file, no group write/execute,
+# then make an isolated UID10001 owner-only 0400 copy for the test.
+if not stat.S_ISREG(s.st_mode) or mode & 0o027:
+    raise SystemExit(
+        f"STOP: production token bind permissions unsafe "
+        f"(owner_uid={s.st_uid}, mode={mode:04o}; "
+        "require no world permissions and no group write/execute). "
+        "No send attempted."
+    )
+print("Existing production token source: regular file with restricted permissions; no content displayed")
 PY
 
 IMAGE="mv-v7sonic-auditor:${SHA:0:12}"
