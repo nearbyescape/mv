@@ -168,6 +168,163 @@ class ReleaseRunnerTests(TestCase):
                     )
             self.assertEqual(calls, [("sleep", 0.9), ("GET", ordinary)])
 
+
+    @staticmethod
+    def _mutated_event(body: bytes, event_ms: int) -> bytes:
+        quote = json.loads(body)
+        quote["time"] = event_ms
+        return json.dumps(quote, sort_keys=True).encode()
+
+    def test_real_0905_preboundary_btc_event_refetches_whole_31(self):
+        """Real forensic case: BTC event -846ms; others current.
+
+        The first immutable attempt must be retained as REJECTED and the
+        second *whole* 31-response attempt must pass all 6 unchanged
+        book freshness rules. Never turn first failure into NO_SETUP.
+        """
+        original = self.books["BTCUSDT"]
+        stale = self._mutated_event(original, BOUNDARY - 846)
+        refreshed = self._mutated_event(original, BOUNDARY + 750)
+        btc_seen = [0]
+        def two_batches(url, maximum):
+            parsed = urlparse(url)
+            args = parse_qs(parsed.query)
+            if (parsed.path.endswith("/bookTicker") and
+                    args.get("symbol") == ["BTCUSDT"]):
+                btc_seen[0] += 1
+                self.request_urls.append(url)
+                return (stale if btc_seen[0] == 1 else refreshed,
+                        BOUNDARY + 1000, 10.0)
+            return self.getter(url, maximum)
+        clock_values = iter([
+            BOUNDARY - 1000, BOUNDARY - 1000, BOUNDARY + 100,
+            BOUNDARY + 1000, BOUNDARY + 1700, BOUNDARY + 2000,
+            BOUNDARY + 2800, BOUNDARY + 3400, BOUNDARY + 4100,
+        ])
+        with TemporaryDirectory(prefix="v7-real-prebar-retry-") as tmp:
+            with patch.object(handoff, "_ist_open", return_value=True):
+                result = runner.capture_one_private_cycle(
+                    tmp, public_network_approved=True,
+                    paper_only_acknowledged=True,
+                    clock_ms=lambda: next(clock_values),
+                    sleeper=lambda _: None, getter=two_batches,
+                )
+            self.assertEqual(len(self.request_urls), 62)
+            self.assertEqual(btc_seen[0], 2)
+            self.assertEqual(result["attempt_count"], 2)
+            self.assertEqual(result["market_count"], 6)
+            self.assertFalse(result["client_publication_authorized"])
+            self.assertEqual(result["telegram_messages_sent"], 0)
+            rejection = json.loads(next(Path(tmp).glob(
+                "v7sonic-private-rejected-*.json"
+            )).read_text())
+            self.assertEqual(
+                rejection["retry_classification"],
+                "BOUNDED_PREBOUNDARY_EXCHANGE_BOOK_EVENT",
+            )
+            self.assertTrue(rejection["retry_eligible"])
+            self.assertEqual(len(rejection["preboundary_quote_evidence"]), 1)
+            self.assertEqual(
+                rejection["preboundary_quote_evidence"][0]["symbol"],
+                "BTCUSDT"
+            )
+            self.assertEqual(
+                rejection["preboundary_quote_evidence"][0]["preboundary_ms"],
+                846
+            )
+            originals = sorted(Path(tmp).glob("v7sonic-original-http-*.json"))
+            self.assertEqual(len(originals), 2)
+            import hashlib
+            self.assertEqual(
+                rejection["original_http_sha256"],
+                hashlib.sha256(originals[0].read_bytes()).hexdigest()
+                if "attempt" not in originals[0].name else
+                hashlib.sha256(originals[1].read_bytes()).hexdigest(),
+            )
+            self.assertEqual(len(list(Path(tmp).glob(
+                "v7sonic-private-paper-cycle-*.json"
+            ))), 1)
+
+    def test_preboundary_retry_classifier_is_strictly_narrow(self):
+        """No replay retries for excessive staleness or future-dated books."""
+        original = self.books["BTCUSDT"]
+        receipt = {
+            "decision_boundary_ms": BOUNDARY,
+            "recorded_ms_local_clock_claim": BOUNDARY+1200,
+            "quote_bodies": {},
+            "quote_received_ms_local_clock_claim": {
+                s: BOUNDARY+1000 for s in MARKETS
+            },
+        }
+        import base64, hashlib
+        for symbol in MARKETS:
+            body = self.books[symbol]
+            receipt["quote_bodies"][symbol] = {
+                "body_base64": base64.b64encode(body).decode(),
+                "original_body_sha256": hashlib.sha256(body).hexdigest(),
+            }
+        def set_btc_event(t):
+            body = self._mutated_event(original, t)
+            receipt["quote_bodies"]["BTCUSDT"] = {
+                "body_base64": base64.b64encode(body).decode(),
+                "original_body_sha256": hashlib.sha256(body).hexdigest(),
+            }
+        set_btc_event(BOUNDARY-846)
+        evidence = runner._preboundary_quote_retry_evidence(receipt)
+        self.assertEqual([x["symbol"] for x in evidence], ["BTCUSDT"])
+        self.assertEqual(evidence[0]["book_age_at_receipt_ms"], 1846)
+
+        for bad in (BOUNDARY - 1_501, BOUNDARY - 8_000,
+                    BOUNDARY + 1_500):
+            set_btc_event(bad)
+            self.assertEqual(
+                runner._preboundary_quote_retry_evidence(receipt), [],
+                f"Invalid event {bad} may not qualify for retry",
+            )
+
+        set_btc_event(BOUNDARY-846)
+        receipt["quote_received_ms_local_clock_claim"]["ETHUSDT"] = (
+            BOUNDARY - 1
+        )
+        self.assertEqual(runner._preboundary_quote_retry_evidence(receipt), [])
+        receipt["quote_received_ms_local_clock_claim"]["ETHUSDT"] = (
+            BOUNDARY+1000
+        )
+        receipt["quote_bodies"]["BTCUSDT"]["original_body_sha256"] = "0"*64
+        self.assertEqual(runner._preboundary_quote_retry_evidence(receipt), [])
+
+    def test_excessively_old_book_hard_rejected_without_retry(self):
+        """Even 31 complete responses cannot make an invalid quote pass."""
+        old = self._mutated_event(self.books["BTCUSDT"], BOUNDARY-8_000)
+        def stale_btc(url, maximum):
+            parsed = urlparse(url)
+            args = parse_qs(parsed.query)
+            if (parsed.path.endswith("/bookTicker") and
+                    args.get("symbol") == ["BTCUSDT"]):
+                self.request_urls.append(url)
+                return old, BOUNDARY+1000, 10.0
+            return self.getter(url, maximum)
+        with TemporaryDirectory(prefix="v7-very-stale-") as tmp:
+            with patch.object(handoff, "_ist_open", return_value=True):
+                with self.assertRaisesRegex(
+                    ValueError, "Exchange book timestamp stale"
+                ):
+                    runner.capture_one_private_cycle(
+                        tmp, public_network_approved=True,
+                        paper_only_acknowledged=True,
+                        clock_ms=self.fake_clock(),
+                        sleeper=lambda _: None, getter=stale_btc,
+                    )
+            self.assertEqual(len(self.request_urls), 31)
+            rejection = json.loads(next(Path(tmp).glob(
+                "v7sonic-private-rejected-*.json"
+            )).read_text())
+            self.assertFalse(rejection["retry_eligible"])
+            self.assertEqual(rejection["preboundary_quote_evidence"], [])
+            self.assertEqual(len(list(Path(tmp).glob(
+                "v7sonic-private-paper-cycle-*.json"
+            ))), 0)
+
     def test_source_inconsistency_retries_all_31_and_retains_both(self):
         original=self.candles["BTCUSDT"]["15m"]
         rows=json.loads(original)
