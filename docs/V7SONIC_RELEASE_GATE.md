@@ -483,6 +483,47 @@ not installed or started by CI or deployment; the operator must
 separately opt in after reviewing the exact source. V4 stays stopped;
 no client messages or exchange orders are authorized.
 
+## 14 Oct 2026, 09:05 IST — first systemd-paper quote-time rejection
+
+The independently saved `09:05` source envelope digest
+`333c4ab9706e1721dc476e11cd8addffe2f29ec6a41f95713ed393bd831d2b29`
+passed all **31 original-body SHA256 checks**. The isolated
+four-cycle pilot **FAILED 0/4**, retaining exactly one claimed
+boundary, one unpublishable rejected source, and one scheduler GAP.
+The Binance BTCUSDT `bookTicker.time` was
+`09:04:59.154 IST` (846ms BEFORE the 09:05 decision close), received
+`09:05:01.547 IST`, age 2393ms. Five other symbols' event times
+met the strict timestamp predicate. BTC was rejected **even though
+the HTTP response was less than five seconds old**, because the
+unambiguous event occurred BEFORE the new five-minute boundary.
+That was the correct original fail-closed behavior and does not
+count as a model `NO_CANDIDATE`.
+
+Research-only correction: during a complete-source analysis failure
+whose sole ValueError is exactly
+`Exchange book timestamp stale, premature or future`, the
+`release_capture_worker` may permit a short, bounded delay and a
+**NEW FULL set of 31 original GETs** only when every one of the
+six hash-verified original book bodies is structurally sound,
+exchange-event timestamp is not future of receipt or older
+than five seconds, local receive ordering is coherent, and at
+least one event lies within 1500ms BEFORE the decision close.
+Excessively old (>5s), future, malformed, or earlier-than-1500ms
+preboundary events do NOT authorize retry. Every rejected original
+response set remains create-only, with explicit `retry_classification`
+and per-market preboundary event evidence; the follow-on attempt
+is NEVER a mixed original source. The original quote validator,
+exact OHLCV reconciliation, 30-second expiry, maximum three
+attempts, no-session-crossing, zero client publication, zero exchange
+orders and no invented `NO_SETUP` are unchanged. This must be
+demonstrated on a genuinely new future paper window; mocked CI
+acceptance alone is NOT field certification.
+
+Previous failed evidence remains at
+`/var/tmp/v7sonic-four-cycle-paper-e69b2c8869de` and must
+never be overwritten, replayed as a tradable historical signal or
+treated as a completed four-cycle validation.
+
 ## Cutover / rollback safety
 
 - Never use `docker compose up -d` without a fixed reviewed Compose file
