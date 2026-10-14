@@ -1,9 +1,9 @@
 name: V7 recovery six-month research (NO CLIENTS)
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/v7sonic-costed-recovery-study
+      - codex/v7sonic-production-adapter
   workflow_dispatch:
 
 permissions:
