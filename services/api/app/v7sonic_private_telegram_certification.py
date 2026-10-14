@@ -26,6 +26,7 @@ from app.telegram.provider import send, verify_destination
 _CHAT = re.compile(r"-?[1-9][0-9]{0,15}\Z")
 _TOKEN = re.compile(r"[0-9]{5,16}:[A-Za-z0-9_-]{20,150}\Z")
 TEST_MARKER = "MV Intelligent Model V7Sonic — PRIVATE TRANSPORT TEST ONLY. DO NOT TRADE. No live signal or client publication is authorized."
+REQUIRED_TEST_GROUP_TITLE = "V7Sonic Private Test"
 
 
 def _credentials(token_file, private_chat_id, client_chat_id):
@@ -65,7 +66,9 @@ async def certify_private_test_chat(settings, *, approval, client_chat_id,
         verification = await verify_destination(client, cfg)
         if (verification.get("verified") is not True or
                 verification.get("chat_id") != cfg.telegram_chat_id or
-                verification.get("chat_type") not in ("private", "group", "supergroup", "channel")):
+                verification.get("chat_type") not in ("group", "supergroup") or
+                verification.get("chat_title") != REQUIRED_TEST_GROUP_TITLE or
+                verification.get("bot_id") != int(cfg.telegram_token.split(":",1)[0])):
             raise PermissionError("Provider did not verify expected private test chat")
         message_id = None
         if send_test:
