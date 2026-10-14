@@ -83,7 +83,18 @@ class CrossResolutionForensicTests(TestCase):
         import base64
         import hashlib
         from urllib.parse import parse_qs, urlparse
+        # Shift the synthetic Oct-15 aligned fixture exactly 24h earlier.
+        # This tests the historical-only collector without pretending to
+        # synthesize a true 13:30 market capture.
+        historical_boundary = BOUNDARY - 86_400_000
         originals = example_sources()
+        for symbol in MARKETS:
+            for frame in forensic.FRAMES:
+                rows = json.loads(originals[symbol][frame])
+                for row in rows:
+                    row[0] -= 86_400_000
+                    row[6] -= 86_400_000
+                originals[symbol][frame] = json.dumps(rows).encode()
         fetched = []
         def offline_get(url, size):
             parsed = urlparse(url)
@@ -95,7 +106,7 @@ class CrossResolutionForensicTests(TestCase):
         with TemporaryDirectory(prefix="v7-historical-1330-proof-") as tmp:
             with patch.object(forensic, "_get", side_effect=offline_get):
                 result = forensic.retrieve_and_compare(
-                    BOUNDARY, output_dir=tmp,
+                    historical_boundary, output_dir=tmp,
                 )
             self.assertEqual(len(fetched), 24)
             packet = json.loads(Path(result["raw_source_file"]).read_bytes())
