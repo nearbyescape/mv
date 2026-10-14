@@ -1,0 +1,68 @@
+name: V7 recovery six-month research (NO CLIENTS)
+
+on:
+  push:
+    branches:
+      - codex/v7sonic-costed-recovery-study
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  v7-six-month-paper-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}/services/api:${{ github.workspace }}/services/api/tests
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Verify Python compile and fail-closed research suite (NO NETWORK)
+        run: |
+          python -m compileall -q services/api/app/research/v7_recovery_*.py
+          python -m unittest discover -s services/api/tests -p 'test_v7_recovery_*.py' -v
+
+      - name: Obtain public USD-M 15m monthly ZIP + CHECKSUM (NO SECRETS)
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/v7-recovery-data"
+          python -m app.research.v7_recovery_acquire \
+            --data-root "$RUNNER_TEMP/v7-recovery-data" \
+            --acquire --acknowledge-public-download YES \
+            > "$RUNNER_TEMP/v7-recovery-acquisition.json"
+          python -c 'import json,os; p=json.load(open(os.environ["RUNNER_TEMP"]+"/v7-recovery-acquisition.json")); assert p["archive_pairs"]==36; print("36 public checksum pairs verified")'
+
+      - name: Offline six-month risk/costs/outcomes evaluation (NO TELEGRAM / NO ORDERS)
+        run: |
+          python -m app.research.v7_recovery_study \
+            --data-root "$RUNNER_TEMP/v7-recovery-data" \
+            --out "$RUNNER_TEMP/v7-recovery-report.json"
+          python - <<'PY'
+          import json, os
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/v7-recovery-report.json"))
+          assert p["status"]=="V7_SIX_MONTH_COSTED_RESEARCH_ONLY_NO_PRODUCTION_AUTHORIZATION"
+          assert p["complete_15m_bars_per_market"]>=17000
+          assert p["client_publication_authorized"] is False
+          assert p["orders_submitted"]==p["telegram_messages_sent"]==0
+          assert p["promotable_without_later_unseen_prospective_validation"] is False
+          s=p["full_exploratory_summary"]
+          print("PROPOSALS",p["proposals_before_portfolio_filters"])
+          print("PAPER REFERENCES",p["selected_paper_references"])
+          print("CLOSED REFERENCE COUNT",s["hypothetical_closed_ideas"])
+          print("MEAN MODELED NET R",s["mean_costed_R_per_closed_reference"])
+          print("DAY CLUSTERED 95pct",s["day_cluster_bootstrap_mean_R_95pct"])
+          print("Production publication: DISABLED")
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v7-recovery-no-clients-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/v7-recovery-acquisition.json
+            ${{ runner.temp }}/v7-recovery-report.json
+          if-no-files-found: warn
+          retention-days: 14
