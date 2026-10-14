@@ -116,6 +116,84 @@ def test_postgres_real_migration_up_down_and_reupgrade(pg):
 
 
 
+
+def test_postgres_v7_0008_clone_roundtrip_preserves_legacy_tables_and_rows(pg):
+    """A CI-only isolated PostgreSQL schema, never an actual VPS clone.
+
+    Exercise 0008 -> 0010 -> 0008 -> 0010, verify V7 DDL drops cleanly,
+    and prove legacy relation definitions/rows are left intact.
+    It is NOT evidence of offsite backup integrity or a production restore.
+    """
+    from sqlalchemy import inspect
+
+    Base.metadata.drop_all(pg.engine)
+    environment = {
+        **os.environ,
+        "MV_ENVIRONMENT": "local",
+        "MV_AUTH_REQUIRED": "false",
+        "MV_TELEGRAM_ENABLED": "false",
+        "MV_DATABASE_URL": pg.url.render_as_string(hide_password=False),
+    }
+    for key in ("MV_DATABASE_URL_FILE", "MV_SERVICE_KEY_FILE",
+                "MV_TELEGRAM_TOKEN_FILE"):
+        environment.pop(key, None)
+
+    def migrate(action: str, revision: str):
+        result = subprocess.run(
+            [sys.executable, "-m", "alembic", action, revision],
+            cwd=Path(__file__).resolve().parents[1],
+            env=environment, capture_output=True, text=True, timeout=90,
+        )
+        assert result.returncode == 0, result.stderr
+
+    v7_names = {
+        "v7_decision_cycles", "v7_decision_records", "v7_delivery_drafts",
+        "v7_client_approvals", "v7_client_deliveries",
+    }
+
+    def fingerprint_legacy():
+        tables = sorted(set(inspect(pg.engine).get_table_names()) - v7_names)
+        with pg.engine.connect() as db:
+            revision = db.scalar(text("SELECT version_num FROM alembic_version"))
+            assert "watchlist" in tables
+            counts = {
+                table: db.scalar(text('SELECT count(*) FROM "' + table + '"'))
+                for table in tables if table != "alembic_version"
+            }
+            watchlist = db.execute(text(
+                "SELECT symbol,sort_order FROM watchlist ORDER BY symbol"
+            )).all()
+        return revision, tables, counts, watchlist
+
+    migrate("upgrade", "0008")
+    revision, tables, counts, watchlist = fingerprint_legacy()
+    assert revision == "0008"
+    assert set(watchlist) == {("BTCUSDT", 0), ("ETHUSDT", 1)}
+    assert not (set(inspect(pg.engine).get_table_names()) & v7_names)
+
+    migrate("upgrade", "0010")
+    assert set(inspect(pg.engine).get_table_names()) & v7_names == v7_names
+    _, tables_new, counts_new, watchlist_new = fingerprint_legacy()
+    assert (tables_new, counts_new, watchlist_new) == (tables, counts, watchlist)
+
+    migrate("downgrade", "0008")
+    assert not (set(inspect(pg.engine).get_table_names()) & v7_names)
+    rev, tables_down, counts_down, watchlist_down = fingerprint_legacy()
+    assert rev == "0008"
+    assert (tables_down, counts_down, watchlist_down) == (
+        tables, counts, watchlist
+    )
+
+    migrate("upgrade", "0010")
+    rev, tables_final, counts_final, watchlist_final = fingerprint_legacy()
+    assert rev == "0010"
+    assert set(inspect(pg.engine).get_table_names()) & v7_names == v7_names
+    assert (tables_final, counts_final, watchlist_final) == (
+        tables, counts, watchlist
+    )
+
+
+
 def test_postgres_v7_client_outbox_requires_real_fenced_singleton(pg):
     """No send, even with release boolean true, absent a PostgreSQL lease."""
     from app.v7sonic_client_delivery import (
