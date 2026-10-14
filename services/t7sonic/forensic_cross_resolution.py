@@ -12,6 +12,7 @@ metadata for reproducibility. No thresholds, repairs, or silent passes.
 from __future__ import annotations
 
 import argparse
+import base64
 from datetime import datetime, timezone
 from decimal import Decimal as D
 from hashlib import sha256
@@ -200,11 +201,29 @@ def retrieve_and_compare(boundary: int, *, output_dir: str) -> dict:
             raw[symbol][frame]=job.result()[0]
     forensic=forensic_compare(boundary,raw)
     evidence={
-        "source_origin":"Public Binance USD-M API requery, not original failed capture",
+        "schema":2,
+        "source_origin":"LATER public Binance USD-M API historical requery",
         "boundary_ms":boundary,
-        "raw_native_klines":{s:{f:json.loads(raw[s][f]) for f in FRAMES}
-                             for s in MARKETS},
+        "source_response_count":24,
+        "collection_clock_ms_unattested":time.time_ns()//1_000_000,
+        # Preserve exact bytes independently of JSON parsing/serialization.
+        # A historical requery CANNOT reproduce what REST returned at close.
+        "original_http_bodies": {
+            symbol: {
+                frame: {
+                    "body_base64":base64.b64encode(raw[symbol][frame]).decode("ascii"),
+                    "original_body_sha256":sha256(raw[symbol][frame]).hexdigest(),
+                }
+                for frame in FRAMES
+            }
+            for symbol in MARKETS
+        },
         "all_sources_exchange_signed":False,
+        "contemporaneous_exchange_quote_available":False,
+        "original_close_time_source_reproduced":False,
+        "research_only_not_forward_certification":True,
+        "client_publication_authorized":False,
+        "orders_submitted":0,
     }
     evidence_encoded=(json.dumps(evidence,sort_keys=True,separators=(",",":"))+"\n").encode()
     forensic_encoded=(json.dumps(forensic,sort_keys=True,indent=2)+"\n").encode()
