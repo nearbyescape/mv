@@ -65,6 +65,8 @@ jobs:
         run: bash -n deploy/v7sonic-four-cycle-paper-pilot.sh
       - name: Syntax-check SSH-independent bounded paper-pilot launcher
         run: bash -n deploy/v7sonic-four-cycle-systemd-launch.sh
+      - name: Syntax-check one-shot 17:30 simultaneous-close research scheduler
+        run: bash -n deploy/v7sonic-1730-closeedge-schedule.sh
       - name: Syntax-check atomic inactive V7 release staging
         run: bash -n deploy/v7sonic-stage-inactive-release.sh
       - name: Syntax-check disposable-clone-only V7 migrations rehearsal
