@@ -78,6 +78,53 @@ class CrossResolutionForensicTests(TestCase):
         with self.assertRaises(ValueError):
             forensic.forensic_compare(BOUNDARY,samples)
 
+    def test_historical_1330_requery_retains_all_exact_original_bytes(self):
+        """A post-hoc 4h/1h/15m study is NEVER a live 13:30 receipt."""
+        import base64
+        import hashlib
+        from urllib.parse import parse_qs, urlparse
+        originals = example_sources()
+        fetched = []
+        def offline_get(url, size):
+            parsed = urlparse(url)
+            args = parse_qs(parsed.query)
+            symbol, frame = args["symbol"][0], args["interval"][0]
+            fetched.append((symbol, frame))
+            return originals[symbol][frame], BOUNDARY+5_000, 2.5
+
+        with TemporaryDirectory(prefix="v7-historical-1330-proof-") as tmp:
+            with patch.object(forensic, "_get", side_effect=offline_get):
+                result = forensic.retrieve_and_compare(
+                    BOUNDARY, output_dir=tmp,
+                )
+            self.assertEqual(len(fetched), 24)
+            packet = json.loads(Path(result["raw_source_file"]).read_bytes())
+            self.assertEqual(packet["schema"],2)
+            self.assertEqual(packet["source_response_count"],24)
+            self.assertFalse(packet["original_close_time_source_reproduced"])
+            self.assertFalse(packet["research_only_not_forward_certification"] is False)
+            self.assertFalse(packet["client_publication_authorized"])
+            self.assertEqual(packet["orders_submitted"],0)
+            for symbol in MARKETS:
+                for frame in forensic.FRAMES:
+                    body = packet["original_http_bodies"][symbol][frame]
+                    original = base64.b64decode(body["body_base64"], validate=True)
+                    self.assertEqual(original, originals[symbol][frame])
+                    self.assertEqual(
+                        hashlib.sha256(original).hexdigest(),
+                        body["original_body_sha256"],
+                    )
+            self.assertEqual(
+                hashlib.sha256(Path(result["raw_source_file"]).read_bytes()).hexdigest(),
+                result["raw_source_sha256"],
+            )
+            self.assertEqual(result["telegram_messages_sent"],0)
+            with self.assertRaises(FileExistsError):
+                with patch.object(forensic, "_get", side_effect=offline_get):
+                    forensic.retrieve_and_compare(
+                        BOUNDARY, output_dir=tmp,
+                    )
+
     def test_frozen_oct15_window_not_eligible_for_historical_requery(self):
         date="2026-10-12T12:45:00Z"
         original=int(datetime(2026,10,12,12,45,tzinfo=timezone.utc).timestamp()*1000)
