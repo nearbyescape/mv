@@ -133,7 +133,7 @@ class CrossResolutionForensicTests(TestCase):
             with self.assertRaises(FileExistsError):
                 with patch.object(forensic, "_get", side_effect=offline_get):
                     forensic.retrieve_and_compare(
-                        BOUNDARY, output_dir=tmp,
+                        historical_boundary, output_dir=tmp,
                     )
 
     def test_frozen_oct15_window_not_eligible_for_historical_requery(self):
