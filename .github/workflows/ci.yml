@@ -75,6 +75,10 @@ jobs:
         run: bash -n deploy/v7sonic-airgapped-restore-rehearsal.sh
       - name: Syntax-check one-shot private Telegram test transport wrapper
         run: bash -n deploy/v7sonic-private-telegram-transport.sh
+      - name: Syntax-check existing-client-channel strictly nontrading one-shot test
+        run: bash -n deploy/v7sonic-existing-channel-one-shot-test.sh
+      - name: Existing client channel test CLI must default to no network
+        run: docker run --rm --network none mv-api-check python -m app.v7sonic_existing_telegram_transport_test
       - name: Private V7 Telegram operator CLI must default NO NETWORK
         run: docker run --rm --network none mv-api-check python -m app.v7sonic_private_telegram_certification
       - name: Offline historical outcome collector must default to NO NETWORK
