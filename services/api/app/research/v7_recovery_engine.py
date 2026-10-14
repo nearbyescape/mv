@@ -284,9 +284,15 @@ def simulated_exit(trade: dict, bars_input) -> dict:
             exited = target  # No hypothetical favorable price improvement.
             outcome = "TARGET"
         elif j == end or _session_final_bar(bar):
-            # Entire remaining 15m candle must be completed to infer this close.
+            # End-of-archive before full holding horizon is RIGHT-CENSORED,
+            # not a realizable time exit. Exclude from performance statistics.
             exited = bar.close
-            outcome = "TIME_EXIT" if j == end else "SESSION_EXIT"
+            if _session_final_bar(bar):
+                outcome = "SESSION_EXIT"
+            elif j == end and end == len(bars)-1 and end < i+MAX_HOLD_BARS-1:
+                outcome = "CENSORED"
+            else:
+                outcome = "TIME_EXIT"
         else:
             continue
         index = j
