@@ -87,7 +87,7 @@ mode=stat.S_IMODE(s.st_mode)
 # root. The exact stopped container's secret bind is the trust anchor.
 # Require a regular, non-world-accessible file, no group write/execute,
 # then make an isolated UID10001 owner-only 0400 copy for the test.
-if not stat.S_ISREG(s.st_mode) or mode & 0o027:
+if not stat.S_ISREG(s.st_mode) or mode & 0o037:
     raise SystemExit(
         f"STOP: production token bind permissions unsafe "
         f"(owner_uid={s.st_uid}, mode={mode:04o}; "
