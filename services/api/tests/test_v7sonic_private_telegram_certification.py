@@ -20,7 +20,9 @@ class PrivateTransportCertificationTests(TestCase):
         async def verified(client, cfg):
             calls.append(("getMe/getChat/getChatMember",cfg.telegram_chat_id))
             return {"verified":True,"chat_id":cfg.telegram_chat_id,
-                    "chat_type":"supergroup","bot_status":"administrator"}
+                    "chat_type":"supergroup","bot_status":"administrator",
+                    "bot_id":123456789,
+                    "chat_title":trial.REQUIRED_TEST_GROUP_TITLE}
         async def sent(client,cfg,payload):
             calls.append(("sendMessage",payload["chat_id"],payload["text"]))
             return 789
@@ -49,6 +51,40 @@ class PrivateTransportCertificationTests(TestCase):
         self.assertNotEqual(calls[1][1],CLIENT)
         self.assertIn("DO NOT TRADE",calls[1][2])
         self.assertEqual(result["orders_submitted"],0)
+
+    def test_fake_group_title_or_bot_identity_fails_before_send(self):
+        async def mismatched(_client, cfg):
+            return {
+                "verified":True, "chat_id":cfg.telegram_chat_id,
+                "chat_type":"supergroup", "bot_status":"administrator",
+                "bot_id":123456789,
+                "chat_title":"Real Subscriber Channel",
+            }
+        async def cannot_send(*_args, **_kwargs):
+            raise AssertionError("No send may occur after title mismatch")
+        with (patch.object(trial, "verify_destination", new=mismatched),
+              patch.object(trial, "send", new=cannot_send)):
+            with self.assertRaises(PermissionError):
+                asyncio.run(trial.certify_private_test_chat(
+                    {"telegram_token":FAKE_TOKEN,"telegram_chat_id":PRIVATE},
+                    approval=True,client_chat_id=CLIENT,
+                    send_test=True,client=object(),
+                ))
+        async def wrong_id(_client, cfg):
+            return {
+                "verified":True, "chat_id":cfg.telegram_chat_id,
+                "chat_type":"supergroup", "bot_status":"administrator",
+                "bot_id":123456788,
+                "chat_title":trial.REQUIRED_TEST_GROUP_TITLE,
+            }
+        with (patch.object(trial, "verify_destination", new=wrong_id),
+              patch.object(trial, "send", new=cannot_send)):
+            with self.assertRaises(PermissionError):
+                asyncio.run(trial.certify_private_test_chat(
+                    {"telegram_token":FAKE_TOKEN,"telegram_chat_id":PRIVATE},
+                    approval=True,client_chat_id=CLIENT,
+                    send_test=True,client=object(),
+                ))
 
     def test_no_approval_or_same_chat_blocks_all_network(self):
         with self.assertRaises(PermissionError):
