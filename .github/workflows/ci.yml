@@ -125,5 +125,7 @@ jobs:
         run: python -m unittest discover -s services/api/tests -p 'test_t7sonic_*.py' -q
       - name: Release adapter, scheduler and isolated SQL persistence tests
         run: python -m unittest discover -s services/api/tests -p 'test_v7sonic_*.py' -q
+      - name: V7 recovery archive, causality, costed outcome and zero-network tests
+        run: python -m unittest discover -s services/api/tests -p 'test_v7_recovery_*.py' -q
       - name: Scheduler preflight with no network
         run: python -m services.t7sonic.release_scheduler
