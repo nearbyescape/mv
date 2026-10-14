@@ -28,7 +28,7 @@ from services.t7sonic.early_live_smoke import (
     _write_immutable_file, next_boundary, url_for,
 )
 from services.t7sonic.forward_paper_ledger import PrivatePaperLedger
-from services.t7sonic.replay_original_capture import _read_private_file
+from services.t7sonic.replay_original_capture import _read_private_file, _decode
 
 _MAX_ATTEMPTS = 3
 _MAX_LAG_MS = 30_000
@@ -107,6 +107,74 @@ def _capture_all_31(boundary: int, *, getter) -> tuple:
             symbol = jobs[future]
             books[symbol], receipts[symbol], _elapsed = future.result()
     return candles, books, info, receipts
+
+
+# We may RETRY a whole source acquisition if, and only if, all
+# authenticated-to-the-SAVED-BYTES quote times are internally causal
+# and at least one exchange event occurred JUST before the new bar.
+# This is a retry classifier, never a substitute for parse_book_ticker.
+# The accepted follow-on batch must still pass EVERY original rule.
+_MAX_PRE_BOUNDARY_EVENT_MS = 1_500
+_MAX_BOOK_RECEIPT_AGE_MS = 5_000
+
+
+def _preboundary_quote_retry_evidence(receipt: dict) -> list[dict]:
+    """Return documented near-boundary events, else fail CLOSED.
+
+    All 6 original quote bodies are SHA256-reverified by _decode. Never
+    retry when a timestamp is future-dated, over 5s old, outside the
+    boundary/receipt ordering, or unrecognized/malformed. The original
+    validator remains completely unchanged.
+    """
+    if not isinstance(receipt, dict):
+        return []
+    boundary = receipt.get("decision_boundary_ms")
+    completed = receipt.get("recorded_ms_local_clock_claim")
+    books = receipt.get("quote_bodies")
+    receipts = receipt.get("quote_received_ms_local_clock_claim")
+    if (type(boundary) is not int or boundary % 300_000 != 0 or
+            type(completed) is not int or
+            not boundary <= completed <= boundary + _MAX_LAG_MS or
+            not isinstance(books, dict) or set(books) != set(MARKETS) or
+            not isinstance(receipts, dict) or set(receipts) != set(MARKETS)):
+        return []
+    misses = []
+    for symbol in MARKETS:
+        received = receipts[symbol]
+        if (type(received) is not int or
+                not boundary <= received <= completed or
+                completed - received > _MAX_BOOK_RECEIPT_AGE_MS):
+            return []
+        try:
+            body = json.loads(_decode(books[symbol]))
+        except (ValueError, KeyError, TypeError, UnicodeError):
+            return []
+        required = {"symbol", "bidPrice", "bidQty", "askPrice",
+                    "askQty", "time"}
+        if (not isinstance(body, dict) or
+                set(body) not in (required, required | {"lastUpdateId"}) or
+                body.get("symbol") != symbol or
+                type(body.get("time")) is not int or
+                any(not isinstance(body.get(k), str) for k in
+                    ("bidPrice", "bidQty", "askPrice", "askQty")) or
+                ("lastUpdateId" in body and
+                 (type(body["lastUpdateId"]) is not int or
+                  body["lastUpdateId"] <= 0))):
+            return []
+        event = body["time"]
+        if (event > received or
+                received - event > _MAX_BOOK_RECEIPT_AGE_MS or
+                event < boundary - _MAX_PRE_BOUNDARY_EVENT_MS):
+            return []
+        if event < boundary:
+            misses.append({
+                "symbol": symbol,
+                "exchange_event_ms_local_unattested": event,
+                "received_ms_local_unattested": received,
+                "preboundary_ms": boundary - event,
+                "book_age_at_receipt_ms": received - event,
+            })
+    return misses
 
 
 def capture_one_private_cycle(
@@ -212,13 +280,25 @@ def capture_one_private_cycle(
                 previously_seen_candidate_ids=previously_seen_candidate_ids,
             )
         except Exception as exc:
-            # The strict fieldwise historical-vs-native check stays exact.
-            # Only a verified 31-body cross-resolution disagreement can
-            # trigger a new, complete 31-request batch before the deadline.
-            retryable = (
+            # Strict source validation ALWAYS remains in effect. Two
+            # narrow exceptions can REFETCH an entirely new 31-body
+            # source snapshot (never mix attempts, extend expiry or
+            # treat rejection as NO_SETUP):
+            # 1. Already-supported exact native/1m OHLCV mismatch.
+            # 2. All six original quote hashes/timestamps are sane and
+            # at least one exchange event is <=1.5s BEFORE boundary.
+            # Future-dated, >5s-old or malformed book times NEVER retry.
+            replay_mismatch = (
                 type(exc) is ValueError and
                 str(exc) == "Original market-source reconciliation failed"
             )
+            preboundary = (
+                _preboundary_quote_retry_evidence(receipt)
+                if type(exc) is ValueError and str(exc) ==
+                "Exchange book timestamp stale, premature or future"
+                else []
+            )
+            retryable = replay_mismatch or bool(preboundary)
             retry = (
                 retryable and attempt < _MAX_ATTEMPTS and
                 clock() + int(_RETRY_DELAY_S*1000) + _MIN_RETRY_BUDGET_MS
@@ -231,6 +311,13 @@ def capture_one_private_cycle(
                     "status": "PRIVATE_PAPER_ANALYSIS_REJECTED",
                     "attempt": attempt, "reason": str(exc)[:240],
                     "retry_eligible": retry,
+                    "retry_classification": (
+                        "EXACT_CROSS_RESOLUTION_RECONCILIATION"
+                        if replay_mismatch else
+                        "BOUNDED_PREBOUNDARY_EXCHANGE_BOOK_EVENT"
+                        if preboundary else "NOT_RETRYABLE"
+                    ),
+                    "preboundary_quote_evidence": preboundary,
                     "original_http_sha256": raw_hash,
                     "client_publication_authorized": False,
                     "telegram_enqueued": False, "orders_authorized": False,
