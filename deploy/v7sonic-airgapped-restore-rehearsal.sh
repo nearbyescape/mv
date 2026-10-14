@@ -81,7 +81,7 @@ revision() { query 'SELECT version_num FROM alembic_version'; }
 
 echo '=== RESTORE PINNED BACKUP INTO ISOLATED CLONE ==='
 docker exec "$CID" pg_restore --list /input/mv.dump >/dev/null
-docker exec -u postgres "$CID" pg_restore --exit-on-error --no-owner --no-acl \
+docker exec "$CID" pg_restore --exit-on-error --no-owner --no-acl \
   -U postgres -d "$DB" /input/mv.dump
 test "$(revision)" = 0008
 
