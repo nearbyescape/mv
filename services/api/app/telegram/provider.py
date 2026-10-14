@@ -70,4 +70,4 @@ async def verify_destination(client, settings):
     default_restricted=status=="member" and chat.get("type") in ("group","supergroup") and chat.get("permissions",{}).get("can_send_messages") is False
     if status in (None,"left","kicked") or restricted or forbidden_channel or default_restricted:
         raise DeliveryError("BOT_CANNOT_POST")
-    return {"verified":True,"chat_id":settings.telegram_chat_id,"chat_type":chat.get("type"),"bot_status":status}
+    return {"verified":True,"chat_id":settings.telegram_chat_id,"chat_type":chat.get("type"),"bot_status":status,"bot_id":bot["id"],"chat_title":chat.get("title")}
