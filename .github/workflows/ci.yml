@@ -73,6 +73,8 @@ jobs:
         run: bash -n deploy/v7sonic-rehearse-clone-migrations.sh
       - name: Syntax-check airgapped MV backup restore and V7 migration roundtrip
         run: bash -n deploy/v7sonic-airgapped-restore-rehearsal.sh
+      - name: Syntax-check one-shot private Telegram test transport wrapper
+        run: bash -n deploy/v7sonic-private-telegram-transport.sh
       - name: Private V7 Telegram operator CLI must default NO NETWORK
         run: docker run --rm --network none mv-api-check python -m app.v7sonic_private_telegram_certification
       - name: Offline historical outcome collector must default to NO NETWORK
