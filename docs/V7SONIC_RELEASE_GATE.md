@@ -483,6 +483,40 @@ not installed or started by CI or deployment; the operator must
 separately opt in after reviewing the exact source. V4 stays stopped;
 no client messages or exchange orders are authorized.
 
+## 14 Oct 2026 13:30 IST — missed forward close, historical research only
+
+The 13:30 IST = 08:00 UTC simultaneous 15-minute, 1-hour and
+4-hour candle close on 14 October was **NOT recorded at the boundary**
+by the frozen four-cycle systemd V7 paper collector. No prior 13:30
+real-time quote, original 31-body receipt, 30s decision, paper
+claim, independent timestamp witness, certified strategy setup or
+forward result exists. Do not manufacture or backfill any of these.
+
+An opt-in independent historical-source study can run while the
+boundary is within 48h and before the frozen Oct-15 study start:
+
+`python -m services.t7sonic.forensic_cross_resolution --requery-public-klines --boundary-utc 2026-10-14T08:00:00Z --output-dir /state`
+
+This does exactly 24 PUBLIC Binance USD-M kline GETs for the six
+research markets and 1m/15m/1h/4h histories, then compares closed
+candle OHLCV without tolerances. The evidence is saved create-only
+in a separate owner-private directory. It now preserves **each exact
+original HTTP body as base64 and per-body SHA256**, along with an
+independent diff report. Retrieval is LATER than the boundary,
+possibly after exchange revisions, not real-time source availability.
+There is **NO historical bookTicker, original decision latency,
+client message, trade, account access or 13:30 forward certification**.
+The output is an offline retrospective cross-resolution diagnostic
+only, even if all 24 histories match exactly.
+
+The next simultaneous 15m/1h/4h close is **17:30 IST = 12:00 UTC**
+on 14 October. A fresh one-shot four-cycle forward paper pilot,
+if separately approved, should be launched when its four future
+boundaries are 17:20, 17:25, 17:30 and 17:35 IST, with its own
+clean exact-source SHA, unique paper evidence directory, systemd
+unit and a zero-client-publication guarantee. Any pilot that does
+not include 17:30 must not be credited as testing that close.
+
 ## 14 Oct 2026, 09:05 IST — first systemd-paper quote-time rejection
 
 The independently saved `09:05` source envelope digest
