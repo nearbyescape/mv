@@ -61,3 +61,39 @@ The input DB must remain read-only. A paper idea only represents a
   and not an independent out-of-sample test. Any proposed variant
   must be frozen prospectively and evaluated on new, unseen sessions.
 - Source code includes no live-trading or Telegram client integration.
+
+
+## Observed 90-pair sample and next diagnostic (October 15, 2026)
+
+The verified VPS run of the four-horizon study yielded **90 adjacent
+pairs**. With 15m or 30m funding exclusion, **67/90** first failed
+`OPEN_INTEREST_NOT_CONFIRMED`; 12 were invalid older observation
+intervals and 11 had repeated taker periods. Zero pre-portfolio
+candidates qualified for ANY tested horizon.
+
+**Do not lower the original >=0.20% five-minute OI threshold based
+only on this finding.** To establish whether removing it would even
+permit aligned taker-flow/book opportunities, use the additional
+research-only stage funnel:
+
+```bash
+PYTHONPATH=/absolute/research/worktree/services/api python3 -m \
+ app.microstructure.cli \
+ --db /srv/mv-v7-microstructure/data/evidence.sqlite \
+ filter-funnel --last-samples-per-symbol 288
+```
+
+It reports the original first-failure decision, all cumulative stage
+passes, OI percent-change quantiles in pairs that passed prerequisite
+gates, same quantiles by market, aligned directional taker/depth
+counts, and a **clearly labeled** number that would pass the
+remaining gates *if OI were ignored*. This last figure is a
+diagnostic of filter coverage **not a proposed strategy, expected
+signal frequency, trading opportunity or evidence of profitability**.
+The audit asserts exactly the same first-failure decisions as the
+frozen classifier for every pair, reads only the verified hash chains,
+and cannot alter the running journal.
+
+Multiple comparisons over the same small, time-clustered market sample
+are exploratory and may mislead. Any future policy changes require
+independent unseen forward observations and executable pricing.
