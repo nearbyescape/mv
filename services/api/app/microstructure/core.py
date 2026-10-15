@@ -194,7 +194,8 @@ def normalize(symbol, raw, observed_ms, *, started_ms):
     }
 
 
-def classify(previous,current):
+def _classify_with_funding_horizon(previous,current,funding_horizon_ms):
+    """Shared original rules with only the paper horizon as a variable."""
     """Causal paper hypothesis; return a candidate or an explicit abstention.
 
     This does NOT estimate P(win). It is *not* a profitability certificate.
@@ -223,7 +224,7 @@ def classify(previous,current):
     # V1 does not model the exact funding settlement of an actual fill.
     # Refuse references whose maximum outcome horizon could cross funding.
     if type(current.get("next_funding_ms"))!=int or (
-        current["next_funding_ms"]<=at+max(HORIZONS_MS)
+        current["next_funding_ms"]<=at+funding_horizon_ms
     ):
         return abstain("FUNDING_WINDOW_UNMODELED")
     old_oi=dec(previous["open_interest"],positive=True)
@@ -276,6 +277,23 @@ def classify(previous,current):
         "no_exchange_execution":True,"no_telegram_publication":True,
         "paper_only":True,
     }
+
+
+def classify(previous,current):
+    """Frozen 120-minute original classifier, same contract/parameters/sha."""
+    return _classify_with_funding_horizon(previous,current,max(HORIZONS_MS))
+
+
+def classify_research_horizon(previous,current,horizon_ms):
+    """EXPLORATORY ONLY. Same rules; only funding-coverage window differs.
+
+    This function is not called by the running worker or paper journal.
+    Requires a horizon from the existing frozen outcome set, and never
+    mutates the market observations or changes the original model.
+    """
+    if type(horizon_ms) is not int or horizon_ms not in HORIZONS_MS:
+        raise ValueError("Research funding horizon must be an exact outcome horizon")
+    return _classify_with_funding_horizon(previous,current,horizon_ms)
 
 
 def horizon_mark(idea,observation):
