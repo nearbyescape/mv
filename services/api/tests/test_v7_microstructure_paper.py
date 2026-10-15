@@ -483,3 +483,90 @@ def test_single_transient_gap_recovers_and_commits_full_six_coin_batch(capsys):
         with open_journal(path,readonly=True) as db:
             assert db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==6
             assert report(db)["paper_candidate_total"]==0
+
+
+
+def test_strict_replay_zero_trade_result_never_invents_profitability():
+    from app.microstructure.strict_backtest import backtest_from_journal
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"research.sqlite"
+        a,b=sample(0),sample(1)
+        b["next_funding_ms"]=b["observed_at_ms"]+60*60_000
+        with open_journal(path) as db:
+            record_snapshot(db,a)
+            assert record_snapshot(db,b)["decision"]["reason"]=="FUNDING_WINDOW_UNMODELED"
+        with open_journal(path,readonly=True) as db:
+            before=db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+        result=backtest_from_journal(path)
+        assert result["observation_count"]==2
+        assert result["frozen_paper_ideas"]==0
+        assert result["replay_ledger_exact_match"] is True
+        assert result["source_journal_unmodified"] is True
+        assert result["profitability_validation"]["status"]=="NOT_ESTIMABLE_ZERO_PAPER_IDEAS"
+        assert result["profitability_validation"]["real_trade_win_rate"] is None
+        assert result["profitability_validation"]["real_trade_mean_after_cost_R"] is None
+        assert result["profitability_validation"]["suitable_for_real_money_or_client_signals"] is False
+        assert all(
+            row["mean_net_reference_R"] is None
+            for row in result["reference_book_point_marks_by_horizon"].values()
+        )
+        with open_journal(path,readonly=True) as db:
+            assert db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==before
+            assert db.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==0
+
+
+def test_strict_replay_valid_idea_and_all_horizon_marks_do_not_mean_real_fills():
+    from app.microstructure.strict_backtest import backtest_from_journal
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"research.sqlite"
+        with open_journal(path) as db:
+            for step in range(28):
+                record_snapshot(db,sample(step))
+            assert report(db)["paper_candidate_total"]==1
+        study=backtest_from_journal(path)
+        assert study["replay_ledger_exact_match"] is True
+        assert study["frozen_paper_ideas"]==1
+        for horizon in ("15m","30m","60m","120m"):
+            marks=study["reference_book_point_marks_by_horizon"][horizon]
+            assert marks["available_future_marks"]==1
+            assert marks["mean_net_reference_R"] is not None
+            assert marks["live_stop_and_target_fill_verified"] is False
+        cert=study["profitability_validation"]
+        assert cert["status"]=="INCONCLUSIVE_REFERENCE_MARKS_NOT_EXECUTED_TRADES"
+        assert cert["real_trade_mean_after_cost_R"] is None
+        assert cert["independent_holdout_profitable_edge_proven"] is False
+        assert cert["real_trade_count"]==0
+        assert study["exchange_orders"]==0
+        assert study["telegram_messages"]==0
+
+
+def test_strict_replay_fails_closed_on_corrupted_history_and_bound():
+    from app.microstructure.strict_backtest import backtest_from_journal
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"research.sqlite"
+        with open_journal(path) as db:
+            record_snapshot(db,sample(0))
+            record_snapshot(db,sample(1))
+        with pytest.raises(ValueError,match="max_observations"):
+            backtest_from_journal(path,max_observations=True)
+        with pytest.raises(ValueError,match="max_observations"):
+            backtest_from_journal(path,max_observations=1)
+        with open_journal(path) as db:
+            db.execute("UPDATE observations SET payload='{}' WHERE symbol='BTCUSDT'")
+            db.commit()
+        with pytest.raises(ValueError,match="tampering"):
+            backtest_from_journal(path)
+
+
+def test_strict_replay_rejects_missing_or_rewritten_stored_idea():
+    from app.microstructure.strict_backtest import backtest_from_journal
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"research.sqlite"
+        with open_journal(path) as db:
+            record_snapshot(db,sample(0))
+            record_snapshot(db,sample(1))
+            assert report(db)["paper_candidate_total"]==1
+            db.execute("DELETE FROM paper_ideas")
+            db.commit()
+        with pytest.raises(ValueError,match="Original report differs"):
+            backtest_from_journal(path)
