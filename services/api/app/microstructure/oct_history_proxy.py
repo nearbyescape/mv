@@ -384,6 +384,14 @@ def compute_backtest(history, *, start_ms, end_ms):
         trade["signal_taker_ratio"]=signal["taker_ratio"]
         results.append(trade)
     results.sort(key=lambda x:(x["exit_ms"],x["symbol"]))
+    if checks["partial_rule_proxy_signals"] != (
+        len(accepted)
+        + checks["blocked_3hr_symbol_cooldown"]
+        + checks["blocked_4slot_paper_portfolio"]
+    ):
+        raise ValueError("Candidate funnel count mismatch")
+    if len(accepted)!=len(results)+sum(censored.values()):
+        raise ValueError("Proxy trade outcome count mismatch")
     return checks,accepted,results,censored
 
 
@@ -531,8 +539,8 @@ def main():
             "same_bar_both_hits":"STOP_FIRST_CONSERVATIVE",
         },
         "filter_counts":dict(checks),
-        "preportfolio_proxy_candidates":len(eligible),
-        "accepted_after_original_like_cooldown_and_slots":len(eligible)-checks["blocked_3hr_symbol_cooldown"]-checks["blocked_4slot_paper_portfolio"],
+        "preportfolio_proxy_candidates":checks["partial_rule_proxy_signals"],
+        "accepted_after_original_like_cooldown_and_slots":len(eligible),
         "censored_missing_full_outcome_bars":dict(censored),
         "descriptive_proxy_results":_stats(trades),
         "by_symbol":{symbol:_stats([t for t in trades if t["symbol"]==symbol]) for symbol in SYMBOLS},
@@ -561,6 +569,8 @@ def main():
         "kind":"HISTORICAL_PROXY_RESULT_NOT_V7",
         "path":str(out),
         "period":(result["start_IST"],result["end_exclusive_IST"]),
+        "preportfolio_proxy_candidates":result["preportfolio_proxy_candidates"],
+        "accepted_after_cooldown_and_slots":result["accepted_after_original_like_cooldown_and_slots"],
         "observed_proxy_trades":result["descriptive_proxy_results"]["trades"],
         "metrics":result["descriptive_proxy_results"],
         "filter_counts":result["filter_counts"],
