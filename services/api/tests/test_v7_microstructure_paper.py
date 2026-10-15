@@ -266,3 +266,63 @@ def test_sampler_uses_latest_market_not_earliest_symbol_timestamp():
             assert _seconds_until_capture(
                 db,bnb["observed_at_ms"]+302_000,300
             )==0
+
+
+
+def test_offline_quality_audit_reports_overlapping_causes():
+    from app.microstructure.quality import quality_report
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"quality.sqlite"
+        with open_journal(path) as db:
+            record_snapshot(db,sample(0))
+            record_snapshot(db,sample(1))
+            record_snapshot(db,sample(2))
+            eth0=sample(0,"ETHUSDT")
+            eth1=sample(1,"ETHUSDT")
+            eth1["next_funding_ms"]=eth1["observed_at_ms"]+3_600_000
+            record_snapshot(db,eth0)
+            record_snapshot(db,eth1)
+            result=quality_report(db,last_samples_per_symbol=3)
+        assert result["total_adjacent_pairs"]==3
+        assert result["first_failure_classifier_totals"]["PRE_PORTFOLIO_CANDIDATE"]==2
+        assert result["first_failure_classifier_totals"]["FUNDING_WINDOW_UNMODELED"]==1
+        assert result["preportfolio_candidates_not_actual_published_signals"]==2
+        assert result["symbols"]["BTCUSDT"]["valid_timing_pairs"]==2
+        assert result["symbols"]["BTCUSDT"]["preportfolio_candidates"]==2
+        assert result["symbols"]["ETHUSDT"]["independent_blockers_overlapping"]["FUNDING_WITHIN_120M"]==1
+        assert result["rules_or_thresholds_changed"] is False
+        assert result["client_publication_authorized"] is False
+        assert result["actual_execution_or_intrabar_fill_verified"] is False
+        # No database mutation: reader can use read-only permissions.
+        with open_journal(path,readonly=True) as readonly:
+            assert quality_report(readonly,last_samples_per_symbol=2)["total_adjacent_pairs"]==2
+            assert report(readonly)["paper_candidate_total"]==1
+
+
+def test_quality_audit_detects_taker_staleness_independent_of_other_blockers():
+    from app.microstructure.quality import quality_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"quality.sqlite") as db:
+            old=sample(0)
+            current=sample(1)
+            current["taker_period_start_ms"]=old["taker_period_start_ms"]
+            current["next_funding_ms"]=current["observed_at_ms"]+3_600_000
+            record_snapshot(db,old)
+            assert record_snapshot(db,current)["decision"]["reason"]=="STALE_TAKER_PERIOD"
+            result=quality_report(db,last_samples_per_symbol=2)
+            assert result["first_failure_classifier_totals"]["STALE_TAKER_PERIOD"]==1
+            assert result["independent_blockers_overlapping_totals"]["TAKER_NOT_ADVANCED"]==1
+            assert result["independent_blockers_overlapping_totals"]["FUNDING_WITHIN_120M"]==1
+
+
+def test_quality_audit_rejects_corrupt_evidence_and_bad_window():
+    from app.microstructure.quality import quality_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"quality.sqlite") as db:
+            record_snapshot(db,sample(0))
+            with pytest.raises(ValueError,match="last_samples_per_symbol"):
+                quality_report(db,last_samples_per_symbol=1)
+            db.execute("UPDATE observations SET payload='{}'")
+            db.commit()
+            with pytest.raises(ValueError,match="tampering"):
+                quality_report(db,last_samples_per_symbol=2)
