@@ -51,6 +51,20 @@ def health(actor:Actor,session:DB):
     return operations_health(session)
 
 
+@router.get("/v1/operations/diagnostics")
+def diagnostics(actor:Actor, session:DB):
+    """Read-only audited observation; never authorizes Telegram or trades."""
+    from app.operations.readiness import build_diagnostics
+    try:
+        return build_diagnostics(
+            session, production=get_settings().environment == "production"
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=503, detail="Operational diagnostics unavailable"
+        ) from exc
+
+
 @router.get("/v1/operations/ready")
 def ready(actor:Actor,session:DB):
     from fastapi.responses import JSONResponse
