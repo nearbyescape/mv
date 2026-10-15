@@ -150,6 +150,9 @@ def normalize(symbol, raw, observed_ms, *, started_ms):
     ) else None
     if funding is None or not funding.is_finite():
         raise ValueError("Invalid funding")
+    next_funding=premium.get("nextFundingTime")
+    if type(next_funding)!=int or next_funding<=observed_ms:
+        raise ValueError("Unknown upcoming funding boundary")
     if abs(mark-mid)/mid*10_000>D(50):
         raise ValueError("Mark and reference book diverged materially")
 
@@ -184,6 +187,7 @@ def normalize(symbol, raw, observed_ms, *, started_ms):
         "taker_buy":number(buy_vol),"taker_sell":number(sell_vol),
         "taker_ratio":number(ratio),"mark":number(mark),
         "premium_exchange_ms":premium["time"],"funding_rate":number(funding),
+        "next_funding_ms":next_funding,
         "depth_consistency":"REST_POINT_SNAPSHOT_NOT_SEQUENCE_PROVED",
         "execution_price":"UNVERIFIED",
         "eligible_for_live_trades":False,
@@ -216,6 +220,12 @@ def classify(previous,current):
     funding=D(current["funding_rate"])
     if abs(funding)>D(PARAMETERS["maximum_abs_funding_rate"]):
         return abstain("EXTREME_FUNDING")
+    # V1 does not model the exact funding settlement of an actual fill.
+    # Refuse references whose maximum outcome horizon could cross funding.
+    if type(current.get("next_funding_ms"))!=int or (
+        current["next_funding_ms"]<=at+max(HORIZONS_MS)
+    ):
+        return abstain("FUNDING_WINDOW_UNMODELED")
     old_oi=dec(previous["open_interest"],positive=True)
     new_oi=dec(current["open_interest"],positive=True)
     oi_change_pct=(new_oi-old_oi)/old_oi*100
