@@ -116,7 +116,9 @@ def test_proxy_portfolio_cooldown_and_four_slot_cap_without_fake_fills():
         data,start_ms=start,end_ms=start+60*60_000
     )
     assert checks["partial_rule_proxy_signals"]==6
-    assert len(candidates)==6
+    # Candidate return value is the ACCEPTED four-slot portfolio, not
+    # the pre-portfolio six eligible raw directional observations.
+    assert len(candidates)==4
     assert checks["blocked_4slot_paper_portfolio"]==2
     assert len(trades)==4
     assert not censored
