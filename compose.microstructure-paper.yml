@@ -1,0 +1,44 @@
+# Intentionally isolated from compose.production.yml and the retired V4 engine.
+# NO production DB, client Telegram, exchange API secrets, trading credentials,
+# ports, web app, or publisher are mounted. Profile is OPT-IN only.
+name: mv-v7-microstructure-paper
+services:
+  prospective-collector:
+    profiles: [isolated-research]
+    image: mv-v7-microstructure-paper:local
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    command:
+      - python
+      - -m
+      - app.microstructure.cli
+      - --db
+      - /paper-journal/evidence.sqlite
+      - observe
+      - --allow-public-market-data
+      - --confirm-paper-only
+      - --iterations
+      - "0"
+      - --interval-seconds
+      - "300"
+    # Provide an explicitly owner-created directory, chowned to UID 10001.
+    # Compose never creates or populates a production database.
+    volumes:
+      - type: bind
+        source: ./artifacts/v7-microstructure-paper
+        target: /paper-journal
+    user: "10001:10001"
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,nodev,noexec,size=32m"]
+    environment:
+      MV_ENVIRONMENT: local
+      MV_AUTH_REQUIRED: "false"
+      MV_PAPER_ENABLED: "false"
+    restart: "no"
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    pids_limit: 80
+    mem_limit: 256m
+    cpus: "0.5"
+    logging:
+      driver: json-file
+      options: {max-size: "5m", max-file: "3"}
