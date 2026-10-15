@@ -326,3 +326,54 @@ def test_quality_audit_rejects_corrupt_evidence_and_bad_window():
             db.commit()
             with pytest.raises(ValueError,match="tampering"):
                 quality_report(db,last_samples_per_symbol=2)
+
+
+
+def test_funding_horizon_counterfactual_keeps_original_model_identical():
+    from app.microstructure.core import classify_research_horizon
+    previous,current=sample(0),sample(1)
+    settlement=current["observed_at_ms"]+45*60_000
+    previous["next_funding_ms"]=settlement
+    current["next_funding_ms"]=settlement
+
+    original=classify(previous,current)
+    assert original["reason"]=="FUNDING_WINDOW_UNMODELED"
+    assert classify_research_horizon(previous,current,120*60_000)==original
+
+    for minutes in (15,30):
+        idea=classify_research_horizon(previous,current,minutes*60_000)
+        assert idea["status"]=="PAPER_CANDIDATE"
+        assert idea["no_exchange_execution"] is True
+        assert idea["no_telegram_publication"] is True
+    for minutes in (60,120):
+        assert classify_research_horizon(previous,current,minutes*60_000)["reason"]=="FUNDING_WINDOW_UNMODELED"
+    for bad in (0,5*60_000,60_000.0,False):
+        with pytest.raises(ValueError):
+            classify_research_horizon(previous,current,bad)
+
+
+def test_offline_funding_sensitivity_does_not_mutate_sqlite_journal():
+    from app.microstructure.funding_counterfactual import compare_horizons
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"funding-study.sqlite"
+        prev,curr=sample(0),sample(1)
+        settlement=curr["observed_at_ms"]+45*60_000
+        prev["next_funding_ms"]=settlement
+        curr["next_funding_ms"]=settlement
+        with open_journal(path) as db:
+            record_snapshot(db,prev)
+            assert record_snapshot(db,curr)["decision"]["reason"]=="FUNDING_WINDOW_UNMODELED"
+            assert db.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==0
+        with open_journal(path,readonly=True) as ro:
+            study=compare_horizons(ro,n=288)
+        assert study["comparison"]["15m"]["preportfolio_candidates"]==1
+        assert study["comparison"]["30m"]["preportfolio_candidates"]==1
+        assert study["comparison"]["60m"]["preportfolio_candidates"]==0
+        assert study["comparison"]["120m"]["preportfolio_candidates"]==0
+        assert study["comparison"]["120m"]["first_failure_reasons"]["FUNDING_WINDOW_UNMODELED"]==1
+        assert study["strategy_candidate_model_unchanged"] is True
+        assert study["not_out_of_sample"] is True
+        assert study["profitability_demonstrated"] is False
+        with open_journal(path,readonly=True) as ro:
+            assert ro.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==0
+            assert verify_chain(ro,"BTCUSDT")==2
