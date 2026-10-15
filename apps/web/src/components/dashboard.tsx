@@ -260,11 +260,6 @@ export function Dashboard({
     }
   }
 
-  useEffect(() => {
-    if (page !== "system") return;
-    void refreshDiagnostics();
-  }, [page]);
-
   async function refreshSystem() {
     const result = await readFoundation();
     void refreshDiagnostics();
@@ -293,6 +288,7 @@ export function Dashboard({
   }, []);
 
   function navigate(next: Page) {
+    if (next === "system") void refreshDiagnostics();
     setPage(next);
     setMenuOpen(false);
     setSearch("");
