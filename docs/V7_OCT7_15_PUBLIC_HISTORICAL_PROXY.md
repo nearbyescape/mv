@@ -21,6 +21,29 @@ price-distance bands, not true top-20 L2 snapshots, and a public
 issue reports incomplete **BTCUSDT Oct 7 and Oct 9 archives**.
 Issue: https://github.com/binance/binance-public-data/issues/512
 
+## Historical-pagination hardening
+
+On the October 15 VPS attempt, Binance historical acquisition stopped
+before creating a results report with `Historical pagination did not advance`.
+The original collector used `last_timestamp + 1` as the next query
+`startTime`. Public 5-minute aggregated statistics may interpret
+`startTime` on period boundaries and repeat a completed bucket rather
+than advancing. This is not a trade failure or evidence of profitability.
+
+The revised downloader uses **nonoverlapping maximum 24-hour UTC
+query slices**: at most 288 distinct 5-minute bucket timestamps and
+a request cap of 500 per OI/taker window or 1,500 per kline window.
+It never relies on a page cursor, never backfills absent periods,
+rejects conflicting duplicate timestamps, and raises a diagnostic
+`HISTORY_OUTSIDE_REQUESTED_SEGMENT` including symbol, source family,
+requested UTC bounds and provider response range if a provider
+returns exclusively out-of-window data. Missing points remain
+missing; the final report includes per-day coverage diagnostics.
+
+The earlier failed run produced **no profitability result**.
+The source/collector checkout on the VPS must remain untouched;
+install the pinned research update in a separate detached worktree.
+
 ## Explicitly different, partial-rule historical test
 
 Run in a separate detached Git worktree, with NO production compose,
