@@ -20,7 +20,10 @@ predictive probabilities, live fills, or verified stop/target crossing.
 - A frozen *hypothesis*: compare sequential 5-minute observations.
   Require increasing OI, directional completed-period aggressive flow,
   compatible depth imbalance, non-extreme funding, sufficiently narrow
-  spread / displayed liquidity and favorable illustrative after-cost target.
+  spread / displayed liquidity, an upcoming funding boundary beyond
+  the 120-minute paper observation horizon, and favorable illustrative
+  after-cost target. We reject references that might cross an unmodeled
+  funding settlement rather than silently assume it costs nothing.
   Otherwise **ABSTAIN**. This is NOT a trained win probability.
 - Independent, append-only SQLite research journal; SHA256 payloads and
   chain links, duplicate-safe insertion, three-hour symbol cooldown and
