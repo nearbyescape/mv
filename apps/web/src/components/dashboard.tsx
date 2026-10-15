@@ -93,6 +93,24 @@ type Health = {
     daily_limit: number;
   };
 };
+type OperationalDiagnostics = {
+  status: string;
+  database_revision?: string;
+  migration_status?: string;
+  as_of_ms?: number;
+  legacy_engine?: { state: string; running: boolean; ready: boolean };
+  legacy_last_24h_decisions?: number;
+  legacy_top_rejection_reasons?: { reason: string; count: number }[];
+  legacy_telegram_delivery_status?: Record<string, number>;
+  v7_publication_authorized: boolean;
+  v7_release_blockers: string[];
+  v7_paper?: {
+    database_tables_available: boolean;
+    cycle_states: Record<string, number> | null;
+    outcomes: Record<string, number> | null;
+  };
+};
+
 const navigation: { id: Page; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "markets", label: "Chosen markets", icon: CandlestickChart },
@@ -198,6 +216,8 @@ export function Dashboard({
   const [dark, setDark] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
+  const [diagnostics, setDiagnostics] = useState<OperationalDiagnostics | null>(null);
+  const [diagnosticsError, setDiagnosticsError] = useState(false);
   const [watchlist, setWatchlist] = useState<string[]>(["BTCUSDT", "ETHUSDT"]);
   const [listLoaded, setListLoaded] = useState(false);
   const [draft, setDraft] = useState("BTCUSDT, ETHUSDT");
@@ -223,8 +243,31 @@ export function Dashboard({
   const connected = health?.status === "ok";
   const engine = signalFeed.data?.engine || health?.engine;
 
+  async function refreshDiagnostics() {
+    try {
+      const response = await fetch("/api/diagnostics", { cache: "no-store" });
+      if (!response.ok) {
+        setDiagnostics(null);
+        setDiagnosticsError(true);
+        return;
+      }
+      const observed = (await response.json()) as OperationalDiagnostics;
+      setDiagnostics(observed);
+      setDiagnosticsError(false);
+    } catch {
+      setDiagnostics(null);
+      setDiagnosticsError(true);
+    }
+  }
+
+  useEffect(() => {
+    if (page !== "system") return;
+    void refreshDiagnostics();
+  }, [page]);
+
   async function refreshSystem() {
     const result = await readFoundation();
+    void refreshDiagnostics();
     setHealth(result.health);
     setMarkets(result.markets);
     setListLoaded(result.symbols !== null);
@@ -1073,8 +1116,8 @@ export function Dashboard({
                   <SectionLabel>LIVE OPERATIONS</SectionLabel>
                   <h2>Service status</h2>
                   <p>
-                    Collector, engine and web delivery status are measured.
-                    Telegram and AI review are later phases.
+                    Read-only collector, engine and delivery status. This screen
+                    does not certify signal profitability or authorize client publication.
                   </p>
                 </div>
                 <button
@@ -1085,6 +1128,42 @@ export function Dashboard({
                   Refresh status
                 </button>
               </div>
+              <section className="panel" aria-label="V7Sonic release readiness">
+                <SectionLabel>V7SONIC RELEASE STATUS</SectionLabel>
+                <h3>Subscriber signal publishing is not authorized</h3>
+                <p>
+                  Operational health is separate from strategy profitability.
+                  Earlier V7Sonic research did not demonstrate a positive
+                  after-cost trading edge. Historical paper ideas are not
+                  current or executable signals.
+                </p>
+                <p>
+                  {diagnosticsError
+                    ? "Diagnostics unavailable — do not infer that the engine is ready."
+                    : diagnostics
+                      ? `Schema: ${diagnostics.database_revision ?? "unknown"} · Legacy engine: ${diagnostics.legacy_engine?.state ?? "unknown"} · V4 decisions in 24h: ${diagnostics.legacy_last_24h_decisions ?? 0}`
+                      : "Loading read-only operational diagnostics…"}
+                </p>
+                {diagnostics?.v7_release_blockers?.length ? (
+                  <ul>
+                    {diagnostics.v7_release_blockers.map((item) => (
+                      <li key={item}>{item.replaceAll("_", " ").toLowerCase()}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {diagnostics?.legacy_top_rejection_reasons?.length ? (
+                  <>
+                    <h3>Recent legacy decision reasons</h3>
+                    <ul>
+                      {diagnostics.legacy_top_rejection_reasons.slice(0, 8).map((item) => (
+                        <li key={item.reason}>
+                          {item.reason.replaceAll("_", " ")}: {item.count}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </section>
               <div className="service-grid">
                 {[
                   {
