@@ -234,7 +234,8 @@ def _signal_candidates(symbol, data, period_start, period_end):
     taker_end=[int(r["timestamp"])+PERIOD_MS for r in taker]
     checks=Counter()
     candidates=[]
-    for i in range(2,len(klines)-HORIZON_BARS-1):
+    # Count late-day signals as censored rather than invisibly dropping them.
+    for i in range(2,len(klines)-1):
         bar=klines[i]
         t=int(bar[0])
         if t<period_start or t>=period_end:
@@ -428,6 +429,24 @@ def main():
         "start_IST":START.isoformat(),
         "end_exclusive_IST":datetime.fromtimestamp(end_ms/1000,IST).isoformat(),
         "input_manifest":manifest,
+        "coverage":{
+            symbol:{
+                family:{
+                    "in_window_records":sum(
+                        start_ms<=_get_time(row,ROUTES[family][1])<end_ms
+                        for row in records
+                    ),
+                    "first_record_ms":_get_time(records[0],ROUTES[family][1]) if records else None,
+                    "last_record_ms":_get_time(records[-1],ROUTES[family][1]) if records else None,
+                    "nominal_expected_5m_intervals":(
+                        (end_ms-start_ms)//PERIOD_MS
+                        if family!="funding" else None
+                    ),
+                }
+                for family,records in hist[symbol].items()
+            }
+            for symbol in SYMBOLS
+        },
         "thresholds":{
             "oi_min_pct":PARAMETERS["minimum_open_interest_increase_pct"],
             "oi_max_pct":PARAMETERS["maximum_open_interest_jump_pct"],
@@ -455,6 +474,9 @@ def main():
             "Public aggregated data omit V7's original top-20 book, spread, impact and depth-consistency checks",
             "Historical OI and taker report publication timing is unknown; assumed 5m reporting lag plus 5m entry delay",
             "5m price candles cannot prove fills, intra-candle path, adverse selection, or exact funding mark",
+            "Missing or late-public OI/taker records are excluded rather than interpolated",
+            "A 5m bar touching both stop and target is conservatively counted as a stop",
+            "The exchange reports UTC timestamps; requested days are IST (starting previous UTC evening)",
             "Funding events are retrospectively applied to positions; original 120m pre-funding exclusion cannot be reconstructed",
             "Single 8-day calendar window is descriptive, not held-out evidence for profitability",
         ],
