@@ -104,6 +104,21 @@ python -m app.microstructure.cli \
   buffering, snapshot resynchronization and chain-gap rejection.
   This V1 deliberately **does not** claim that capability.
 
+## External source access and smoke-test result
+
+On **2026-10-15**, GitHub's hosted Actions runner received HTTP **451**
+from `https://fapi.binance.com/fapi/v1/time` before any market data
+could be acquired. The single-probe research workflow correctly failed
+without writing fake observations or retrying via an alternate host.
+See the Actions run `38688171067`. To avoid turning every PR into a
+geo/network-dependent check, that separate live-source workflow is now
+**manual-only**; the full offline synthetic/SQL/browser CI remains
+required. This is an external region/network-access restriction,
+**not evidence that Binance is reachable from the VPS**. Access
+and compliance must be independently checked before any operator-led
+paper collection. Do not use alternate endpoints or proxy routes to
+evade regional restrictions.
+
 ## Operational safety
 
 The sampler never reads exchange/private keys, never imports
