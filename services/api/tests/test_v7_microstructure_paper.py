@@ -51,6 +51,7 @@ def raw_for(symbol,now,*,step=0,stale_taker=False):
         "premium":{
             "symbol":symbol,"time":now-100,
             "markPrice":"100.01","lastFundingRate":"0.00010",
+            "nextFundingTime":now+4*3_600_000,
         },
     }
 
@@ -218,3 +219,9 @@ def test_network_never_accessed_without_exact_cli_opt_in():
         with pytest.raises(ValueError,match="both explicit"):
             asyncio.run(_observe(args))
         fetch.assert_not_called()
+
+
+def test_unmodeled_funding_boundary_rejects_trade():
+    a,b=sample(0),sample(1)
+    b["next_funding_ms"]=b["observed_at_ms"]+3_600_000
+    assert classify(a,b)["reason"]=="FUNDING_WINDOW_UNMODELED"
