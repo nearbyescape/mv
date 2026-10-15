@@ -17,6 +17,7 @@ from .core import PARAMETERS, SYMBOLS
 from .journal import open_journal, record_snapshot, report
 from .quality import quality_report
 from .funding_counterfactual import compare_horizons
+from .filter_funnel import funnel_report
 from .public import capture_all
 
 
@@ -131,6 +132,11 @@ def main():
         help="read-only exploratory 15/30/60/120m eligibility comparisons",
     )
     study.add_argument("--last-samples-per-symbol",type=int,default=288)
+    funnel=sub.add_parser(
+        "filter-funnel",
+        help="read-only frozen filter funnel and OI distribution (no trading)",
+    )
+    funnel.add_argument("--last-samples-per-symbol",type=int,default=288)
     args=p.parse_args()
     if args.action=="observe":
         asyncio.run(_observe(args))
@@ -144,6 +150,10 @@ def main():
             elif args.action=="funding-study":
                 payload=compare_horizons(
                     db,n=args.last_samples_per_symbol,
+                )
+            elif args.action=="filter-funnel":
+                payload=funnel_report(
+                    db,last_samples_per_symbol=args.last_samples_per_symbol,
                 )
             else:
                 payload=report(db)
