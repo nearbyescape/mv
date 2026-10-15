@@ -68,6 +68,9 @@ def backtest_from_journal(journal_path: Path, *, max_observations=75000):
         raise ValueError("Require absolute journal Path")
 
     with closing(open_journal(journal_path,readonly=True)) as source:
+        # Pin one read snapshot across verification, loaded inputs, and ledger
+        # comparisons even while the research collector appends newer data.
+        source.execute("BEGIN")
         snapshot_counts={s:verify_chain(source,s) for s in SYMBOLS}
         total=sum(snapshot_counts.values())
         if total>max_observations:
