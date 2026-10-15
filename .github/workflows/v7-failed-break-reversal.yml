@@ -1,0 +1,84 @@
+name: V7Sonic failed-breakout reversal costed research (NO CLIENTS)
+
+on:
+  pull_request:
+    branches: [codex/v7sonic-final-breakout-evaluation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  price-action-research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}/services/api:${{ github.workspace }}/services/api/tests
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Compile and independent causal regression
+        run: |
+          python -m compileall -q services/api/app/research/v7_failed_break*.py
+          python -m unittest discover -s services/api/tests -p 'test_v7_failed_break_reversal.py' -v
+          python -m unittest discover -s services/api/tests -p 'test_v7_final_breakout.py' -q
+          python -m unittest discover -s services/api/tests -p 'test_v7_recovery_study.py' -q
+      - name: Acquire six-month publisher-checksum verified 15m candles
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/v7-reversal-archive"
+          python -m app.research.v7_recovery_acquire \
+            --data-root "$RUNNER_TEMP/v7-reversal-archive" \
+            --acquire --acknowledge-public-download YES \
+            > "$RUNNER_TEMP/reversal-source.json"
+          python - <<'PY'
+          import os,json
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/reversal-source.json"))
+          assert p["archive_pairs"] == 36
+          assert p["orders_submitted"] == 0
+          print("SOURCE: 36/36 ARCHIVE CHECKSUM PAIRS PASS")
+          PY
+      - name: Execute costed six-month comparison offline
+        run: |
+          python -m app.research.v7_failed_break_study \
+            --data-root "$RUNNER_TEMP/v7-reversal-archive" \
+            --output "$RUNNER_TEMP/reversal-study.json"
+          python - <<'PY'
+          import json,os
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/reversal-study.json"))
+          assert p["status"]=="PAPER_HISTORICAL_ONLY_ECONOMIC_RESEARCH_NOT_AUTHORISATION"
+          assert p["client_publication_authorized"] is False
+          assert p["orders_submitted"]==p["telegram_messages_sent"]==0
+          assert p["market_data_independently_out_of_sample"] is False
+          def output(label,key):
+              x=p[key]
+              summary=x["all"]
+              print(label+" | proposals:",x.get("preportfolio_proposals","n/a"))
+              print(label+" | selected:",x["selected"])
+              print(label+" | net positive accuracy:",summary["win_rate"])
+              print(label+" | modeled net R:",summary["mean_costed_R_per_closed_reference"])
+              print(label+" | day-cluster 95%:",summary["day_cluster_bootstrap_mean_R_95pct"])
+              print(label+" | illustrative max drawdown:",summary["illustrative_closed_trades_only_max_drawdown"])
+          output("PREVIOUS PULLBACK","prior_pullback")
+          output("PREVIOUS BREAKOUT","prior_trend_breakout")
+          output("CONFIRMED FALSE BREAK","new_reversal")
+          for k,v in p["new_reversal"]["monthly_groups"].items():
+              print(k, "ideas",v["hypothetical_closed_ideas"],
+                    "modeled R",v["mean_costed_R_per_closed_reference"])
+          print("PREDECLARED EXPLORATORY ACCEPTANCE",
+                p["passes_preregistered_exploratory_economic_thresholds"])
+          print("TELEGRAM PUBLICATION DISABLED; PROFITABILITY UNPROVEN")
+          PY
+      - name: Preserve research report and source manifest
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v7-failed-break-reversal-evidence-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/reversal-source.json
+            ${{ runner.temp }}/reversal-study.json
+          if-no-files-found: warn
+          retention-days: 30
