@@ -145,6 +145,45 @@ and a cold backup of its journal. Never switch production V4 Compose
 services or delete the evidence journal. Apply the tested exact commit
 and verify the new image and the subsequent measured intervals.
 
+## Real VPS post-upgrade timing verified (15 October 2026)
+
+The operator supplied two subsequent post-upgrade samples per market;
+all six intervals exceeded the frozen 300-second minimum:
+
+- BTC 306813ms, ETH 306799ms, SOL 306780ms
+- XRP 306495ms, DOGE 306493ms, BNB 306500ms
+
+Collector `up` and no exchange orders or Telegram publication. Observed
+first-failure abstentions were `STALE_TAKER_PERIOD` and
+`FUNDING_WINDOW_UNMODELED`. These are market-data/eligibility issues,
+**not** evidence of a profitable or unprofitable strategy. A high
+abstention fraction would limit coverage even if the model were otherwise
+good.
+
+Use the new independent audit to quantify causes from already committed
+journal evidence, with **no market network** and **no strategy changes**:
+
+```bash
+python -m app.microstructure.cli \
+  --db /absolute/private/path/evidence.sqlite \
+  diagnose --last-samples-per-symbol 288
+```
+
+`first_failure_classifier_totals` is an ordered, mutually exclusive
+reason for each adjacent observation pair. `independent_blockers_overlapping_totals`
+separately measures timing, taker-period advancement and upcoming-funding
+eligibility; its counts may overlap and should **not** be added.
+`preportfolio_candidates_not_actual_published_signals` is the frozen
+classifier's hypothetical passing output before cooldown and portfolio
+limits, **not** actual orders, Telegram publications, or observed trade
+wins. The audit reads SQLite read-only, verifies every hash chain, and
+does not backfill or alter historic decision logs.
+
+Historical Binance exchange responses may publish completed taker
+intervals with latency; reject repeated taker periods rather than reuse
+them. Funding boundaries are intentionally kept out of paper outcomes
+until funding is priced consistently. Do not relax rules to force signals.
+
 ## Operational safety
 
 The sampler never reads exchange/private keys, never imports
