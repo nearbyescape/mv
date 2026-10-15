@@ -167,11 +167,13 @@ def fetch_history(symbol, start_ms, end_ms, rawdir):
         raise ValueError("Symbol outside V7 frozen universe")
     out={}
     for family in ROUTES:
-        path=rawdir / f"{symbol}_{family}_{start_ms}_{end_ms}.json"
+        # Versioned cache avoids reusing potentially incomplete snapshots
+        # from the old last-timestamp pagination implementation.
+        path=rawdir / f"{symbol}_{family}_{start_ms}_{end_ms}_UTC_DAY_V2.json"
         if path.exists():
             blob=json.loads(path.read_text())
-            if blob.get("input")!=[symbol,family,start_ms,end_ms]:
-                raise ValueError("Cached input header does not match request")
+            if blob.get("schema")!="UTC_DAY_SLICES_V2" or blob.get("input")!=[symbol,family,start_ms,end_ms]:
+                raise ValueError("Cache is not certified for v2 UTC slices")
             rows=blob["rows"]
             if _sha_json(rows)!=blob["sha256"]:
                 raise ValueError(f"Cached historical input checksum mismatch: {path}")
@@ -179,7 +181,12 @@ def fetch_history(symbol, start_ms, end_ms, rawdir):
             rows=_download(symbol,family,start_ms,end_ms)
             if not rows:
                 raise ValueError(f"NO_HISTORICAL_{family.upper()} for {symbol}: STOP")
-            blob={"input":[symbol,family,start_ms,end_ms],"sha256":_sha_json(rows),"rows":rows}
+            blob={
+                "schema":"UTC_DAY_SLICES_V2",
+                "input":[symbol,family,start_ms,end_ms],
+                "sha256":_sha_json(rows),
+                "rows":rows,
+            }
             rawdir.mkdir(parents=True,exist_ok=True)
             tmp=path.with_suffix(".partial")
             if tmp.exists():
