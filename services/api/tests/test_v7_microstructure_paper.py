@@ -190,3 +190,31 @@ def test_rate_limited_no_retries_and_no_order_endpoints():
     with pytest.raises(RuntimeError,match="RATE_LIMIT"):
         asyncio.run(scenario())
     assert called==["/fapi/v1/time"]
+
+
+def test_http_451_is_explicit_no_retry_or_fallback_host():
+    paths=[]
+    def handler(request):
+        paths.append((request.method,str(request.url.host),request.url.path))
+        return httpx.Response(451)
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            await capture_symbol(client,"BTCUSDT")
+    with pytest.raises(RuntimeError,match="PUBLIC_BINANCE_DATA_HTTP_451"):
+        asyncio.run(scenario())
+    assert paths==[("GET","fapi.binance.com","/fapi/v1/time")]
+
+
+def test_network_never_accessed_without_exact_cli_opt_in():
+    from argparse import Namespace
+    from app.microstructure.cli import _observe
+    args=Namespace(
+        db="/tmp/should-not-be-used.sqlite",
+        allow_public_market_data=False,
+        confirm_paper_only=False,
+        iterations=1, interval_seconds=300,
+    )
+    with patch("app.microstructure.cli.capture_all") as fetch:
+        with pytest.raises(ValueError,match="both explicit"):
+            asyncio.run(_observe(args))
+        fetch.assert_not_called()
