@@ -123,3 +123,62 @@ def test_proxy_portfolio_cooldown_and_four_slot_cap_without_fake_fills():
     assert len(trades)==4
     assert not censored
     assert all(t["net_R"]<0 for t in trades)
+
+
+
+def test_history_utc_partitions_no_overlap_even_if_provider_returns_boundary():
+    from unittest.mock import patch
+    start=proxy._utc_ms(datetime(2026,10,7,0,0,tzinfo=IST))
+    end=start+3*288*proxy.PERIOD_MS
+    calls=[]
+    def fake_get(path,params):
+        calls.append((path,params.copy()))
+        assert params["symbol"]=="BTCUSDT"
+        assert params["startTime"]>=start
+        assert params["endTime"]<end
+        # Return aligned 5m records and one adjacent, out-of-range
+        # boundary to prove it is neither used nor silently duplicated.
+        first=params["startTime"]
+        after=params["endTime"]+1
+        assert after-first==288*proxy.PERIOD_MS
+        return [
+            _bar(ts)
+            for ts in range(first,after+proxy.PERIOD_MS,proxy.PERIOD_MS)
+        ]
+    with patch.object(proxy,"_request",side_effect=fake_get):
+        with patch.object(proxy.time,"sleep"):
+            output=proxy._download("BTCUSDT","klines",start,end)
+    assert len(calls)==3
+    assert len(output)==3*288
+    assert int(output[0][0])==start
+    assert int(output[-1][0])==end-proxy.PERIOD_MS
+    assert [c[1]["startTime"] for c in calls]==[
+        start,start+288*proxy.PERIOD_MS,start+576*proxy.PERIOD_MS,
+    ]
+
+
+def test_out_of_range_page_produces_safe_diagnostic_not_fake_history():
+    from unittest.mock import patch
+    start=proxy._utc_ms(datetime(2026,10,7,0,0,tzinfo=IST))
+    bad=[{"timestamp":start-proxy.PERIOD_MS,
+          "sumOpenInterest":"10000"}]
+    with patch.object(proxy,"_request",return_value=bad):
+        with patch.object(proxy.time,"sleep"):
+            with pytest.raises(ValueError,match="HISTORY_OUTSIDE_REQUESTED_SEGMENT.*BTCUSDT.*oi"):
+                proxy._download("BTCUSDT","oi",start,start+288*proxy.PERIOD_MS)
+
+
+def test_history_sparse_api_window_remains_missing_never_interpolated():
+    from unittest.mock import patch
+    start=proxy._utc_ms(datetime(2026,10,7,0,0,tzinfo=IST))
+    records=[
+        {"timestamp":start,"sumOpenInterest":"10000"},
+        {"timestamp":start+2*proxy.PERIOD_MS,"sumOpenInterest":"10020"},
+    ]
+    with patch.object(proxy,"_request",return_value=records):
+        with patch.object(proxy.time,"sleep"):
+            result=proxy._download("BTCUSDT","oi",start,start+288*proxy.PERIOD_MS)
+    assert len(result)==2
+    assert [r["timestamp"] for r in result]==[
+        start,start+2*proxy.PERIOD_MS
+    ]
