@@ -141,8 +141,8 @@ def health(session: Annotated[Session, Depends(get_session)]):
         if get_settings().environment=="production":
             from .models import User
             session.execute(select(User.id).limit(1))
-            if session.scalar(text("SELECT version_num FROM alembic_version"))!="0008":
-                raise RuntimeError("Database migration version mismatch")
+            from .operations.readiness import database_revision
+            database_revision(session, production=True)
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database unavailable or migrations pending") from exc
     if get_settings().environment=="production":
