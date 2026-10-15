@@ -1,0 +1,192 @@
+"""Offline synthetic acceptance for prospective order-flow paper research.
+
+Tests never contact Binance, private endpoints, Telegram or the user's VPS.
+"""
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime,timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+import json
+
+import httpx
+import pytest
+
+from app.microstructure.core import (
+    SYMBOLS,MODEL,HORIZONS_MS,PARAMETERS,normalize,classify,digest,
+)
+from app.microstructure.journal import (
+    open_journal,record_snapshot,report,verify_chain,
+)
+from app.microstructure.public import capture_symbol,PATHS
+
+
+BASE=int(datetime(2026,10,15,4,30,5,tzinfo=timezone.utc).timestamp()*1000)
+
+
+def raw_for(symbol,now,*,step=0,stale_taker=False):
+    # Previous COMPLETED Binance 5m activity period. Each later sample
+    # moves to a new and already finished period.
+    bucket=(now//300000-1)*300000
+    if stale_taker:
+        bucket-=300000
+    depth={
+        "lastUpdateId":1000+step,
+        "bids":[[str(100-i*.01), "20"] for i in range(20)],
+        "asks":[[str(100.02+i*.01), "10"] for i in range(20)],
+    }
+    return {
+        "server_time":{"serverTime":now-100},
+        "depth":depth,
+        "open_interest":{
+            "symbol":symbol,
+            "time":now-200,
+            "openInterest":str(10000+40*step),
+        },
+        "taker":[{
+            "timestamp":bucket,"buyVol":"1000","sellVol":"600",
+        }],
+        "premium":{
+            "symbol":symbol,"time":now-100,
+            "markPrice":"100.01","lastFundingRate":"0.00010",
+        },
+    }
+
+
+def sample(step=0,symbol="BTCUSDT",stale_taker=False):
+    now=BASE+step*300000
+    return normalize(
+        symbol,raw_for(symbol,now,step=step,stale_taker=stale_taker),
+        now,started_ms=now-700
+    )
+
+
+def test_pure_normalization_evidence_and_paper_candidate():
+    a,b=sample(0),sample(1)
+    assert b["depth_consistency"]=="REST_POINT_SNAPSHOT_NOT_SEQUENCE_PROVED"
+    assert b["eligible_for_live_trades"] is False
+    assert b["observed_at_ms"]>a["observed_at_ms"]
+    proposal=classify(a,b)
+    assert proposal["status"]=="PAPER_CANDIDATE", proposal
+    assert proposal["direction"]=="LONG"
+    assert proposal["policy"]==MODEL
+    assert proposal["confidence_probability"] is None
+    assert proposal["no_telegram_publication"] is True
+    assert proposal["no_exchange_execution"] is True
+    assert float(proposal["modeled_target_net_R"])>1.1
+
+
+def test_missing_stale_or_crossed_public_data_fail_closed():
+    for kind in ("missing","stale","crossed","wrong_symbol","missing_oi"):
+        r=raw_for("BTCUSDT",BASE)
+        if kind=="missing":
+            del r["premium"]
+        elif kind=="stale":
+            r["premium"]["time"]=BASE-200000
+        elif kind=="crossed":
+            r["depth"]["asks"][0][0]="99.00"
+        elif kind=="wrong_symbol":
+            r["open_interest"]["symbol"]="ETHUSDT"
+        elif kind=="missing_oi":
+            r["open_interest"]["openInterest"]="-1"
+        with pytest.raises(ValueError):
+            normalize("BTCUSDT",r,BASE,started_ms=BASE-1000)
+
+
+def test_taker_period_must_be_completed():
+    r=raw_for("BTCUSDT",BASE)
+    r["taker"]=[{"timestamp":BASE//300000*300000,"buyVol":"100","sellVol":"100"}]
+    with pytest.raises(ValueError,match="completed"):
+        normalize("BTCUSDT",r,BASE,started_ms=BASE-1000)
+
+
+def test_classifier_stale_or_noncontiguous_will_abstain():
+    a,b=sample(0),sample(1)
+    assert classify(a,{**b,"taker_period_start_ms":a["taker_period_start_ms"]})["reason"]=="STALE_TAKER_PERIOD"
+    assert classify(a,{**b,"depth_last_update_id":a["depth_last_update_id"]})["reason"]=="STALE_DEPTH"
+    assert classify(a,{**b,"observed_at_ms":b["observed_at_ms"]+1_800_000})["reason"]=="NONCONTIGUOUS_OBSERVATIONS"
+
+
+def test_opposite_book_taker_rejected_not_force_signal():
+    a,b=sample(0),sample(1)
+    b["book_imbalance"]="-0.30"
+    assert classify(a,b)["reason"]=="TAKER_AND_BOOK_DISAGREE"
+
+
+def test_outside_ist_session_rejected():
+    a,b=sample(0),sample(1)
+    b["observed_at_ms"]=BASE+14*3_600_000
+    a["observed_at_ms"]=b["observed_at_ms"]-300000
+    assert classify(a,b)["reason"]=="OUTSIDE_SIGNAL_SESSION"
+
+
+def test_immutable_paper_ledger_and_future_outcome_marks():
+    with TemporaryDirectory() as dirname:
+        dbpath=Path(dirname)/"prospective.db"
+        with open_journal(dbpath) as journal:
+            first=record_snapshot(journal,sample(0))
+            assert first["decision"]["reason"]=="WAIT_FOR_PREVIOUS_REAL_SAMPLE"
+            second=record_snapshot(journal,sample(1))
+            assert second["decision"]["status"]=="PAPER_CANDIDATE",second
+            assert record_snapshot(journal,sample(1))["stored"] is False
+            for step in range(2,28):
+                record_snapshot(journal,sample(step))
+            overview=report(journal)
+            assert overview["per_symbol_verified_samples"]["BTCUSDT"]==28
+            assert overview["paper_candidate_total"]==1
+            for horizon in ("15m","30m","60m","120m"):
+                assert overview["marked_horizons"][horizon]["observations"]==1
+                assert overview["marked_horizons"][horizon]["intrabar_stop_target_order_verified"] is False
+            assert not overview["client_publication_authorized"]
+            assert overview["orders_submitted"]==0
+            assert overview["telegram_messages_sent"]==0
+        with open_journal(dbpath,readonly=True) as reader:
+            assert verify_chain(reader,"BTCUSDT")==28
+
+
+def test_hash_chain_detects_modified_observation():
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"journal.db") as db:
+            record_snapshot(db,sample(0))
+            db.execute(
+                "UPDATE observations SET payload='{}' WHERE symbol='BTCUSDT'"
+            )
+            db.commit()
+            with pytest.raises(ValueError,match="tampering"):
+                verify_chain(db,"BTCUSDT")
+
+
+def test_fixed_https_get_routes_and_no_exchange_orders():
+    now=BASE
+    raw=raw_for("BTCUSDT",now,step=0)
+    requested=[]
+    def handler(request):
+        requested.append((request.method,request.url.path,str(request.url.host)))
+        assert request.method=="GET"
+        assert request.url.host=="fapi.binance.com"
+        assert not request.headers.get("X-MBX-APIKEY")
+        lookup={v:k for k,v in PATHS.items()}
+        return httpx.Response(200,json=raw[lookup[request.url.path]])
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            with patch("app.microstructure.public.wall_ms",side_effect=[BASE-700,BASE]):
+                return await capture_symbol(client,"BTCUSDT")
+    item=asyncio.run(scenario())
+    assert item["symbol"]=="BTCUSDT"
+    assert len(requested)==5
+    assert all(method=="GET" for method,path,host in requested)
+
+
+def test_rate_limited_no_retries_and_no_order_endpoints():
+    called=[]
+    def handler(request):
+        called.append(request.url.path)
+        return httpx.Response(429)
+    async def scenario():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            return await capture_symbol(client,"BTCUSDT")
+    with pytest.raises(RuntimeError,match="RATE_LIMIT"):
+        asyncio.run(scenario())
+    assert called==["/fapi/v1/time"]
