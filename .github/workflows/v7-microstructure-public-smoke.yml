@@ -1,8 +1,8 @@
 name: V7 microstructure public-market one-shot contract check (PAPER ONLY)
 
+# GitHub hosted runners received HTTP 451 from Binance on 2026-10-15.
+# The contract smoke is manual-only and intentionally still fails on 451.
 on:
-  pull_request:
-    branches: [codex/mv-operational-recovery-hardening]
   workflow_dispatch:
 
 permissions:
