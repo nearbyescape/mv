@@ -184,6 +184,46 @@ intervals with latency; reject repeated taker periods rather than reuse
 them. Funding boundaries are intentionally kept out of paper outcomes
 until funding is priced consistently. Do not relax rules to force signals.
 
+## Bounded transient-source recovery (15 October 2026)
+
+The continuous, isolated `prospective-collector` now tolerates at most
+**two delayed retry attempts** after a transient public market-data batch
+failure (timeout, transport interruption, a 5xx upstream response, or
+invalid/stale normalized public snapshot). Each retry is at least
+**300 seconds** after the failed attempt, never inside the same 5-minute
+candle. The third consecutive failure **halts the process** and requires
+operator review. A successful full batch resets the failure counter.
+
+No partial six-market batch is written on a failed capture; the journal
+is unchanged by skipped attempts and the report logs a structured
+`PUBLIC_MARKET_PAPER_COLLECTION_GAP` event with zero committed
+observations and zero trade/Telegram actions. After a long gap, the
+frozen classifier rejects noncontiguous observations until two valid
+fresh measurements arrive.
+
+**No automatic retry for HTTP418/429 rate limits, HTTP451 legal/region
+denials, other client 4xx, SQLite errors, hash-chain failures, or
+unknown runtime exceptions.** Such conditions halt immediately, as
+does repeated failure. No alternative API host, proxy bypass, forceful
+restart policy or new market data sources. A single bounded
+`--iterations 1` run also remains single-attempt.
+
+Operator checks on the isolated VPS:
+
+```bash
+docker compose -f /var/tmp/mv-v7-microstructure/compose.microstructure-paper.yml \
+ -f /srv/mv-v7-microstructure/compose.storage.yml \
+ --profile isolated-research ps -a prospective-collector
+docker compose -f /var/tmp/mv-v7-microstructure/compose.microstructure-paper.yml \
+ -f /srv/mv-v7-microstructure/compose.storage.yml \
+ --profile isolated-research logs --tail=40 prospective-collector
+```
+
+The Compose restart policy remains **`no`** and no consumer or order
+publisher is connected. This is safety-bounded data collection, **not**
+an always-on SLA; any halt must be observed and resolved manually.
+Do not promote the experimental strategy based on successful recovery.
+
 ## Operational safety
 
 The sampler never reads exchange/private keys, never imports
