@@ -1,0 +1,58 @@
+name: V7 microstructure public-market one-shot contract check (PAPER ONLY)
+
+on:
+  pull_request:
+    branches: [codex/mv-operational-recovery-hardening]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-public-data-no-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: ${{ github.workspace }}/services/api
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install public HTTP plus local lock only
+        run: python -m pip install 'httpx==0.28.1' 'filelock==3.32.7'
+      - name: Single six-market public Binance capture, absolutely no trade APIs
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/v7-microstructure"
+          python -m app.microstructure.cli \
+            --db "$RUNNER_TEMP/v7-microstructure/forward.sqlite" \
+            observe --allow-public-market-data --confirm-paper-only \
+            --iterations 1 > "$RUNNER_TEMP/v7-microstructure/capture.json"
+          python -m app.microstructure.cli \
+            --db "$RUNNER_TEMP/v7-microstructure/forward.sqlite" \
+            report > "$RUNNER_TEMP/v7-microstructure/report.json"
+          python - <<'PY'
+          import os,json
+          root=os.environ["RUNNER_TEMP"]+"/v7-microstructure/"
+          observed=json.load(open(root+"report.json"))
+          assert len(observed["per_symbol_verified_samples"])==6
+          assert all(x==1 for x in observed["per_symbol_verified_samples"].values())
+          assert observed["paper_candidate_total"]==0
+          assert observed["orders_submitted"]==0
+          assert observed["telegram_messages_sent"]==0
+          assert observed["client_publication_authorized"] is False
+          print("SIX REAL PUBLIC-SOURCE CONTRACTS: PASS")
+          print("NO HISTORY MEANS NO SIGNAL. ORDERS=0, TELEGRAM=0.")
+          PY
+      - name: Publish no-secret research point sample and outcome summary
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v7-microstructure-real-public-contract-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/v7-microstructure/capture.json
+            ${{ runner.temp }}/v7-microstructure/report.json
+          if-no-files-found: warn
+          retention-days: 7
