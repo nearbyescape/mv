@@ -154,7 +154,8 @@ def fetch_history(symbol, start_ms, end_ms, rawdir):
 
 def _asof(times, rows, cutoff, max_age):
     i=bisect_right(times,cutoff)-1
-    if i<0 or cutoff-times[i]>max_age:
+    # Do not reuse the exact same 5-minute metric in the next window.
+    if i<0 or cutoff-times[i]>=max_age:
         return None,i
     return rows[i],i
 
