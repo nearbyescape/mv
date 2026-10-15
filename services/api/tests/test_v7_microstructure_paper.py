@@ -445,3 +445,41 @@ def test_one_shot_public_capture_retains_no_retry_contract():
                 asyncio.run(_observe(args))
             capture.assert_called_once()
             sleep.assert_not_awaited()
+
+
+
+def test_single_transient_gap_recovers_and_commits_full_six_coin_batch(capsys):
+    from argparse import Namespace
+    from unittest.mock import AsyncMock
+    from app.microstructure.cli import _observe
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"paper.sqlite"
+        args=Namespace(
+            db=str(path),allow_public_market_data=True,
+            confirm_paper_only=True,iterations=0,interval_seconds=300,
+        )
+        full=[sample(0,symbol) for symbol in SYMBOLS]
+        with patch(
+            "app.microstructure.cli.capture_all",
+            side_effect=[
+                httpx.ReadTimeout("temporary transport interruption"),
+                full,
+                RuntimeError("PUBLIC_BINANCE_DATA_HTTP_451_REGION_OR_LEGAL_RESTRICTION"),
+            ],
+        ) as capture, patch(
+            "app.microstructure.cli.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as sleep:
+            with pytest.raises(RuntimeError,match="PUBLIC_BINANCE_DATA_HTTP_451"):
+                asyncio.run(_observe(args))
+            assert capture.call_count==3
+            assert sleep.await_count==1
+            assert sleep.await_args.args==(300,)
+        output=[json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        assert len(output)==2
+        assert output[0]["kind"]=="PUBLIC_MARKET_PAPER_COLLECTION_GAP"
+        assert output[1]["kind"]=="PUBLIC_MARKET_PAPER_CAPTURE"
+        assert all(x["stored"] is True for x in output[1]["decisions"])
+        with open_journal(path,readonly=True) as db:
+            assert db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==6
+            assert report(db)["paper_candidate_total"]==0
