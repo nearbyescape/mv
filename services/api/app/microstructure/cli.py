@@ -15,6 +15,7 @@ from filelock import FileLock, Timeout
 
 from .core import PARAMETERS, SYMBOLS
 from .journal import open_journal, record_snapshot, report
+from .quality import quality_report
 from .public import capture_all
 
 
@@ -119,13 +120,24 @@ def main():
                          help="1 = one six-market capture; 0 = continuous")
     observe.add_argument("--interval-seconds",type=int,default=300)
     sub.add_parser("report",help="offline, read-only, chain-checked report")
+    diagnose=sub.add_parser("diagnose",help="offline, causal first-rejection audit")
+    diagnose.add_argument(
+        "--last-samples-per-symbol",type=int,default=288,
+        help="2-2880 most recent observations per coin; no market network",
+    )
     args=p.parse_args()
     if args.action=="observe":
         asyncio.run(_observe(args))
     else:
         dbpath=_path(args.db)
         with open_journal(dbpath,readonly=True) as db:
-            print(json.dumps(report(db),sort_keys=True,indent=2))
+            if args.action=="diagnose":
+                payload=quality_report(
+                    db,last_samples_per_symbol=args.last_samples_per_symbol,
+                )
+            else:
+                payload=report(db)
+            print(json.dumps(payload,sort_keys=True,indent=2))
 
 
 if __name__=="__main__":
