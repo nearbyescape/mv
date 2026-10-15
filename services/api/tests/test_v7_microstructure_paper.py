@@ -434,3 +434,72 @@ def test_funnel_chain_verification_aborts_on_corrupt_sample():
             db.commit()
             with pytest.raises(ValueError):
                 funnel_report(db)
+
+
+
+def test_oi_shadow_marks_only_actual_future_book_quotes():
+    from app.microstructure.oi_shadow_outcomes import oi_shadow_outcome_report
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"shadow.sqlite"
+        a,b,c,d=sample(0),sample(1),sample(4),sample(7)
+        b["open_interest"]="10005"  # +0.05%, less than frozen +0.20%.
+        with open_journal(path) as db:
+            record_snapshot(db,a)
+            result=record_snapshot(db,b)
+            assert result["decision"]["reason"]=="OPEN_INTEREST_NOT_CONFIRMED"
+            record_snapshot(db,c)
+            record_snapshot(db,d)
+            candidates_before=db.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]
+            observations_before=db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]
+        with open_journal(path,readonly=True) as ro:
+            result=oi_shadow_outcome_report(ro)
+            assert ro.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==observations_before
+            assert ro.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==candidates_before
+        assert result["read_only_verified_journal"] is True
+        assert result["only_OI_requirement_ignored_in_shadow_selection"] is True
+        assert result["selection_uses_no_future_data"] is True
+        assert result["not_real_trading_returns"] is True
+        assert result["profitability_or_signal_accuracy_proven"] is False
+        for horizon in ("15m","30m"):
+            row=result["comparisons"][horizon]
+            assert row["shadow_setups_rejected_only_by_open_interest"]==1
+            assert row["post_cost_book_touch_mark_R"]["count"]==1
+            assert row["missing_due_quote_or_insufficient_future_data"]==0
+            assert row["withheld_mark_because_funding_crossed"]==0
+            assert row["shadow_long_short"]=={"LONG":1}
+            assert row["shadow_by_market"]=={"BTCUSDT":1}
+            assert row["post_cost_book_touch_mark_R"]["mean"] is not None
+        assert result["comparisons"]["60m"]["shadow_setups_rejected_only_by_open_interest"]==1
+        assert result["comparisons"]["60m"]["post_cost_book_touch_mark_R"]["count"]==0
+        assert result["comparisons"]["60m"]["missing_due_quote_or_insufficient_future_data"]==1
+
+
+def test_oi_shadow_does_not_score_late_book_quote_across_funding():
+    from app.microstructure.oi_shadow_outcomes import oi_shadow_outcome_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"shadow.sqlite") as db:
+            a,b,c=sample(0),sample(1),sample(5)
+            b["open_interest"]="10005"
+            b["next_funding_ms"]=b["observed_at_ms"]+17*60_000
+            record_snapshot(db,a)
+            assert record_snapshot(db,b)["decision"]["reason"]=="FUNDING_WINDOW_UNMODELED"
+            record_snapshot(db,c)
+            result=oi_shadow_outcome_report(db)
+            eligible=result["comparisons"]["15m"]
+            assert eligible["shadow_setups_rejected_only_by_open_interest"]==1
+            assert eligible["withheld_mark_because_funding_crossed"]==1
+            assert eligible["post_cost_book_touch_mark_R"]["count"]==0
+            assert result["comparisons"]["30m"]["shadow_setups_rejected_only_by_open_interest"]==0
+            with pytest.raises(ValueError,match="Invalid shadow analysis window"):
+                oi_shadow_outcome_report(db,last_samples_per_symbol=False)
+
+
+def test_oi_shadow_integrity_fail_closed():
+    from app.microstructure.oi_shadow_outcomes import oi_shadow_outcome_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"shadow.sqlite") as db:
+            record_snapshot(db,sample(0))
+            db.execute("UPDATE observations SET payload='{}'")
+            db.commit()
+            with pytest.raises(ValueError):
+                oi_shadow_outcome_report(db)
