@@ -122,6 +122,29 @@ and compliance must be independently checked before any operator-led
 paper collection. Do not use alternate endpoints or proxy routes to
 evade regional restrictions.
 
+## Collector cadence correction (15 October 2026)
+
+The original collector scheduled cycles 300 seconds apart based on loop
+**start** time, while `observed_at_ms` was taken when each separate REST
+capture completed. Real VPS observations were 299.904–299.937 seconds
+apart. That is strictly less than the causal classifier's required
+300,000 milliseconds and produced `NONCONTIGUOUS_OBSERVATIONS`
+despite apparently normal five-minute collection.
+
+The corrected sampler schedules against `MAX(observed_at_ms)` in the
+committed SQLite research journal, across all six symbols, plus a
+2-second guard. It repeats the deadline check after waking and honors
+the stored timestamp on every restart. **The >=300-second classifier
+threshold and paper strategy parameters are not changed.** The old
+observations remain intact and can be used as raw data; we do not
+rewrite timestamps or retroactively create paper signals.
+
+The timing update requires rebuilding and recreating **only** the
+isolated `mv-v7-microstructure-paper` container after source verification
+and a cold backup of its journal. Never switch production V4 Compose
+services or delete the evidence journal. Apply the tested exact commit
+and verify the new image and the subsequent measured intervals.
+
 ## Operational safety
 
 The sampler never reads exchange/private keys, never imports
