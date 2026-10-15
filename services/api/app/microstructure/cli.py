@@ -18,6 +18,7 @@ from filelock import FileLock, Timeout
 from .core import PARAMETERS, SYMBOLS
 from .journal import open_journal, record_snapshot, report
 from .quality import quality_report
+from .strict_backtest import backtest_from_journal
 from .public import capture_all
 
 
@@ -184,9 +185,21 @@ def main():
         "--last-samples-per-symbol",type=int,default=288,
         help="2-2880 most recent observations per coin; no market network",
     )
+    backtest=sub.add_parser(
+        "backtest",
+        help="strict source-verified causal replay; NOT executable trading P&L",
+    )
+    backtest.add_argument("--max-observations",type=int,default=75000)
     args=p.parse_args()
     if args.action=="observe":
         asyncio.run(_observe(args))
+    elif args.action=="backtest":
+        # Opens existing live journal in read-only mode; all replication
+        # writes target a self-cleaning temporary DB only.
+        payload=backtest_from_journal(
+            _path(args.db),max_observations=args.max_observations,
+        )
+        print(json.dumps(payload,sort_keys=True,indent=2))
     else:
         dbpath=_path(args.db)
         with open_journal(dbpath,readonly=True) as db:
