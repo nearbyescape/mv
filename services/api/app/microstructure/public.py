@@ -40,6 +40,8 @@ async def capture_symbol(client:httpx.AsyncClient,symbol:str) -> dict:
         response=await client.get(ORIGIN+path,params=params,timeout=4)
         if response.status_code in (418,429):
             raise RuntimeError("EXCHANGE_RATE_LIMIT_NO_AUTO_RETRY")
+        if response.status_code==451:
+            raise RuntimeError("PUBLIC_BINANCE_DATA_HTTP_451_REGION_OR_LEGAL_RESTRICTION")
         response.raise_for_status()
         if len(response.content)>150_000:
             raise ValueError("Unexpectedly large public response")
