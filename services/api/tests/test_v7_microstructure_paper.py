@@ -377,3 +377,60 @@ def test_offline_funding_sensitivity_does_not_mutate_sqlite_journal():
         with open_journal(path,readonly=True) as ro:
             assert ro.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==0
             assert verify_chain(ro,"BTCUSDT")==2
+
+
+
+def test_frozen_funnel_reports_oi_without_suggesting_signals():
+    from app.microstructure.filter_funnel import funnel_report
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"funnel.sqlite"
+        old=sample(0)
+        middle=sample(1)
+        latest=sample(2)
+        latest["open_interest"]="10041"
+        with open_journal(path) as db:
+            record_snapshot(db,old)
+            assert record_snapshot(db,middle)["decision"]["status"]=="PAPER_CANDIDATE"
+            assert record_snapshot(db,latest)["decision"]["reason"]=="OPEN_INTEREST_NOT_CONFIRMED"
+        with open_journal(path,readonly=True) as ro:
+            result=funnel_report(ro)
+            assert result["original_strategy_unchanged"] is True
+            assert result["profitability_or_trade_fills_proven"] is False
+            for horizon in ("15m","30m","60m","120m"):
+                d=result["comparisons"][horizon]
+                assert d["adjacent_pairs"]==2
+                assert d["pre_oi_gate_pairs"]==2
+                assert d["oi_ge_original_threshold_pairs"]==1
+                assert d["first_rejection_counts"]["OPEN_INTEREST_NOT_CONFIRMED"]==1
+                assert d["shadow_all_other_gates_pass_if_oi_ignored"]==2
+                assert d["directional_flow_book_agreement_long_pairs"]==2
+                assert d["oi_change_pct_by_market"]["BTCUSDT"]["n"]==2
+                assert d["oi_change_pct_by_market"]["ETHUSDT"]["median"] is None
+            assert ro.execute("SELECT COUNT(*) FROM paper_ideas").fetchone()[0]==1
+
+
+def test_funnel_horizon_funding_gate_parity_and_rejects_bad_window():
+    from app.microstructure.filter_funnel import funnel_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"funnel.sqlite") as db:
+            old,current=sample(0),sample(1)
+            current["next_funding_ms"]=current["observed_at_ms"]+45*60_000
+            record_snapshot(db,old)
+            record_snapshot(db,current)
+            result=funnel_report(db)
+            assert result["comparisons"]["15m"]["pre_oi_gate_pairs"]==1
+            assert result["comparisons"]["120m"]["pre_oi_gate_pairs"]==0
+            assert result["comparisons"]["120m"]["first_rejection_counts"]["FUNDING_WINDOW_UNMODELED"]==1
+            with pytest.raises(ValueError,match="audit window"):
+                funnel_report(db,last_samples_per_symbol=True)
+
+
+def test_funnel_chain_verification_aborts_on_corrupt_sample():
+    from app.microstructure.filter_funnel import funnel_report
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"funnel.sqlite") as db:
+            record_snapshot(db,sample(0))
+            db.execute("UPDATE observations SET payload='{}'")
+            db.commit()
+            with pytest.raises(ValueError):
+                funnel_report(db)
