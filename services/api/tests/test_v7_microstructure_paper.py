@@ -225,3 +225,44 @@ def test_unmodeled_funding_boundary_rejects_trade():
     a,b=sample(0),sample(1)
     b["next_funding_ms"]=b["observed_at_ms"]+3_600_000
     assert classify(a,b)["reason"]=="FUNDING_WINDOW_UNMODELED"
+
+
+
+def test_sampler_rechecks_persisted_observation_deadline():
+    """Actual VPS gap: 299.904s is NOT the required >=300s."""
+    from app.microstructure.cli import _seconds_until_capture
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"journal.sqlite"
+        first=sample(0)
+        with open_journal(path) as db:
+            record_snapshot(db,first)
+            last=first["observed_at_ms"]
+            observed_gap_ms=299_904
+            assert _seconds_until_capture(db,last+observed_gap_ms,300)>2
+            assert _seconds_until_capture(db,last+300_000,300)==2
+            assert _seconds_until_capture(db,last+302_000,300)==0
+            assert _seconds_until_capture(db,last+302_000,315)>0
+            assert _seconds_until_capture(db,last+315_000,315)==0
+        # Scheduler reads the durable journal again after worker restart.
+        with open_journal(path) as reopened:
+            assert _seconds_until_capture(reopened,last+299_904,300)>2
+            assert _seconds_until_capture(reopened,last+302_000,300)==0
+
+
+def test_sampler_uses_latest_market_not_earliest_symbol_timestamp():
+    """Six REST requests finish at different times; BNB can be last."""
+    from app.microstructure.cli import _seconds_until_capture
+    with TemporaryDirectory() as dirname:
+        with open_journal(Path(dirname)/"journal.sqlite") as db:
+            btc=sample(0,"BTCUSDT")
+            bnb=sample(0,"BNBUSDT")
+            bnb["observed_at_ms"]+=1200
+            record_snapshot(db,btc)
+            record_snapshot(db,bnb)
+            # BTC alone would now be >=302s old. BNB still needs 1.2s.
+            assert _seconds_until_capture(
+                db,btc["observed_at_ms"]+302_000,300
+            )>1
+            assert _seconds_until_capture(
+                db,bnb["observed_at_ms"]+302_000,300
+            )==0
