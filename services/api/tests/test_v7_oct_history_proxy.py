@@ -120,6 +120,11 @@ def test_proxy_portfolio_cooldown_and_four_slot_cap_without_fake_fills():
     # the pre-portfolio six eligible raw directional observations.
     assert len(candidates)==4
     assert checks["blocked_4slot_paper_portfolio"]==2
+    assert checks["partial_rule_proxy_signals"] == (
+        len(candidates)
+        + checks["blocked_3hr_symbol_cooldown"]
+        + checks["blocked_4slot_paper_portfolio"]
+    )
     assert len(trades)==4
     assert not censored
     assert all(t["net_R"]<0 for t in trades)
