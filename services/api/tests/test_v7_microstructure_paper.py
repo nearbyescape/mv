@@ -326,3 +326,122 @@ def test_quality_audit_rejects_corrupt_evidence_and_bad_window():
             db.commit()
             with pytest.raises(ValueError,match="tampering"):
                 quality_report(db,last_samples_per_symbol=2)
+
+
+
+def test_transient_public_data_gaps_are_bounded_and_non_mutating(capsys):
+    import httpx
+    from argparse import Namespace
+    from unittest.mock import AsyncMock
+    from app.microstructure.cli import _observe
+    with TemporaryDirectory() as dirname:
+        path=Path(dirname)/"paper.sqlite"
+        args=Namespace(
+            db=str(path),allow_public_market_data=True,
+            confirm_paper_only=True,iterations=0,interval_seconds=300,
+        )
+        with patch(
+            "app.microstructure.cli.capture_all",
+            side_effect=[
+                httpx.ConnectTimeout("temporary first attempt"),
+                httpx.ReadTimeout("temporary second attempt"),
+                httpx.RemoteProtocolError("temporary third attempt"),
+            ]
+        ) as capture, patch(
+            "app.microstructure.cli.asyncio.sleep",
+            new_callable=AsyncMock,
+        ) as sleeping:
+            with pytest.raises(
+                RuntimeError,
+                match="PUBLIC_RESEARCH_COLLECTION_HALTED_REQUIRES_OPERATOR_REVIEW",
+            ):
+                asyncio.run(_observe(args))
+            assert capture.call_count==3
+            assert sleeping.await_count==2
+            assert sleeping.await_args_list[0].args==(300,)
+            assert sleeping.await_args_list[1].args==(300,)
+        lines=[json.loads(s) for s in capsys.readouterr().out.splitlines()]
+        assert [x["kind"] for x in lines]==[
+            "PUBLIC_MARKET_PAPER_COLLECTION_GAP",
+            "PUBLIC_MARKET_PAPER_COLLECTION_GAP",
+            "PUBLIC_MARKET_PAPER_COLLECTION_GAP",
+        ]
+        assert [x["retry_after_seconds"] for x in lines]==[300,300,None]
+        assert all(x["observations_committed"]==0 for x in lines)
+        with open_journal(path,readonly=True) as db:
+            assert db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==0
+
+
+def test_public_rate_limit_or_region_denial_never_auto_retries():
+    from argparse import Namespace
+    from unittest.mock import AsyncMock
+    from app.microstructure.cli import _observe
+    for reason in (
+        "EXCHANGE_RATE_LIMIT_NO_AUTO_RETRY",
+        "PUBLIC_BINANCE_DATA_HTTP_451_REGION_OR_LEGAL_RESTRICTION",
+    ):
+        with TemporaryDirectory() as dirname:
+            args=Namespace(
+                db=str(Path(dirname)/"paper.sqlite"),
+                allow_public_market_data=True,
+                confirm_paper_only=True,iterations=0,interval_seconds=300,
+            )
+            with patch(
+                "app.microstructure.cli.capture_all",
+                side_effect=RuntimeError(reason),
+            ) as capture, patch(
+                "app.microstructure.cli.asyncio.sleep",new_callable=AsyncMock,
+            ) as sleeping:
+                with pytest.raises(RuntimeError,match=reason):
+                    asyncio.run(_observe(args))
+                capture.assert_called_once()
+                sleeping.assert_not_awaited()
+
+
+def test_http_503_is_transient_but_other_http4xx_halts():
+    from argparse import Namespace
+    from unittest.mock import AsyncMock
+    from app.microstructure.cli import _observe
+    req=httpx.Request("GET","https://fapi.binance.com/fapi/v1/time")
+    for status,should_retry in ((503,True),(400,False),(403,False)):
+        with TemporaryDirectory() as dirname:
+            path=Path(dirname)/"paper.sqlite"
+            args=Namespace(
+                db=str(path),allow_public_market_data=True,
+                confirm_paper_only=True,iterations=0,interval_seconds=300,
+            )
+            err=httpx.HTTPStatusError(
+                "HTTP response not OK",request=req,
+                response=httpx.Response(status,request=req),
+            )
+            with patch("app.microstructure.cli.capture_all",side_effect=err) as capture, patch(
+                "app.microstructure.cli.asyncio.sleep",new_callable=AsyncMock,
+            ) as sleep:
+                with pytest.raises(Exception):
+                    asyncio.run(_observe(args))
+                assert capture.call_count==(3 if should_retry else 1)
+                assert sleep.await_count==(2 if should_retry else 0)
+            with open_journal(path,readonly=True) as db:
+                assert db.execute("SELECT COUNT(*) FROM observations").fetchone()[0]==0
+
+
+def test_one_shot_public_capture_retains_no_retry_contract():
+    from argparse import Namespace
+    from unittest.mock import AsyncMock
+    from app.microstructure.cli import _observe
+    with TemporaryDirectory() as dirname:
+        args=Namespace(
+            db=str(Path(dirname)/"paper.sqlite"),
+            allow_public_market_data=True,
+            confirm_paper_only=True,iterations=1,interval_seconds=300,
+        )
+        with patch(
+            "app.microstructure.cli.capture_all",
+            side_effect=httpx.ReadTimeout("temporary error"),
+        ) as capture, patch(
+            "app.microstructure.cli.asyncio.sleep",new_callable=AsyncMock,
+        ) as sleep:
+            with pytest.raises(httpx.ReadTimeout):
+                asyncio.run(_observe(args))
+            capture.assert_called_once()
+            sleep.assert_not_awaited()
