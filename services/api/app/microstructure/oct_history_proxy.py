@@ -84,37 +84,75 @@ def _get_time(row, key):
 
 
 def _download(symbol, family, start_ms, end_ms):
+    """Bounded, non-cursor historical requests in UTC time slices.
+
+    Do NOT page with last_ts+1 on Binance 5m statistic endpoints:
+    startTime may be bucket-rounded and repeat the previous page.
+    Instead query nonoverlapping <=24h windows with response_limit >=288
+    (maximum possible 5m points per UTC day). Reject a window that
+    returns data exclusively from OUTSIDE the requested time span.
+    Preserve any genuine sparse 5m gaps in the output and coverage.
+    """
+    if symbol not in SYMBOLS or family not in ROUTES:
+        raise ValueError("Unsupported fixed-origin market family")
+    if type(start_ms) is not int or type(end_ms) is not int or not 0<start_ms<end_ms:
+        raise ValueError("Invalid historical UTC bounds")
     path,key,limit=ROUTES[family]
-    cursor=start_ms
+    chunk_ms=288*PERIOD_MS  # at most 288 five-minute samples
     records={}
-    for page in range(30):
-        if cursor>=end_ms:
-            break
-        params={"symbol":symbol,"startTime":cursor,"endTime":end_ms-1,"limit":limit}
+    segment_count=0
+    segment_start=start_ms
+    while segment_start<end_ms:
+        segment_end=min(segment_start+chunk_ms,end_ms)
+        params={
+            "symbol":symbol,
+            "startTime":segment_start,
+            "endTime":segment_end-1,
+            "limit":limit,
+        }
         if family=="klines":
             params["interval"]="5m"
-        if family in ("oi","taker"):
+        elif family in ("oi","taker"):
             params["period"]="5m"
         items=_request(path,params)
-        if not items:
-            break
-        max_ts=cursor-1
+        if len(items)>limit:
+            raise ValueError(
+                f"HISTORY_RESPONSE_EXCEEDS_LIMIT symbol={symbol} family={family} "
+                f"count={len(items)} max={limit}"
+            )
+        valid=0
+        timestamps=[]
         for row in items:
             ts=_get_time(row,key)
-            if ts<cursor or ts>=end_ms:
-                continue
-            if ts in records and records[ts]!=row:
-                raise ValueError("Conflicting duplicate historical timestamps")
-            records[ts]=row
-            max_ts=max(max_ts,ts)
-        if max_ts<cursor:
-            raise ValueError("Historical pagination did not advance")
-        cursor=max_ts+1
-        if len(items)<limit:
-            break
-        time.sleep(0.08)
-    else:
-        raise RuntimeError(f"Exceeded bounded historical pages {family} {symbol}")
+            timestamps.append(ts)
+            if isinstance(row,dict) and row.get("symbol",symbol)!=symbol:
+                raise ValueError(
+                    f"HISTORY_SYMBOL_MISMATCH symbol={symbol} family={family}"
+                )
+            if segment_start<=ts<segment_end:
+                if ts in records and records[ts]!=row:
+                    raise ValueError(
+                        f"HISTORY_CONFLICTING_TIMESTAMP symbol={symbol} "
+                        f"family={family} stamp={ts}"
+                    )
+                records[ts]=row
+                valid+=1
+        if items and valid==0:
+            raise ValueError(
+                "HISTORY_OUTSIDE_REQUESTED_SEGMENT "
+                f"symbol={symbol} family={family} "
+                f"window_start={segment_start} window_end_exclusive={segment_end} "
+                f"returned_count={len(items)} "
+                f"returned_first={min(timestamps)} returned_last={max(timestamps)}. "
+                "No cursor skip, interpolation or fallback; inspect provider data."
+            )
+        # Sparse/empty segments are allowed but explicit missing points
+        # remain missing and are reported in per-day source coverage.
+        segment_start=segment_end
+        segment_count+=1
+        if segment_count>30:
+            raise RuntimeError(f"Too many bounded segments {symbol} {family}")
+        time.sleep(0.06)
     return [records[ts] for ts in sorted(records)]
 
 
