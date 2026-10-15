@@ -18,6 +18,7 @@ from .journal import open_journal, record_snapshot, report
 from .quality import quality_report
 from .funding_counterfactual import compare_horizons
 from .filter_funnel import funnel_report
+from .oi_shadow_outcomes import oi_shadow_outcome_report
 from .public import capture_all
 
 
@@ -137,6 +138,11 @@ def main():
         help="read-only frozen filter funnel and OI distribution (no trading)",
     )
     funnel.add_argument("--last-samples-per-symbol",type=int,default=288)
+    shadow=sub.add_parser(
+        "oi-shadow-outcomes",
+        help="offline OI-rejected setups and future book-touch marks; NOT fills",
+    )
+    shadow.add_argument("--last-samples-per-symbol",type=int,default=288)
     args=p.parse_args()
     if args.action=="observe":
         asyncio.run(_observe(args))
@@ -153,6 +159,10 @@ def main():
                 )
             elif args.action=="filter-funnel":
                 payload=funnel_report(
+                    db,last_samples_per_symbol=args.last_samples_per_symbol,
+                )
+            elif args.action=="oi-shadow-outcomes":
+                payload=oi_shadow_outcome_report(
                     db,last_samples_per_symbol=args.last_samples_per_symbol,
                 )
             else:
