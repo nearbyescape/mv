@@ -412,11 +412,35 @@ def main():
         datetime.fromtimestamp(t["signal_ms"]/1000,IST).date().isoformat()
         for t in trades
     }
+    day_ids=[]
+    cursor=START.date()
+    while _utc_ms(datetime(cursor.year,cursor.month,cursor.day,tzinfo=IST))<end_ms:
+        day_ids.append(cursor.isoformat())
+        cursor+=timedelta(days=1)
     by_day={
         day:_stats([t for t in trades
                     if datetime.fromtimestamp(t["signal_ms"]/1000,IST).date().isoformat()==day])
-        for day in sorted(all_days)
+        for day in day_ids
     }
+    by_day_source_coverage={}
+    for day in day_ids:
+        day_dt=datetime.fromisoformat(day).replace(tzinfo=IST)
+        dstart=max(start_ms,_utc_ms(day_dt))
+        dend=min(end_ms,_utc_ms(day_dt+timedelta(days=1)))
+        expected=(dend-dstart)//PERIOD_MS
+        by_day_source_coverage[day]={
+            "nominal_closed_5m_intervals":expected,
+            "markets":{
+                symbol:{
+                    family:sum(
+                        dstart<=_get_time(row,ROUTES[family][1])<dend
+                        for row in hist[symbol][family]
+                    )
+                    for family in ("klines","oi","taker")
+                }
+                for symbol in SYMBOLS
+            },
+        }
     result={
         "kind":"OCT_7_TO_15_2026_PARTIAL_RULE_PROXY_NOT_V7",
         "original_V7_policy_sha256_reference_only":POLICY_SHA,
@@ -468,6 +492,7 @@ def main():
         "descriptive_proxy_results":_stats(trades),
         "by_symbol":{symbol:_stats([t for t in trades if t["symbol"]==symbol]) for symbol in SYMBOLS},
         "by_signal_day_IST":by_day,
+        "by_day_source_coverage_IST":by_day_source_coverage,
         "trades":trades,
         "verdict":"PROXY_ONLY_CANNOT_APPROVE_OR_REJECT_ORIGINAL_V7",
         "warnings":[
