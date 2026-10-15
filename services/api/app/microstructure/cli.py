@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 import time
 
+import httpx
+
 from filelock import FileLock, Timeout
 
 from .core import PARAMETERS, SYMBOLS
@@ -32,6 +34,34 @@ def _path(value:str) -> Path:
 # Two seconds is a transport/scheduler guard; the classifier threshold is
 # unchanged, and we never invent or timestamp-shift an exchange observation.
 CAPTURE_GUARD_MS = 2_000
+
+# A bounded number of failed FULL-BATCH observations may be retried at the
+# normal five-minute cadence. Legal/rate-limit errors ALWAYS halt; SQLite
+# writes and unexpected programming/runtime errors also halt immediately.
+MAX_CONSECUTIVE_TRANSIENT_GAPS = 3
+
+
+def _transient_market_data_gap(exc: Exception) -> bool:
+    """Recognize only recoverable public reads and invalid transient snapshots.
+
+    Never retry rate limits (418/429), region restrictions (451), other 4xx,
+    DB or programming faults; no fallback host or exchange order endpoint.
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return 500 <= exc.response.status_code <= 599
+    return isinstance(exc, (
+        httpx.TimeoutException,
+        httpx.NetworkError,
+        httpx.RemoteProtocolError,
+        ValueError,
+    ))
+
+
+def _market_gap_label(exc: Exception) -> str:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP_{exc.response.status_code}"
+    return type(exc).__name__
+
 
 
 def _seconds_until_capture(conn, observed_wall_ms: int, cadence_seconds: int) -> float:
@@ -69,6 +99,7 @@ async def _observe(args):
         with lock:
             with open_journal(dbfile) as db:
                 completed=0
+                consecutive_gaps=0
                 while args.iterations==0 or completed<args.iterations:
                     # A 300s start-to-start timer is NOT sufficient: the
                     # last observed receive timestamp may shift by ~100ms.
@@ -84,7 +115,35 @@ async def _observe(args):
                         await asyncio.sleep(remaining)
                     # No partial six-market batch. An unavailable public
                     # source is not silently turned into a scored candidate.
-                    captures=await capture_all()
+                    try:
+                        captures=await capture_all()
+                    except Exception as exc:
+                        if args.iterations != 0 or not _transient_market_data_gap(exc):
+                            raise
+                        # The collector may continue after a transient network
+                        # or data-quality gap, but NEVER commits a partial
+                        # six-coin batch or invents a replacement observation.
+                        consecutive_gaps+=1
+                        will_retry=consecutive_gaps<MAX_CONSECUTIVE_TRANSIENT_GAPS
+                        print(json.dumps({
+                            "kind":"PUBLIC_MARKET_PAPER_COLLECTION_GAP",
+                            "error_code":_market_gap_label(exc),
+                            "consecutive_gaps":consecutive_gaps,
+                            "retry_after_seconds":args.interval_seconds if will_retry else None,
+                            "observations_committed":0,
+                            "client_publication_authorized":False,
+                            "submitted_orders":0,"sent_telegram":0,
+                        },sort_keys=True),flush=True)
+                        if not will_retry:
+                            raise RuntimeError(
+                                "PUBLIC_RESEARCH_COLLECTION_HALTED_REQUIRES_OPERATOR_REVIEW"
+                            ) from exc
+                        # Do not retry within a five-minute candle. This
+                        # deliberate gap makes subsequent classifier windows
+                        # fail closed until two valid fresh samples exist.
+                        await asyncio.sleep(args.interval_seconds)
+                        continue
+                    consecutive_gaps=0
                     decisions=[]
                     for item in captures:
                         result=record_snapshot(db,item)
