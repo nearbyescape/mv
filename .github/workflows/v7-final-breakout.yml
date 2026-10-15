@@ -1,0 +1,90 @@
+name: V7 final breakout offline acceptance (NEVER SEND)
+
+on:
+  pull_request:
+    branches:
+      - codex/v7sonic-costed-recovery-study
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  six-month-breakout:
+    name: Exact frozen breakout research and failed-model comparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}/services/api:${{ github.workspace }}/services/api/tests
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Compile and unit safety tests (offline)
+        run: |
+          python -m compileall -q services/api/app/research/v7_final_breakout*.py
+          python -m unittest discover -s services/api/tests -p 'test_v7_final_breakout.py' -v
+          python -m unittest discover -s services/api/tests -p 'test_v7_recovery_study.py' -q
+      - name: Retrieve complete six-month public archives with publisher checksums
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/v7-final-data"
+          python -m app.research.v7_recovery_acquire \
+            --data-root "$RUNNER_TEMP/v7-final-data" \
+            --acquire --acknowledge-public-download YES \
+            > "$RUNNER_TEMP/v7-final-download.json"
+          python - <<'PY'
+          import os,json
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/v7-final-download.json"))
+          assert p["archive_pairs"]==36
+          assert p["orders_submitted"]==0
+          print("ALL 36 PUBLISHER-CHECKSUM ARCHIVE PAIRS VERIFIED")
+          PY
+      - name: Run old and breakout strategies using exact same original bars
+        run: |
+          python -m app.research.v7_final_breakout_evaluate \
+            --data-root "$RUNNER_TEMP/v7-final-data" \
+            --output "$RUNNER_TEMP/v7-final-comparison.json"
+          python - <<'PY'
+          import os,json
+          p=json.load(open(os.environ["RUNNER_TEMP"]+"/v7-final-comparison.json"))
+          assert p["status"]=="V7_FINAL_HISTORICAL_COSTED_COMPARISON_NO_TRADING"
+          assert len(p["markets"])==6
+          assert len(p["months"])==6
+          assert all(count==17568 for count in p["15m_complete_rows_per_market"].values())
+          assert p["production_deployment_authorized"] is False
+          assert p["client_publication_authorized"] is False
+          assert p["telegram_messages_sent"]==0
+          assert p["orders_submitted"]==0
+          old=p["prior_failed_paper_model"]
+          new=p["candidate_breakout_model"]
+          print("=== FROZEN HISTORICAL EVALUATION: EVIDENCE NOT PRODUCTION CERTIFICATION ===")
+          print("Policy SHA",p["frozen_policy_sha256"])
+          print("BASELINE | proposals",old["proposals"],"selected",old["selected"])
+          print("BASELINE | netR",old["aggregate"]["mean_costed_R_per_closed_reference"])
+          print("BASELINE | 95pct",old["aggregate"]["day_cluster_bootstrap_mean_R_95pct"])
+          print("BREAKOUT | proposals",new["proposals"],"selected",new["selected"])
+          print("BREAKOUT | closed",new["aggregate"]["hypothetical_closed_ideas"])
+          print("BREAKOUT | win rate",new["aggregate"]["win_rate"])
+          print("BREAKOUT | mean netR",new["aggregate"]["mean_costed_R_per_closed_reference"])
+          print("BREAKOUT | 95pct",new["aggregate"]["day_cluster_bootstrap_mean_R_95pct"])
+          print("BREAKOUT | drawdown",new["aggregate"]["illustrative_closed_trades_only_max_drawdown"])
+          for label,part in new["chronological_blocks"].items():
+              print("PERIOD",label,"trades",part["hypothetical_closed_ideas"],
+                    "meanR",part["mean_costed_R_per_closed_reference"],
+                    "CI",part["day_cluster_bootstrap_mean_R_95pct"])
+          print("EXPLORATORY_GATES",p["research_meets_exploratory_pre_specified_gate"])
+          print("CLIENT PUBLICATION: PROHIBITED")
+          PY
+      - name: Retain immutable-style evidence report artifact for review
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v7-final-breakout-research-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/v7-final-download.json
+            ${{ runner.temp }}/v7-final-comparison.json
+          if-no-files-found: warn
+          retention-days: 30
