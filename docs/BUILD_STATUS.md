@@ -1,6 +1,6 @@
 # Phased delivery status
 
-Milestone: **6 October 2026 — release 0.13.0/schema 0008 is deployed and its V3 engine is running; release 0.14.0 MV-TREND-DUAL-v4 is under validation**. V4 preserves the V3 financial core and adds a completed BTC 15-minute hard-contradiction veto, a two-signal same-direction source-close cap and a deterioration-triggered directional circuit breaker. V2/V3 history remains preserved.
+Milestone: **17 October 2026 — V4 release 0.14.0 is the repository development baseline; production engine status must be independently rechecked before any restart**. V4 was cut over on 7 October 2026 at schema 0008, but the last verified VPS state (14 October 2026) had the V4 engine stopped with restart disabled. V4 retains the V3 financial core and adds the completed BTC 15-minute hard-contradiction veto, directional concentration limits and deterioration circuit breaker. V2/V3 history remains preserved; V5/V6HBR/V7Sonic experimental PRs are retired. See [V4 working baseline](V4_WORKING_BASELINE.md).
 
 | Phase | Status | Exit evidence |
 | --- | --- | --- |
@@ -19,11 +19,11 @@ Milestone: **6 October 2026 — release 0.13.0/schema 0008 is deployed and its V
 | 10. Hardening and hosting | Core deployed and checked on VPS | Public trusted HTTPS, owner onboarding, live PostgreSQL/market workers, VPS backup restore and preservation of existing websites; endurance/off-server transport remain pending |
 | 11. Forward paper pilot | Canceled by owner; originals preserved | Observer stopped, default disabled, omitted from live workflow; no continuity or assessment claim |
 
-## Release 0.14.0 V4 market-safety candidate
+## Release 0.14.0 V4 market-safety implementation
 
-Implemented on `codex/mv-v4-market-safety-governor`: V4 keeps V3 setup/risk arithmetic and adds a fail-closed BTC completed-15m hard-contradiction veto, deterministic candidate ranking, a maximum of two same-direction publications per exact 1H source close, a six-plan unresolved same-direction exposure ceiling and a two-hour directional circuit breaker after two recent signals reach -0.5R before +0.5R. Market Safety Mode is exposed on the signal feed and web workspace. BTC 15m is collected only for BTCUSDT. No schema migration is required beyond live schema 0008.
+Merged into `main` from `codex/mv-v4-market-safety-governor`: V4 keeps V3 setup/risk arithmetic and adds a fail-closed BTC completed-15m hard-contradiction veto, deterministic candidate ranking, a maximum of two same-direction publications per exact 1H source close, a six-plan unresolved same-direction exposure ceiling and a two-hour directional circuit breaker after two recent signals reach -0.5R before +0.5R. Market Safety Mode is exposed on the signal feed and web workspace. BTC 15m is collected only for BTCUSDT. No schema migration is required beyond live schema 0008.
 
-The V4 implementation is a safety response to observed correlated clustering, not a profitability claim. Production remains on V3 while the V4 candidate passes CI, packaged-image and controlled VPS gates. See [V4 strategy contract](STRATEGY_V4.md).
+The V4 implementation is a safety response to correlated clustering, not a profitability claim. Its controlled 0.14.0 VPS cutover was completed on 7 October 2026. On 14 October 2026 the engine was last confirmed intentionally stopped with restart disabled; its current state is not inferred from source-control status. Keep production suspended until a separately approved, verified restart. See [V4 strategy contract](STRATEGY_V4.md).
 
 ## Release 0.13.0 V3 production release
 

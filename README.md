@@ -2,13 +2,13 @@
 
 A private Binance futures signal workspace: EMA20 + EMA50 + SMA200 + Wilder ATR14. Deterministic backend rules create signals; a separate OpenRouter worker explains immutable evidence asynchronously. No exchange orders are placed.
 
-## Release 0.14.0 candidate — MV-TREND-DUAL-v4
+## Release 0.14.0 — MV-TREND-DUAL-v4
 
 Release 0.14.0 preserves the V3 financial core and adds a client-facing market-safety governor. Before publication, V4 uses completed BTC 15-minute data only as a hard opposite-regime veto, caps one exact 1H close at two same-direction publications, refuses to add a seventh unresolved reference plan in the same direction, and pauses a direction for two hours when two recent V4 signals reach -0.5R before +0.5R. Mixed or neutral BTC 15-minute structure does not veto a valid 1H/4H setup. The 15-minute layer cannot originate signals. Candidates inside a same-direction cluster are ranked deterministically by lower recent-run ATR, lower EMA20 extension, established regime, then symbol.
 
 The V3 two-ATR stop and TP1/TP2/TP3 30/30/40 reference management remain unchanged. The signal feed exposes Market Safety Mode when a directional circuit breaker is active. See [V4 strategy contract](docs/STRATEGY_V4.md).
 
-**Production is currently release 0.13.0 / schema 0008 with the V3 engine running. Its first production startup established 30 durable baselines with zero retroactive V3 publications. Release 0.14.0 remains isolated until validation and a controlled cutover.**
+**Status checkpoint (17 October 2026):** Repository `main` implements V4 on release 0.14.0 and retains database schema 0008. The V4 VPS cutover completed on 7 October 2026. The last verified VPS state (14 October 2026) had the V4 engine intentionally stopped with Docker restart disabled, while research remained isolated. This dated checkpoint is **not** a live health confirmation and does **not** authorize restarting signals. V5, V6HBR, and V7Sonic/T7Sonic were not merged into `main`; their experimental PRs were closed. See [V4-only working baseline](docs/V4_WORKING_BASELINE.md).
 
 ## Release 0.13.0 — MV-TREND-DUAL-v3
 
